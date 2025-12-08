@@ -18,7 +18,7 @@ export const parseIfThenElse = (
     ...refs,
     path: [...refs.path, "else"],
   });
-  return `z.union([${$then}, ${$else}]).superRefine((value,ctx) => {
+  let result = `z.union([${$then}, ${$else}]).superRefine((value,ctx) => {
   const result = ${$if}.safeParse(value).success
     ? ${$then}.safeParse(value)
     : ${$else}.safeParse(value);
@@ -26,4 +26,16 @@ export const parseIfThenElse = (
     result.error.errors.forEach((error) => ctx.addIssue(error))
   }
 })`;
+
+  // Store original if/then/else for JSON Schema round-trip
+  if (refs.preserveJsonSchemaForRoundTrip) {
+    const conditionalMeta = JSON.stringify({
+      if: schema.if,
+      then: schema.then,
+      else: schema.else,
+    });
+    result += `.meta({ __jsonSchema: { conditional: ${conditionalMeta} } })`;
+  }
+
+  return result;
 };

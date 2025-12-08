@@ -1,5 +1,6 @@
 export * from "./Types.js"
 export * from "./jsonSchemaToZod.js"
+export * from "./zodToJsonSchema.js"
 export * from "./parsers/parseAllOf.js"
 export * from "./parsers/parseAnyOf.js"
 export * from "./parsers/parseArray.js"

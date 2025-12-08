@@ -59,7 +59,7 @@ export const parseSchema = (
   let parsed = selectParser(schema, refs);
   if (!blockMeta) {
     if (!refs.withoutDescribes) {
-      parsed = addDescribes(schema, parsed);
+      parsed = addDescribes(schema, parsed, refs);
     }
 
     if (!refs.withoutDefaults) {
@@ -74,8 +74,21 @@ export const parseSchema = (
   return parsed;
 };
 
-const addDescribes = (schema: JsonSchemaObject, parsed: string): string => {
-  if (schema.description) {
+const addDescribes = (schema: JsonSchemaObject, parsed: string, refs?: Refs): string => {
+  // Use .meta() for richer metadata when withMeta is enabled
+  if (refs?.withMeta) {
+    const meta: Record<string, unknown> = {};
+
+    if (schema.$id) meta.id = schema.$id;
+    if (schema.title) meta.title = schema.title;
+    if (schema.description) meta.description = schema.description;
+    if (schema.examples) meta.examples = schema.examples;
+    if (schema.deprecated) meta.deprecated = schema.deprecated;
+
+    if (Object.keys(meta).length > 0) {
+      parsed += `.meta(${JSON.stringify(meta)})`;
+    }
+  } else if (schema.description) {
     parsed += `.describe(${JSON.stringify(schema.description)})`;
   }
 

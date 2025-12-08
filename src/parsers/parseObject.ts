@@ -3,6 +3,7 @@ import { parseAnyOf } from "./parseAnyOf.js";
 import { parseOneOf } from "./parseOneOf.js";
 import { its, parseSchema } from "./parseSchema.js";
 import { parseAllOf } from "./parseAllOf.js";
+import { parseIfThenElse } from "./parseIfThenElse.js";
 import { addJsdocs } from "../utils/jsdocs.js";
 
 export function parseObject(
@@ -165,6 +166,19 @@ export function parseObject(
     }
     patternProperties += "}\n";
     patternProperties += "})";
+
+    // Store original patternProperties in meta for JSON Schema round-trip
+    if (refs.preserveJsonSchemaForRoundTrip) {
+      const patternPropsJson = JSON.stringify(
+        Object.fromEntries(
+          Object.entries(objectSchema.patternProperties).map(([pattern, schema]) => [
+            pattern,
+            schema
+          ])
+        )
+      );
+      patternProperties += `.meta({ __jsonSchema: { patternProperties: ${patternPropsJson} } })`;
+    }
   }
 
   let output = properties
@@ -225,6 +239,14 @@ export function parseObject(
             : x,
         ) as any,
       },
+      refs,
+    )})`;
+  }
+
+  // Handle if/then/else conditionals on object schemas
+  if (its.a.conditional(objectSchema)) {
+    output += `.and(${parseIfThenElse(
+      objectSchema as Parameters<typeof parseIfThenElse>[0],
       refs,
     )})`;
   }

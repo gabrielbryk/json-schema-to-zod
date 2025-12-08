@@ -69,10 +69,18 @@ export type Options = {
   withoutDefaults?: boolean;
   withoutDescribes?: boolean;
   withJsdocs?: boolean;
+  /** Use .meta() instead of .describe() - includes id, title, description */
+  withMeta?: boolean;
   parserOverride?: ParserOverride;
   depth?: number;
   type?: boolean | string;
-  noImport?: boolean
+  noImport?: boolean;
+  /**
+   * Store original JSON Schema constructs in .meta({ __jsonSchema: {...} })
+   * for features that can't be natively represented in Zod (patternProperties,
+   * if/then/else, etc.). This enables round-trip conversion back to JSON Schema.
+   */
+  preserveJsonSchemaForRoundTrip?: boolean;
 };
 
 export type Refs = Options & {
