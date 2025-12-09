@@ -18,17 +18,15 @@ export type JsonSchemaObject = {
   description?: string;
   examples?: Serializable[];
   deprecated?: boolean;
-  propertyNames?: JsonSchema;
   dependentSchemas?: Record<string, JsonSchema>;
   contains?: JsonSchema;
   minContains?: number;
   maxContains?: number;
-  unevaluatedProperties?: boolean | JsonSchema;
 
   // object
   properties?: { [key: string]: JsonSchema };
   additionalProperties?: JsonSchema;
-  unevaluatedProperties?: JsonSchema;
+  unevaluatedProperties?: boolean | JsonSchema;
   patternProperties?: { [key: string]: JsonSchema };
   minProperties?: number;
   maxProperties?: number;

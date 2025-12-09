@@ -1,4 +1,4 @@
-import { SimpleDiscriminatedOneOfSchema, Refs } from "../Types.js";
+import { SimpleDiscriminatedOneOfSchema, Refs, JsonSchemaObject } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 
 export const parseSimpleDiscriminatedOneOf = (
@@ -8,7 +8,8 @@ export const parseSimpleDiscriminatedOneOf = (
   const discriminator = schema.discriminator.propertyName;
 
   const entries = schema.oneOf.map((option, i) => {
-    const discriminatorSchema = option.properties[discriminator];
+    const opt = option as JsonSchemaObject & { properties: Record<string, JsonSchemaObject> };
+    const discriminatorSchema = opt.properties[discriminator];
     const value =
       (discriminatorSchema as any).const ??
       ((discriminatorSchema as any).enum && (discriminatorSchema as any).enum[0]);

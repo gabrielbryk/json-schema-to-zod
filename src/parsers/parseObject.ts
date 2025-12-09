@@ -207,7 +207,7 @@ export function parseObject(
 
   if (unevaluated === false && properties) {
     output += ".strict()";
-  } else if (unevaluated && unevaluated !== true && unevaluated !== false) {
+  } else if (unevaluated && typeof unevaluated !== 'boolean') {
     const unevaluatedSchema = parseSchema(unevaluated, {
       ...refs,
       path: [...refs.path, "unevaluatedProperties"],
