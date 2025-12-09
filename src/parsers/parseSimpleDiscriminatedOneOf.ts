@@ -8,22 +8,12 @@ export const parseSimpleDiscriminatedOneOf = (
 ) => {
   const discriminator = schema.discriminator.propertyName;
 
-  const entries = schema.oneOf.map((option, i) => {
-    const opt = option as JsonSchemaObject & { properties: Record<string, JsonSchemaObject> };
-    const discriminatorSchema = opt.properties[discriminator];
-    const value =
-      (discriminatorSchema as any).const ??
-      ((discriminatorSchema as any).enum && (discriminatorSchema as any).enum[0]);
-
-    const parsed = parseSchema(option, {
+  const options = schema.oneOf.map((option, i) =>
+    parseSchema(option, {
       ...refs,
       path: [...refs.path, "oneOf", i],
-    });
-
-    const key = typeof value === "string" ? JSON.stringify(value) : JSON.stringify(String(value));
-
-    return `${key}: ${parsed}`;
-  });
+    }),
+  );
 
   return schema.oneOf.length
     ? schema.oneOf.length === 1
@@ -31,6 +21,6 @@ export const parseSimpleDiscriminatedOneOf = (
           ...refs,
           path: [...refs.path, "oneOf", 0],
         })
-      : `z.discriminatedUnion("${discriminator}", { ${entries.join(", ")} })`
+      : `z.discriminatedUnion("${discriminator}", [${options.join(", ")}])`
     : anyOrUnknown(refs);
 };

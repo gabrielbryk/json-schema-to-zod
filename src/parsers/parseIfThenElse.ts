@@ -23,7 +23,7 @@ export const parseIfThenElse = (
     ? ${$then}.safeParse(value)
     : ${$else}.safeParse(value);
   if (!result.success) {
-    result.error.issues.forEach((issue) => ctx.addIssue({...issue}))
+    result.error.errors.forEach((error) => ctx.addIssue(error))
   }
 })`;
 

@@ -410,7 +410,7 @@ export default Node
       jsonSchemaToZod(schema, { module: "esm" }),
       `import { z } from "zod"
 
-export default z.discriminatedUnion("kind", { "a": z.object({ "kind": z.literal("a"), "value": z.string() }), "b": z.object({ "kind": z.literal("b"), "flag": z.boolean() }) })
+export default z.discriminatedUnion("kind", [z.object({ "kind": z.literal("a"), "value": z.string() }), z.object({ "kind": z.literal("b"), "flag": z.boolean() })])
 `,
     );
   });

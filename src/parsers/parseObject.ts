@@ -101,16 +101,16 @@ export function parseObject(
       }
     } else {
       if (additionalProperties) {
-        patternProperties += `z.record(z.string(), z.union([${[
+        patternProperties += `z.record(z.union([${[
           ...Object.values(parsedPatternProperties),
           additionalProperties,
         ].join(", ")}]))`;
       } else if (Object.keys(parsedPatternProperties).length > 1) {
-        patternProperties += `z.record(z.string(), z.union([${Object.values(
+        patternProperties += `z.record(z.union([${Object.values(
           parsedPatternProperties,
         ).join(", ")}]))`;
       } else {
-        patternProperties += `z.record(z.string(), ${Object.values(
+        patternProperties += `z.record(${Object.values(
           parsedPatternProperties,
         )})`;
       }
@@ -133,8 +133,9 @@ export function parseObject(
     }
 
     for (const key in objectSchema.patternProperties) {
+      const escapedPattern = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       patternProperties +=
-        "if (key.match(new RegExp(" + JSON.stringify(key) + "))) {\n";
+        "if (key.match(new RegExp(" + JSON.stringify(escapedPattern) + "))) {\n";
       if (additionalProperties) {
         patternProperties += "evaluated = true\n";
       }
@@ -145,7 +146,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [key],
+          path: [...ctx.path, key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -164,7 +165,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [key],
+          path: [...ctx.path, key],
           code: 'custom',
           message: \`Invalid input: must match catchall schema\`,
           params: {
@@ -192,10 +193,10 @@ export function parseObject(
     }
   }
 
-  // Check if there will be an .and() call that adds properties from oneOf/anyOf/allOf
+  // Check if there will be an .and() call that adds properties from oneOf/anyOf/allOf/if-then-else
   // In that case, we should NOT use .strict() because it will reject the additional keys
   // before the union gets a chance to validate them.
-  const hasCompositionKeywords = its.an.anyOf(objectSchema) || its.a.oneOf(objectSchema) || its.an.allOf(objectSchema);
+  const hasCompositionKeywords = its.an.anyOf(objectSchema) || its.a.oneOf(objectSchema) || its.an.allOf(objectSchema) || its.a.conditional(objectSchema);
 
   let output = properties
     ? patternProperties
@@ -211,8 +212,8 @@ export function parseObject(
     : patternProperties
       ? patternProperties
       : additionalProperties
-        ? `z.record(z.string(), ${additionalProperties})`
-        : `z.record(z.string(), ${anyOrUnknown(refs)})`;
+        ? `z.record(${additionalProperties})`
+        : `z.record(${anyOrUnknown(refs)})`;
 
   if (unevaluated === false && properties && !hasCompositionKeywords) {
     output += ".strict()";
