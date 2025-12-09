@@ -12,7 +12,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.record(z.any())`
+      `z.record(z.string(), z.any())`
     )
   });
 
@@ -118,7 +118,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      "z.record(z.never())",
+      "z.record(z.string(), z.never())",
     );
   });
 
@@ -131,7 +131,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      "z.record(z.any())",
+      "z.record(z.string(), z.any())",
     );
   });
 
@@ -145,7 +145,7 @@ suite("parseObject", (test) => {
 
         { path: [], seen: new Map() },
       ),
-      "z.record(z.number())",
+      "z.record(z.string(), z.number())",
     );
   });
 
@@ -550,7 +550,7 @@ ctx.addIssue({
       additionalProperties: { type: "boolean" },
     };
 
-    const expected = "z.record(z.boolean())";
+    const expected = "z.record(z.string(), z.boolean())";
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
@@ -567,7 +567,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
+    const expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
 for (const key in value) {
 let evaluated = false
 if (key.match(new RegExp(\"\\\\.\"))) {
@@ -629,7 +629,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.array(z.any())).superRefine((value, ctx) => {
+    const expected = `z.record(z.string(), z.array(z.any())).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp("\\\\."))) {
 const result = z.array(z.any()).safeParse(value[key])
@@ -661,7 +661,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
+    const expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp(\"\\\\.\"))) {
 const result = z.array(z.any()).safeParse(value[key])

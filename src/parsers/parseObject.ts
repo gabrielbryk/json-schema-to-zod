@@ -101,16 +101,16 @@ export function parseObject(
       }
     } else {
       if (additionalProperties) {
-        patternProperties += `z.record(z.union([${[
+        patternProperties += `z.record(z.string(), z.union([${[
           ...Object.values(parsedPatternProperties),
           additionalProperties,
         ].join(", ")}]))`;
       } else if (Object.keys(parsedPatternProperties).length > 1) {
-        patternProperties += `z.record(z.union([${Object.values(
+        patternProperties += `z.record(z.string(), z.union([${Object.values(
           parsedPatternProperties,
         ).join(", ")}]))`;
       } else {
-        patternProperties += `z.record(${Object.values(
+        patternProperties += `z.record(z.string(), ${Object.values(
           parsedPatternProperties,
         )})`;
       }
@@ -212,8 +212,8 @@ export function parseObject(
     : patternProperties
       ? patternProperties
       : additionalProperties
-        ? `z.record(${additionalProperties})`
-        : `z.record(${anyOrUnknown(refs)})`;
+        ? `z.record(z.string(), ${additionalProperties})`
+        : `z.record(z.string(), ${anyOrUnknown(refs)})`;
 
   if (unevaluated === false && properties && !hasCompositionKeywords) {
     output += ".strict()";
