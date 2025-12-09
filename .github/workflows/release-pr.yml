@@ -30,12 +30,11 @@ jobs:
           node-version: 20
           cache: pnpm
           registry-url: https://registry.npmjs.org
-          always-auth: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create/Update Release PR
+      - name: Create or update release PR
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
