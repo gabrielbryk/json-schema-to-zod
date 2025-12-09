@@ -10,6 +10,20 @@ export type JsonSchema = JsonSchemaObject | boolean;
 export type JsonSchemaObject = {
   // left permissive by design
   type?: string | string[];
+  $id?: string;
+  $ref?: string;
+  $defs?: Record<string, JsonSchema>;
+  definitions?: Record<string, JsonSchema>;
+  title?: string;
+  description?: string;
+  examples?: Serializable[];
+  deprecated?: boolean;
+  propertyNames?: JsonSchema;
+  dependentSchemas?: Record<string, JsonSchema>;
+  contains?: JsonSchema;
+  minContains?: number;
+  maxContains?: number;
+  unevaluatedProperties?: boolean | JsonSchema;
 
   // object
   properties?: { [key: string]: JsonSchema };
@@ -75,6 +89,8 @@ export type Options = {
   depth?: number;
   type?: boolean | string;
   noImport?: boolean;
+  /** Export all generated reference schemas (for $refs) when using ESM */
+  exportRefs?: boolean;
   /**
    * Store original JSON Schema constructs in .meta({ __jsonSchema: {...} })
    * for features that can't be natively represented in Zod (patternProperties,
@@ -86,6 +102,12 @@ export type Options = {
 export type Refs = Options & {
   path: (string | number)[];
   seen: Map<object | boolean, { n: number; r: string | undefined }>;
+  root?: JsonSchema;
+  declarations?: Map<string, string>;
+  inProgress?: Set<string>;
+  refNameByPointer?: Map<string, string>;
+  usedNames?: Set<string>;
+  currentSchemaName?: string;
 };
 
 export type SimpleDiscriminatedOneOfSchema<D extends string = string> = JsonSchemaObject & {

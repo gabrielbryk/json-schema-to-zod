@@ -177,7 +177,7 @@ export default z.string()
       ),
       `import { z } from "zod"
 
-export default z.string().describe("foo")
+export default z.string().meta({"description":"foo"})
 `,
     );
   });
@@ -229,7 +229,7 @@ export default z.string()
 /**Description for schema*/
 export default z.object({ 
 /**Description for prop*/
-"prop": z.string().describe("Description for prop").optional(), 
+"prop": z.string().meta({"description":"Description for prop"}).optional(), 
 /**
 * Description for object that is multiline
 * More content
@@ -238,9 +238,9 @@ export default z.object({
 */
 "obj": z.object({ 
 /**Description for nestedProp*/
-"nestedProp": z.string().describe("Description for nestedProp").optional(), 
+"nestedProp": z.string().meta({"description":"Description for nestedProp"}).optional(), 
 /**Description for nestedProp2*/
-"nestedProp2": z.string().describe("Description for nestedProp2").optional() }).describe("Description for object that is multiline\\nMore content\\n\\nAnd whitespace").optional() }).describe("Description for schema")
+"nestedProp2": z.string().meta({"description":"Description for nestedProp2"}).optional() }).meta({"description":"Description for object that is multiline\\nMore content\\n\\nAnd whitespace"}).optional() }).meta({"description":"Description for schema"})
 `);
   });
 
@@ -353,5 +353,152 @@ module.exports = z.string()
 
   test("can exclude name", (assert) => {
     assert(jsonSchemaToZod(true), "z.any()");
+  });
+
+  test("declares $refs as named schemas and uses getters for recursion", (assert) => {
+    const schema = {
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+            next: { $ref: "#/$defs/node" },
+          },
+          required: ["value"],
+        },
+      },
+      $ref: "#/$defs/node",
+    };
+
+    assert(
+      jsonSchemaToZod(schema, { module: "esm" }),
+      `import { z } from "zod"
+
+export const Node = z.object({ "value": z.string(), get "next"(){ return Node.optional() } })
+
+export default Node
+`,
+    );
+  });
+
+  test("uses upgraded discriminatedUnion map syntax", (assert) => {
+    const schema = {
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            kind: { const: "a" },
+            value: { type: "string" },
+          },
+          required: ["kind", "value"],
+        },
+        {
+          type: "object",
+          properties: {
+            kind: { const: "b" },
+            flag: { type: "boolean" },
+          },
+          required: ["kind", "flag"],
+        },
+      ],
+      discriminator: {
+        propertyName: "kind",
+      },
+    };
+
+    assert(
+      jsonSchemaToZod(schema, { module: "esm" }),
+      `import { z } from "zod"
+
+export default z.discriminatedUnion("kind", { "a": z.object({ "kind": z.literal("a"), "value": z.string() }), "b": z.object({ "kind": z.literal("b"), "flag": z.boolean() }) })
+`,
+    );
+  });
+
+  test("supports propertyNames validation", (assert) => {
+    const schema = {
+      type: "object",
+      propertyNames: { pattern: "^foo" },
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "s" });
+
+    assert(output.includes("Invalid property name"));
+    assert(output.includes("^foo"));
+  });
+
+  test("supports dependentSchemas", (assert) => {
+    const schema = {
+      type: "object",
+      properties: { a: { type: "string" } },
+      dependentSchemas: {
+        a: {
+          type: "object",
+          properties: { b: { type: "number" } },
+          required: ["b"],
+        },
+      },
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "s" });
+
+    assert(output.includes("Dependent schema failed"));
+  });
+
+  test("supports contains with min/max contains", (assert) => {
+    const schema = {
+      type: "array",
+      contains: { type: "string" },
+      minContains: 2,
+      maxContains: 3,
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "arr" });
+
+    assert(output.includes("matches < 2"));
+    assert(output.includes("> 3"));
+  });
+
+  test("supports contains on tuples", (assert) => {
+    const schema = {
+      type: "array",
+      items: [{ type: "string" }, { type: "number" }],
+      contains: { type: "number" },
+      minContains: 1,
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "tuple" });
+
+    assert(output.includes("Array contains too few matching items"));
+    assert(output.includes("z.tuple"));
+  });
+
+  test("supports unevaluatedProperties schema", (assert) => {
+    const schema = {
+      type: "object",
+      properties: { known: { type: "string" } },
+      unevaluatedProperties: { type: "number" },
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "obj" });
+
+    assert(output.includes("Invalid unevaluated property"));
+  });
+
+  test("can export reference declarations when requested", (assert) => {
+    const schema = {
+      $defs: {
+        node: {
+          type: "object",
+          properties: { value: { type: "string" }, next: { $ref: "#/$defs/node" } },
+        },
+      },
+      $ref: "#/$defs/node",
+    };
+
+    const output = jsonSchemaToZod(schema, { module: "esm", name: "Node", exportRefs: true });
+
+    assert(output.includes("export const Node2"));
+    assert(output.includes("export const Node = Node2"));
   });
 });

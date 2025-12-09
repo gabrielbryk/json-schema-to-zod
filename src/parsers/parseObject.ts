@@ -22,14 +22,10 @@ export function parseObject(
         .map((key) => {
           const propSchema = objectSchema.properties![key];
 
-          let result = `${JSON.stringify(key)}: ${parseSchema(propSchema, {
+          const parsedProp = parseSchema(propSchema, {
             ...refs,
             path: [...refs.path, "properties", key],
-          })}`;
-
-          if (refs.withJsdocs && typeof propSchema === "object") {
-            result = addJsdocs(propSchema, result)
-          }
+          });
 
           const hasDefault =
             typeof propSchema === "object" && propSchema.default !== undefined;
@@ -40,7 +36,19 @@ export function parseObject(
 
           const optional = !hasDefault && !required;
 
-          return optional ? `${result}.optional()` : result;
+          const valueWithOptional = optional
+            ? `${parsedProp}.optional()`
+            : parsedProp;
+
+          let result = shouldUseGetter(valueWithOptional, refs)
+            ? `get ${JSON.stringify(key)}(){ return ${valueWithOptional} }`
+            : `${JSON.stringify(key)}: ${valueWithOptional}`;
+
+          if (refs.withJsdocs && typeof propSchema === "object") {
+            result = addJsdocs(propSchema, result)
+          }
+
+          return result;
         })
         .join(", ");
 
@@ -55,6 +63,8 @@ export function parseObject(
           path: [...refs.path, "additionalProperties"],
         })
       : undefined;
+
+  const unevaluated = objectSchema.unevaluatedProperties;
 
   let patternProperties: string | undefined = undefined;
 
@@ -90,16 +100,16 @@ export function parseObject(
       }
     } else {
       if (additionalProperties) {
-        patternProperties += `z.record(z.union([${[
+        patternProperties += `z.record(z.string(), z.union([${[
           ...Object.values(parsedPatternProperties),
           additionalProperties,
         ].join(", ")}]))`;
       } else if (Object.keys(parsedPatternProperties).length > 1) {
-        patternProperties += `z.record(z.union([${Object.values(
+        patternProperties += `z.record(z.string(), z.union([${Object.values(
           parsedPatternProperties,
         ).join(", ")}]))`;
       } else {
-        patternProperties += `z.record(${Object.values(
+        patternProperties += `z.record(z.string(), ${Object.values(
           parsedPatternProperties,
         )})`;
       }
@@ -134,7 +144,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -153,7 +163,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [key],
           code: 'custom',
           message: \`Invalid input: must match catchall schema\`,
           params: {
@@ -192,8 +202,35 @@ export function parseObject(
     : patternProperties
       ? patternProperties
       : additionalProperties
-        ? `z.record(${additionalProperties})`
-        : "z.record(z.any())";
+        ? `z.record(z.string(), ${additionalProperties})`
+        : "z.record(z.string(), z.any())";
+
+  if (unevaluated === false && properties) {
+    output += ".strict()";
+  } else if (unevaluated && unevaluated !== true && unevaluated !== false) {
+    const unevaluatedSchema = parseSchema(unevaluated, {
+      ...refs,
+      path: [...refs.path, "unevaluatedProperties"],
+    });
+
+    const knownKeys = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
+    const patterns = objectSchema.patternProperties
+      ? Object.keys(objectSchema.patternProperties).map((p) => new RegExp(p))
+      : [];
+
+    output += `.superRefine((value, ctx) => {
+  for (const key in value) {
+    const isKnown = ${JSON.stringify(knownKeys)}.includes(key);
+    const matchesPattern = ${patterns.length ? "[" + patterns.map((r) => r.toString()).join(",") + "]" : "[]"}.some((r) => r.test(key));
+    if (!isKnown && !matchesPattern) {
+      const result = ${unevaluatedSchema}.safeParse(value[key]);
+      if (!result.success) {
+        ctx.addIssue({ code: "custom", path: [key], message: "Invalid unevaluated property", params: { issues: result.error.issues } });
+      }
+    }
+  }
+})`;
+  }
 
   if (its.an.anyOf(objectSchema)) {
     output += `.and(${parseAnyOf(
@@ -251,5 +288,64 @@ export function parseObject(
     )})`;
   }
 
+  // propertyNames
+  if (objectSchema.propertyNames) {
+    const normalizedPropNames =
+      typeof objectSchema.propertyNames === "object" &&
+      !objectSchema.propertyNames.type &&
+      (objectSchema.propertyNames as any).pattern
+        ? { ...objectSchema.propertyNames, type: "string" }
+        : objectSchema.propertyNames;
+
+    const propNameSchema = parseSchema(normalizedPropNames, {
+      ...refs,
+      path: [...refs.path, "propertyNames"],
+    });
+
+    output += `.superRefine((value, ctx) => {
+  for (const key in value) {
+    const result = ${propNameSchema}.safeParse(key);
+    if (!result.success) {
+      ctx.addIssue({
+        path: [key],
+        code: "custom",
+        message: "Invalid property name",
+        params: { issues: result.error.issues }
+      });
+    }
+  }
+})`;
+  }
+
+  // dependentSchemas
+  if (objectSchema.dependentSchemas && typeof objectSchema.dependentSchemas === "object") {
+    const entries = Object.entries(objectSchema.dependentSchemas);
+    if (entries.length) {
+      output += `.superRefine((obj, ctx) => {
+  ${entries
+    .map(([key, schema], idx) => {
+      const parsed = parseSchema(schema, { ...refs, path: [...refs.path, "dependentSchemas", key] });
+      return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(key)})) {
+    const result = ${parsed}.safeParse(obj);
+    if (!result.success) {
+      ctx.addIssue({ code: "custom", message: "Dependent schema failed", path: [], params: { issues: result.error.issues } });
+    }
+  }`;
+    })
+    .join("\n  ")}
+})`;
+    }
+  }
+
   return output;
 }
+
+const shouldUseGetter = (parsed: string, refs: Refs): boolean => {
+  if (!parsed) return false;
+
+  if (refs.currentSchemaName && parsed.includes(refs.currentSchemaName)) {
+    return true;
+  }
+
+  return Boolean(refs.inProgress && refs.inProgress.has(parsed));
+};

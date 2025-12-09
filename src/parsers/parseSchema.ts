@@ -29,6 +29,13 @@ export const parseSchema = (
   refs: Refs = { seen: new Map(), path: [] },
   blockMeta?: boolean,
 ): string => {
+  // Ensure ref bookkeeping exists so $ref declarations and getter-based recursion work
+  refs.root = refs.root ?? schema;
+  refs.declarations = refs.declarations ?? new Map();
+  refs.inProgress = refs.inProgress ?? new Set();
+  refs.refNameByPointer = refs.refNameByPointer ?? new Map();
+  refs.usedNames = refs.usedNames ?? new Set();
+
   if (typeof schema !== "object") return schema ? "z.any()" : "z.never()";
 
   if (refs.parserOverride) {
@@ -56,6 +63,12 @@ export const parseSchema = (
     refs.seen.set(schema, seen);
   }
 
+  if (its.a.ref(schema)) {
+    const parsedRef = parseRef(schema, refs);
+    seen.r = parsedRef;
+    return parsedRef;
+  }
+
   let parsed = selectParser(schema, refs);
   if (!blockMeta) {
     if (!refs.withoutDescribes) {
@@ -72,6 +85,31 @@ export const parseSchema = (
   seen.r = parsed;
 
   return parsed;
+};
+
+const parseRef = (schema: JsonSchemaObject & { $ref: string }, refs: Refs): string => {
+  const resolved = resolveRef(refs.root, schema.$ref);
+
+  if (!resolved) {
+    return "z.any()";
+  }
+
+  const { schema: target, path } = resolved;
+  const refName = getOrCreateRefName(schema.$ref, path, refs);
+
+  if (!refs.declarations!.has(refName) && !refs.inProgress!.has(refName)) {
+    refs.inProgress!.add(refName);
+    const declaration = parseSchema(target, {
+      ...refs,
+      path,
+      currentSchemaName: refName,
+      root: refs.root,
+    });
+    refs.inProgress!.delete(refName);
+    refs.declarations!.set(refName, declaration);
+  }
+
+  return refName;
 };
 
 const addDescribes = (schema: JsonSchemaObject, parsed: string, refs?: Refs): string => {
@@ -94,6 +132,91 @@ const addDescribes = (schema: JsonSchemaObject, parsed: string, refs?: Refs): st
 
   return parsed;
 };
+
+const resolveRef = (
+  root: JsonSchema | undefined,
+  ref: string,
+): { schema: JsonSchema; path: (string | number)[] } | undefined => {
+  if (!root || !ref.startsWith("#/")) return undefined;
+
+  const rawSegments = ref
+    .slice(2)
+    .split("/")
+    .filter((segment) => segment.length > 0)
+    .map(decodePointerSegment);
+
+  let current: any = root;
+
+  for (const segment of rawSegments) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = current[segment as keyof typeof current];
+  }
+
+  return { schema: current as JsonSchema, path: rawSegments };
+};
+
+const decodePointerSegment = (segment: string) =>
+  segment.replace(/~1/g, "/").replace(/~0/g, "~");
+
+const getOrCreateRefName = (
+  pointer: string,
+  path: (string | number)[],
+  refs: Refs,
+): string => {
+  if (refs.refNameByPointer?.has(pointer)) {
+    return refs.refNameByPointer.get(pointer)!;
+  }
+
+  const preferred = buildNameFromPath(path, refs.usedNames);
+  refs.refNameByPointer?.set(pointer, preferred);
+  refs.usedNames?.add(preferred);
+  return preferred;
+};
+
+const buildNameFromPath = (
+  path: (string | number)[],
+  used?: Set<string>,
+): string => {
+  const filtered = path.filter(
+    (segment) => segment !== "$defs" && segment !== "definitions" && segment !== "properties",
+  );
+
+  const base = filtered.length
+    ? filtered
+        .map((segment) =>
+          typeof segment === "number"
+            ? `Ref${segment}`
+            : segment
+                .replace(/[^a-zA-Z0-9_$]/g, " ")
+                .split(" ")
+                .filter(Boolean)
+                .map(capitalize)
+                .join(""),
+        )
+        .join("")
+    : "Ref";
+
+  const sanitized = sanitizeIdentifier(base || "Ref");
+
+  if (!used || !used.has(sanitized)) return sanitized;
+
+  let counter = 2;
+  let candidate = `${sanitized}${counter}`;
+  while (used.has(candidate)) {
+    counter += 1;
+    candidate = `${sanitized}${counter}`;
+  }
+
+  return candidate;
+};
+
+const sanitizeIdentifier = (value: string): string => {
+  const cleaned = value.replace(/^[^a-zA-Z_$]+/, "").replace(/[^a-zA-Z0-9_$]/g, "");
+  return cleaned || "Ref";
+};
+
+const capitalize = (value: string) =>
+  value.length ? value[0].toUpperCase() + value.slice(1) : value;
 
 const addDefaults = (schema: JsonSchemaObject, parsed: string): string => {
   if (schema.default !== undefined) {
@@ -187,6 +310,11 @@ export const its = {
     ): x is JsonSchemaObject & {
       not: JsonSchema;
     } => x.not !== undefined,
+    ref: (
+      x: JsonSchemaObject,
+    ): x is JsonSchemaObject & {
+      $ref: string;
+    } => typeof (x as any).$ref === "string",
     const: (
       x: JsonSchemaObject,
     ): x is JsonSchemaObject & {
@@ -232,14 +360,14 @@ export const its = {
           typeof schema.properties !== "object" ||
           !(discriminatorProp in schema.properties)
         ) {
-          return false;
-        }
+        return false;
+      }
 
-        const property = schema.properties[discriminatorProp];
-        return (
-          property &&
-          typeof property === "object" &&
-          property.type === "string" &&
+      const property = schema.properties[discriminatorProp];
+      return (
+        property &&
+        typeof property === "object" &&
+          (property.type === undefined || property.type === "string") &&
           // Ensure discriminator has a constant value (const or single-value enum)
           (property.const !== undefined ||
            (property.enum && Array.isArray(property.enum) && property.enum.length === 1)) &&

@@ -7,9 +7,30 @@ export const parseArray = (
   refs: Refs,
 ) => {
   if (Array.isArray(schema.items)) {
-    return `z.tuple([${schema.items.map((v, i) =>
+    let tuple = `z.tuple([${schema.items.map((v, i) =>
       parseSchema(v, { ...refs, path: [...refs.path, "items", i] }),
     )}])`;
+
+    if (schema.contains) {
+      const containsSchema = parseSchema(schema.contains, {
+        ...refs,
+        path: [...refs.path, "contains"],
+      });
+      const minContains = schema.minContains ?? (schema.contains ? 1 : undefined);
+      const maxContains = schema.maxContains;
+
+      tuple += `.superRefine((arr, ctx) => {
+  const matches = arr.filter((item) => ${containsSchema}.safeParse(item).success).length;
+  if (${minContains ?? 0} && matches < ${minContains ?? 0}) {
+    ctx.addIssue({ code: "custom", message: "Array contains too few matching items" });
+  }
+  if (${maxContains ?? "undefined"} !== undefined && matches > ${maxContains ?? "undefined"}) {
+    ctx.addIssue({ code: "custom", message: "Array contains too many matching items" });
+  }
+})`;
+    }
+
+    return tuple;
   }
 
   let r = !schema.items
@@ -37,6 +58,26 @@ export const parseArray = (
       "",
       ")",
     ]);
+  }
+
+  if (schema.contains) {
+    const containsSchema = parseSchema(schema.contains, {
+      ...refs,
+      path: [...refs.path, "contains"],
+    });
+
+    const minContains = schema.minContains ?? (schema.contains ? 1 : undefined);
+    const maxContains = schema.maxContains;
+
+    r += `.superRefine((arr, ctx) => {
+  const matches = arr.filter((item) => ${containsSchema}.safeParse(item).success).length;
+  if (${minContains ?? 0} && matches < ${minContains ?? 0}) {
+    ctx.addIssue({ code: "custom", message: "Array contains too few matching items" });
+  }
+  if (${maxContains ?? "undefined"} !== undefined && matches > ${maxContains ?? "undefined"}) {
+    ctx.addIssue({ code: "custom", message: "Array contains too many matching items" });
+  }
+})`;
   }
   
   return r;
