@@ -1,4 +1,4 @@
-name: Release PR
+name: Release
 
 on:
   push:
@@ -9,23 +9,21 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
-  release-pr:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           run_install: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
@@ -34,12 +32,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create or update release PR
+      - name: Build
+        run: pnpm build
+
+      - name: Release with Changesets
         uses: changesets/action@v1
         with:
-          version: pnpm changeset version
-          publish: false
-          commit: "chore: version packages"
+          commit: "chore: release"
           title: "chore: release"
+          version: pnpm changeset version
+          publish: pnpm changeset publish --access public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
