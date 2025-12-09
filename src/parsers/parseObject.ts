@@ -192,12 +192,20 @@ export function parseObject(
     }
   }
 
+  // Check if there will be an .and() call that adds properties from oneOf/anyOf/allOf
+  // In that case, we should NOT use .strict() because it will reject the additional keys
+  // before the union gets a chance to validate them.
+  const hasCompositionKeywords = its.an.anyOf(objectSchema) || its.a.oneOf(objectSchema) || its.an.allOf(objectSchema);
+
   let output = properties
     ? patternProperties
       ? properties + patternProperties
       : additionalProperties
         ? additionalProperties === "z.never()"
-          ? properties + ".strict()"
+          // Don't use .strict() if there are composition keywords that add properties
+          ? hasCompositionKeywords
+            ? properties
+            : properties + ".strict()"
           : properties + `.catchall(${additionalProperties})`
         : properties
     : patternProperties
@@ -206,7 +214,7 @@ export function parseObject(
         ? `z.record(z.string(), ${additionalProperties})`
         : `z.record(z.string(), ${anyOrUnknown(refs)})`;
 
-  if (unevaluated === false && properties) {
+  if (unevaluated === false && properties && !hasCompositionKeywords) {
     output += ".strict()";
   } else if (unevaluated && typeof unevaluated !== 'boolean') {
     const unevaluatedSchema = parseSchema(unevaluated, {
