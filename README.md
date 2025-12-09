@@ -1,13 +1,11 @@
 # Json-Schema-to-Zod
 
-[![NPM Version](https://img.shields.io/npm/v/json-schema-to-zod.svg)](https://npmjs.org/package/json-schema-to-zod)
-[![NPM Downloads](https://img.shields.io/npm/dw/json-schema-to-zod.svg)](https://npmjs.org/package/json-schema-to-zod)
+[![NPM Version](https://img.shields.io/npm/v/%40gabrielbryk%2Fjson-schema-to-zod.svg)](https://npmjs.org/package/@gabrielbryk/json-schema-to-zod)
+[![NPM Downloads](https://img.shields.io/npm/dw/%40gabrielbryk%2Fjson-schema-to-zod.svg)](https://npmjs.org/package/@gabrielbryk/json-schema-to-zod)
 
-# Notice of (pending) deprecation
+# Notice of maintenance fork
 
-I'm waiting for a response regarding the Zod v4 support PR. After that has been merged, a final version of this package will be released, and this repo will be archived.
-
-_Please do not open any new issues or pull requests as I'm not likely to attend to them._
+The original package is being deprecated upstream, but this fork (<https://github.com/gabrielbryk/json-schema-to-zod>) continues maintenance and publishes to `@gabrielbryk/json-schema-to-zod` on npm.
 
 ## Summary
 
@@ -30,7 +28,7 @@ _Looking for the exact opposite? Check out [zod-to-json-schema](https://npmjs.or
 #### Simplest example
 
 ```console
-npm i -g json-schema-to-zod
+npm i -g @gabrielbryk/json-schema-to-zod
 ```
 
 ```console
@@ -40,7 +38,7 @@ json-schema-to-zod -i mySchema.json -o mySchema.ts
 #### Example with `$refs` resolved and output formatted
 
 ```console
-npm i -g json-schema-to-zod json-refs prettier
+npm i -g @gabrielbryk/json-schema-to-zod json-refs prettier
 ```
 
 ```console
@@ -65,7 +63,7 @@ json-refs resolve mySchema.json | json-schema-to-zod | prettier --parser typescr
 #### Simple example
 
 ```typescript
-import { jsonSchemaToZod } from "json-schema-to-zod";
+import { jsonSchemaToZod } from "@gabrielbryk/json-schema-to-zod";
 
 const myObject = {
   type: "object",
@@ -127,7 +125,7 @@ z.object({ hello: z.string().optional() });
 import { z } from "zod";
 import { resolveRefs } from "json-refs";
 import { format } from "prettier";
-import jsonSchemaToZod from "json-schema-to-zod";
+import jsonSchemaToZod from "@gabrielbryk/json-schema-to-zod";
 
 async function example(jsonSchema: Record<string, unknown>): Promise<string> {
   const { resolved } = await resolveRefs(jsonSchema);

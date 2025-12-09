@@ -1,5 +1,5 @@
 {
-  "name": "json-schema-to-zod",
+  "name": "@gabrielbryk/json-schema-to-zod",
   "version": "2.7.2",
   "description": "Converts JSON schema objects or files into Zod schemas",
   "types": "./dist/types/index.d.ts",
@@ -61,7 +61,10 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/StefanTerdell/json-schema-to-zod"
+    "url": "https://github.com/gabrielbryk/json-schema-to-zod"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/json-schema": "^7.0.15",
