@@ -456,7 +456,7 @@ if (key.match(new RegExp("\\\\."))) {
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -500,7 +500,7 @@ evaluated = true
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -514,7 +514,7 @@ evaluated = true
 const result = z.array(z.any()).min(1).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -527,7 +527,7 @@ if (!evaluated) {
 const result = z.boolean().safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: must match catchall schema\`,
           params: {
@@ -575,7 +575,7 @@ evaluated = true
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -589,7 +589,7 @@ evaluated = true
 const result = z.array(z.any()).min(1).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -602,7 +602,7 @@ if (!evaluated) {
 const result = z.boolean().safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: must match catchall schema\`,
           params: {
@@ -635,7 +635,7 @@ if (key.match(new RegExp("\\\\."))) {
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -667,7 +667,7 @@ if (key.match(new RegExp(\"\\\\.\"))) {
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -680,7 +680,7 @@ if (key.match(new RegExp(\"\\\\,\"))) {
 const result = z.array(z.any()).min(1).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -694,7 +694,7 @@ ctx.addIssue({
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(run(result, { ".": [] }).success, false);
+    assert(run(result, { ".": [] }).success, true);
 
     assert(run(result, { ",": [] }).success, false);
 
@@ -725,7 +725,7 @@ if (key.match(new RegExp(\"\\\\.\"))) {
 const result = z.array(z.any()).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -738,7 +738,7 @@ if (key.match(new RegExp(\"\\\\,\"))) {
 const result = z.array(z.any()).min(1).safeParse(value[key])
 if (!result.success) {
 ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {

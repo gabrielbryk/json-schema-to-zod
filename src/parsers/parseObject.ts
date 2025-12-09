@@ -133,9 +133,8 @@ export function parseObject(
     }
 
     for (const key in objectSchema.patternProperties) {
-      const escapedPattern = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       patternProperties +=
-        "if (key.match(new RegExp(" + JSON.stringify(escapedPattern) + "))) {\n";
+        "if (key.match(new RegExp(" + JSON.stringify(key) + "))) {\n";
       if (additionalProperties) {
         patternProperties += "evaluated = true\n";
       }
@@ -146,7 +145,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: Key matching regex /\${key}/ must match schema\`,
           params: {
@@ -165,7 +164,7 @@ export function parseObject(
       patternProperties += "if (!result.success) {\n";
 
       patternProperties += `ctx.addIssue({
-          path: [...ctx.path, key],
+          path: [...(ctx.path ?? []), key],
           code: 'custom',
           message: \`Invalid input: must match catchall schema\`,
           params: {
