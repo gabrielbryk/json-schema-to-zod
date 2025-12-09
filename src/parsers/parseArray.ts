@@ -1,6 +1,7 @@
 import { JsonSchemaObject, Refs } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 import { parseSchema } from "./parseSchema.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseArray = (
   schema: JsonSchemaObject & { type: "array" },
@@ -34,7 +35,7 @@ export const parseArray = (
   }
 
   let r = !schema.items
-    ? "z.array(z.any())"
+    ? `z.array(${anyOrUnknown(refs)})`
     : `z.array(${parseSchema(schema.items, {
         ...refs,
         path: [...refs.path, "items"],

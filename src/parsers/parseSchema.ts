@@ -23,6 +23,7 @@ import {
   Serializable,
   SimpleDiscriminatedOneOfSchema,
 } from "../Types.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseSchema = (
   schema: JsonSchema,
@@ -36,7 +37,7 @@ export const parseSchema = (
   refs.refNameByPointer = refs.refNameByPointer ?? new Map();
   refs.usedNames = refs.usedNames ?? new Set();
 
-  if (typeof schema !== "object") return schema ? "z.any()" : "z.never()";
+  if (typeof schema !== "object") return schema ? anyOrUnknown(refs) : "z.never()";
 
   if (refs.parserOverride) {
     const custom = refs.parserOverride(schema, refs);
@@ -54,7 +55,7 @@ export const parseSchema = (
     }
 
     if (refs.depth === undefined || seen.n >= refs.depth) {
-      return "z.any()";
+      return anyOrUnknown(refs);
     }
 
     seen.n += 1;
@@ -91,7 +92,7 @@ const parseRef = (schema: JsonSchemaObject & { $ref: string }, refs: Refs): stri
   const resolved = resolveRef(refs.root, schema.$ref);
 
   if (!resolved) {
-    return "z.any()";
+    return anyOrUnknown(refs);
   }
 
   const { schema: target, path } = resolved;
@@ -271,7 +272,7 @@ const selectParser: ParserSelector = (schema, refs) => {
   } else if (its.a.conditional(schema)) {
     return parseIfThenElse(schema, refs);
   } else {
-    return parseDefault(schema);
+    return parseDefault(schema, refs);
   }
 };
 

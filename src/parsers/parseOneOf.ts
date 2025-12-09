@@ -1,17 +1,19 @@
 import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseOneOf = (
   schema: JsonSchemaObject & { oneOf: JsonSchema[] },
   refs: Refs,
 ) => {
+  const anyType = anyOrUnknown(refs);
   return schema.oneOf.length
     ? schema.oneOf.length === 1
       ? parseSchema(schema.oneOf[0], {
           ...refs,
           path: [...refs.path, "oneOf", 0],
         })
-      : `z.any().superRefine((x, ctx) => {
+      : `${anyType}.superRefine((x, ctx) => {
     const schemas = [${schema.oneOf
       .map((schema, i) =>
         parseSchema(schema, {
@@ -37,5 +39,5 @@ export const parseOneOf = (
       });
     }
   })`
-    : "z.any()";
+    : anyType;
 };

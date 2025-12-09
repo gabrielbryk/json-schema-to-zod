@@ -5,6 +5,7 @@ import { its, parseSchema } from "./parseSchema.js";
 import { parseAllOf } from "./parseAllOf.js";
 import { parseIfThenElse } from "./parseIfThenElse.js";
 import { addJsdocs } from "../utils/jsdocs.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
@@ -203,7 +204,7 @@ export function parseObject(
       ? patternProperties
       : additionalProperties
         ? `z.record(z.string(), ${additionalProperties})`
-        : "z.record(z.string(), z.any())";
+        : `z.record(z.string(), ${anyOrUnknown(refs)})`;
 
   if (unevaluated === false && properties) {
     output += ".strict()";

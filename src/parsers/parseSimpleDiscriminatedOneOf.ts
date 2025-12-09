@@ -1,5 +1,6 @@
 import { SimpleDiscriminatedOneOfSchema, Refs, JsonSchemaObject } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseSimpleDiscriminatedOneOf = (
   schema: SimpleDiscriminatedOneOfSchema,
@@ -31,5 +32,5 @@ export const parseSimpleDiscriminatedOneOf = (
           path: [...refs.path, "oneOf", 0],
         })
       : `z.discriminatedUnion("${discriminator}", { ${entries.join(", ")} })`
-    : "z.any()";
+    : anyOrUnknown(refs);
 };

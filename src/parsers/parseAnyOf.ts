@@ -1,5 +1,6 @@
 import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseAnyOf = (
   schema: JsonSchemaObject & { anyOf: JsonSchema[] },
@@ -16,5 +17,5 @@ export const parseAnyOf = (
             parseSchema(schema, { ...refs, path: [...refs.path, "anyOf", i] }),
           )
           .join(", ")}])`
-    : `z.any()`;
+    : anyOrUnknown(refs);
 };

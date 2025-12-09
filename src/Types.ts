@@ -95,6 +95,13 @@ export type Options = {
    * if/then/else, etc.). This enables round-trip conversion back to JSON Schema.
    */
   preserveJsonSchemaForRoundTrip?: boolean;
+  /**
+   * Use z.unknown() instead of z.any() for fallback cases.
+   * This provides better type safety as z.unknown() requires type checking
+   * before using the value, while z.any() bypasses TypeScript checks entirely.
+   * @default false
+   */
+  useUnknown?: boolean;
 };
 
 export type Refs = Options & {
