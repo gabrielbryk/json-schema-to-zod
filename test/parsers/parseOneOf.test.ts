@@ -2,7 +2,7 @@ import { parseOneOf } from "../../src/parsers/parseOneOf";
 import { suite } from "../suite";
 
 suite("parseOneOf", (test) => {
-  test("should create a union from two or more schemas", (assert) => {
+  test("should create a simple union by default", (assert) => {
     assert(
       parseOneOf(
         {
@@ -15,7 +15,24 @@ suite("parseOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.any().superRefine((x, ctx) => {
+      `z.union([z.string(), z.number()])`,
+    );
+  });
+
+  test("should create a strict union with superRefine when strictOneOf is enabled", (assert) => {
+    assert(
+      parseOneOf(
+        {
+          oneOf: [
+            {
+              type: "string",
+            },
+            { type: "number" },
+          ],
+        },
+        { path: [], seen: new Map(), strictOneOf: true },
+      ),
+      `z.union([z.string(), z.number()]).superRefine((x, ctx) => {
     const schemas = [z.string(), z.number()];
     const errors = schemas.reduce<z.ZodError[]>(
       (errors, schema) =>
@@ -27,9 +44,9 @@ suite("parseOneOf", (test) => {
     );
     if (schemas.length - errors.length !== 1) {
       ctx.addIssue({
-        path: ctx.path,
+        path: [],
         code: "invalid_union",
-        unionErrors: errors,
+        errors: errors.map(e => e.issues),
         message: "Invalid input: Should pass single schema",
       });
     }

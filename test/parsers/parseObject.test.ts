@@ -264,25 +264,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.any().superRefine((x, ctx) => {
-    const schemas = [z.object({ "b": z.string() }), z.object({ "c": z.string() })];
-    const errors = schemas.reduce<z.ZodError[]>(
-      (errors, schema) =>
-        ((result) =>
-          result.error ? [...errors, result.error] : errors)(
-          schema.safeParse(x),
-        ),
-      [],
-    );
-    if (schemas.length - errors.length !== 1) {
-      ctx.addIssue({
-        path: ctx.path,
-        code: "invalid_union",
-        unionErrors: errors,
-        message: "Invalid input: Should pass single schema",
-      });
-    }
-  }))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.object({ "c": z.string() })]))`,
     );
 
     assert(
@@ -311,25 +293,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.any().superRefine((x, ctx) => {
-    const schemas = [z.object({ "b": z.string() }), z.any()];
-    const errors = schemas.reduce<z.ZodError[]>(
-      (errors, schema) =>
-        ((result) =>
-          result.error ? [...errors, result.error] : errors)(
-          schema.safeParse(x),
-        ),
-      [],
-    );
-    if (schemas.length - errors.length !== 1) {
-      ctx.addIssue({
-        path: ctx.path,
-        code: "invalid_union",
-        unionErrors: errors,
-        message: "Invalid input: Should pass single schema",
-      });
-    }
-  }))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.any()]))`,
     );
 
     assert(

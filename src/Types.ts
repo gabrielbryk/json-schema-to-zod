@@ -102,6 +102,15 @@ export type Options = {
    * @default false
    */
   useUnknown?: boolean;
+  /**
+   * Enforce strict oneOf semantics where exactly one schema must match.
+   * When false (default), oneOf behaves like "at least one must match" (same as Zod union).
+   * When true, adds superRefine to enforce "exactly one must match".
+   *
+   * Note: Strict enforcement often fails with schemas that have overlapping base types.
+   * @default false
+   */
+  strictOneOf?: boolean;
 };
 
 export type Refs = Options & {

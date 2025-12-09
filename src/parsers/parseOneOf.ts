@@ -25,11 +25,16 @@ export const parseOneOf = (
     }),
   );
 
-  // Use z.union() for proper type inference, then add superRefine for "exactly one" validation
   // JSON Schema oneOf = exactly one must match (exclusive OR)
   // Zod union = at least one must match (inclusive OR)
-  // The superRefine adds the "exactly one" constraint
-  return `z.union([${parsedSchemas.join(", ")}]).superRefine((x, ctx) => {
+  //
+  // By default, use simple z.union() which provides "at least one must match".
+  // This is more practical for most use cases, as strict oneOf enforcement
+  // often fails when schemas have overlapping base types.
+  //
+  // If strictOneOf is enabled, add superRefine to enforce "exactly one" constraint.
+  if (refs.strictOneOf) {
+    return `z.union([${parsedSchemas.join(", ")}]).superRefine((x, ctx) => {
     const schemas = [${parsedSchemas.join(", ")}];
     const errors = schemas.reduce<z.ZodError[]>(
       (errors, schema) =>
@@ -48,4 +53,8 @@ export const parseOneOf = (
       });
     }
   })`;
+  }
+
+  // Default: use simple z.union() (at least one must match)
+  return `z.union([${parsedSchemas.join(", ")}])`;
 };
