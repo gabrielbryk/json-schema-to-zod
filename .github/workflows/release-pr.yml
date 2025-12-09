@@ -1,4 +1,4 @@
-name: Release
+name: Release PR
 
 on:
   push:
@@ -9,13 +9,10 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 jobs:
-  release:
+  release-pr:
     runs-on: ubuntu-latest
-    environment:
-      name: npm-publish
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,12 +35,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
-
-      - name: Create Release PR or Publish
+      - name: Create/Update Release PR
         uses: changesets/action@v1
         with:
-          publish: pnpm changeset publish --provenance --access public
+          version: pnpm changeset version
+          publish: false
+          commit: "chore: version packages"
+          title: "chore: release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
