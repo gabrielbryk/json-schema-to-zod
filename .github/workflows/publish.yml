@@ -42,5 +42,3 @@ jobs:
 
       - name: Publish
         run: pnpm changeset publish --provenance --access public
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
