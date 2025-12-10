@@ -151,6 +151,9 @@ const toPascalCase = (str: string): string =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join("");
 
+const isObjectPropertyPath = (path: (string | number)[]): boolean =>
+  path.some((segment, index) => segment === "properties" && typeof path[index + 1] === "string");
+
 const buildDefInfoMap = (
   defNames: string[],
   defs: Record<string, JsonSchema>,
@@ -207,6 +210,8 @@ const createRefHandler = (
   allDefs: Record<string, JsonSchema>,
   options: GenerateBundleOptions,
 ) => {
+  const useLazyCrossRefs = options.refResolution?.lazyCrossRefs ?? true;
+
   return (schema: Record<string, unknown>, refs: Refs): string | undefined => {
     if (typeof schema["$ref"] === "string") {
       const refPath = schema["$ref"] as string;
@@ -237,7 +242,7 @@ const createRefHandler = (
 
           if (resolved) return resolved;
 
-          if (isCycle && options.refResolution?.lazyCrossRefs) {
+          if (isCycle && useLazyCrossRefs) {
             return `z.lazy(() => ${refInfo.schemaName})`;
           }
 
@@ -492,7 +497,7 @@ const findNestedTypesInSchema = (
 
   // inline $defs
   if (record.$defs && typeof record.$defs === "object") {
-    for (const [_defName, defSchema] of Object.entries(record.$defs as Record<string, unknown>)) {
+    for (const [, defSchema] of Object.entries(record.$defs as Record<string, unknown>)) {
       nestedTypes.push(...findNestedTypesInSchema(defSchema, parentTypeName, defNames, currentPath));
     }
   }
@@ -554,6 +559,20 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
 
   lines.push("");
 
+  const buildAccessExpr = (parentType: string, propertyPath: (string | number)[]): string => {
+    let accessExpr = parentType;
+    for (const prop of propertyPath) {
+      const accessor =
+        prop === "items"
+          ? "[number]"
+          : typeof prop === "number"
+            ? `[${prop}]`
+            : `[${JSON.stringify(prop)}]`;
+      accessExpr = `NonNullable<${accessExpr}${accessor}>`;
+    }
+    return accessExpr;
+  };
+
   for (const [parentType, types] of [...byParent.entries()].sort()) {
     lines.push(`// From ${parentType}`);
 
@@ -561,10 +580,7 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
       (a: NestedTypeInfo, b: NestedTypeInfo) => a.typeName.localeCompare(b.typeName),
     )) {
       if (info.propertyPath.length > 0) {
-        let accessExpr = parentType;
-        for (const prop of info.propertyPath) {
-          accessExpr = `NonNullable<${accessExpr}['${prop}']>`;
-        }
+        const accessExpr = buildAccessExpr(parentType, info.propertyPath);
         lines.push(`export type ${info.typeName} = ${accessExpr};`);
       }
     }

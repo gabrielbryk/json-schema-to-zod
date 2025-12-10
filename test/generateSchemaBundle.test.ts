@@ -125,6 +125,36 @@ suite("generateSchemaBundle", (test) => {
     assert(bFile.contents.includes("z.lazy(() => ASchema)"));
   });
 
+  test("cycles in unions/arrays use lazy refs outside object properties", (assert) => {
+    const schema = {
+      $defs: {
+        node: {
+          oneOf: [
+            {
+              type: "object",
+              properties: { next: { $ref: "#/$defs/node" }, value: { type: "string" } },
+              required: ["value"],
+            },
+            {
+              type: "array",
+              items: { $ref: "#/$defs/node" },
+            },
+          ],
+        },
+      },
+      type: "object",
+      properties: { root: { $ref: "#/$defs/node" } },
+      required: ["root"],
+    };
+
+    const result = generateSchemaBundle(schema, { module: "esm" });
+    const nodeFile = result.files.find((f) => f.fileName === "node.schema.ts")!;
+
+    assert(nodeFile.contents.includes('get "next"(){ return z.lazy(() => NodeSchema).optional() }'));
+    assert(nodeFile.contents.includes("z.array(z.lazy(() => NodeSchema))"));
+    assert(!nodeFile.contents.includes("z.union([() =>"));
+  });
+
   test("inline defs use scoped names to reduce collisions", (assert) => {
     const schema = {
       $defs: {
@@ -160,6 +190,26 @@ suite("generateSchemaBundle", (test) => {
     assert(aFile.contents.includes("\"v\": ADefsX"));
     assert(bFile.contents.includes("export const BDefsX = z.string()"));
     assert(bFile.contents.includes("\"v\": BDefsX"));
+  });
+
+  test("generated error handling uses ZodError.issues", (assert) => {
+    const schema = {
+      $defs: {
+        check: {
+          if: { type: "string" },
+          then: { type: "number" },
+          else: { type: "boolean" },
+        },
+      },
+      type: "object",
+      properties: { check: { $ref: "#/$defs/check" } },
+    };
+
+    const result = generateSchemaBundle(schema, { module: "esm" });
+    const checkFile = result.files.find((f) => f.fileName === "check.schema.ts")!;
+
+    assert(!checkFile.contents.includes(".errors"));
+    assert(checkFile.contents.includes("result.error.issues"));
   });
 
   test("inline defs with cycles fall back to default parsing (no import rewrite)", (assert) => {
@@ -233,13 +283,15 @@ suite("generateSchemaBundle", (test) => {
     const nestedFile = result.files.find((f) => f.fileName === "nested-types.ts")!;
     assert(nestedFile.contents.includes("import type { Root } from './workflow.schema.js';"));
     assert(nestedFile.contents.includes("import type { Item } from './item.schema.js';"));
-    assert(nestedFile.contents.includes("export type Config = NonNullable<Root['config']>;"));
-    assert(nestedFile.contents.includes("export type NestedArray = NonNullable<NonNullable<Root['config']>['nestedArr']>;"));
+    assert(nestedFile.contents.includes("export type Config = NonNullable<Root[\"config\"]>;"));
+    assert(
+      nestedFile.contents.includes("export type NestedArray = NonNullable<NonNullable<Root[\"config\"]>[\"nestedArr\"]>;"),
+    );
     assert(
       nestedFile.contents.includes(
-        "export type NestedArrayItem = NonNullable<NonNullable<NonNullable<Root['config']>['nestedArr']>['items']>;",
+        "export type NestedArrayItem = NonNullable<NonNullable<NonNullable<Root[\"config\"]>[\"nestedArr\"]>[number]>;",
       ),
     );
-    assert(nestedFile.contents.includes("export type ItemMeta = NonNullable<Item['meta']>;"));
+    assert(nestedFile.contents.includes("export type ItemMeta = NonNullable<Item[\"meta\"]>;"));
   });
 });
