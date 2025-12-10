@@ -1,5 +1,8 @@
+import { createRequire } from "module";
 import { parseString } from "../../src/parsers/parseString";
 import { suite } from "../suite";
+
+const require = createRequire(import.meta.url);
 
 suite("parseString", (test) => {
   const run = (output: string, data: unknown) =>

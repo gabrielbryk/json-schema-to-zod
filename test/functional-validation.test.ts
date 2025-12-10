@@ -8,14 +8,37 @@
  * - Method renames, API changes, etc.
  */
 
+import { createRequire } from "module";
 import { jsonSchemaToZod } from "../src/jsonSchemaToZod.js";
 import { parseSchema } from "../src/parsers/parseSchema.js";
 import { suite } from "./suite";
 
+const require = createRequire(import.meta.url);
+
+const runZodCode = <T = unknown>(zodCode: string): T => {
+  if (zodCode.includes("module.exports")) {
+    const module = { exports: {} as T };
+    const exports = module.exports;
+    new Function("require", "module", "exports", zodCode)(
+      require,
+      module,
+      exports,
+    );
+    return module.exports;
+  }
+
+  return new Function("require", `
+    const { z } = require("zod");
+    return (${zodCode});
+  `)(require) as T;
+};
+
 // Helper to eval generated code and run safeParse
 const evalAndParse = (zodCode: string, data: unknown) => {
   try {
-    const schema = eval(`const {z} = require("zod"); ${zodCode}`);
+    const schema = runZodCode<{ safeParse: (value: unknown) => unknown }>(
+      zodCode,
+    );
     return { compiled: true, result: schema.safeParse(data) };
   } catch (e) {
     return { compiled: false, error: e instanceof Error ? e.message : String(e) };
@@ -25,7 +48,7 @@ const evalAndParse = (zodCode: string, data: unknown) => {
 // Helper to just check if code compiles
 const canCompile = (zodCode: string): { success: boolean; error?: string } => {
   try {
-    eval(`const {z} = require("zod"); ${zodCode}`);
+    runZodCode(zodCode);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -281,7 +304,7 @@ suite("functional-validation", (test) => {
     const output = jsonSchemaToZod(schema, { module: "cjs" });
 
     try {
-      const zodSchema = eval(output);
+      const zodSchema = runZodCode(output);
       const result = zodSchema.safeParse({ name: "test", age: 25 });
       assert(result.success, true);
     } catch (e) {

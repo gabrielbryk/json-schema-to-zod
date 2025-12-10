@@ -1,7 +1,10 @@
+import { createRequire } from "module";
 import { JSONSchema7 } from "json-schema";
 import { ZodError } from "zod";
 import { parseObject } from "../../src/parsers/parseObject";
 import { suite } from "../suite";
+
+const require = createRequire(import.meta.url);
 
 suite("parseObject", (test) => {
   test("should handle with missing properties", (assert) => {
