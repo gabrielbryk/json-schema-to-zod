@@ -1,4 +1,4 @@
-import { JsonSchemaObject } from "../Types";
+import { JsonSchemaObject } from "../Types.js";
 
 export const expandJsdocs = (jsdocs: string): string => {
   const lines = jsdocs.split("\n");

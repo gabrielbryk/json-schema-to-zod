@@ -18,7 +18,7 @@ suite("parseString", (test) => {
       errorMessage: { format: "hello" },
     });
 
-    assert(code, 'z.string().datetime({ offset: true, message: "hello" })');
+    assert(code, 'z.string().datetime({ offset: true, error: "hello" })');
 
     assert(run(code, datetime), { success: true, data: datetime });
   });
@@ -29,7 +29,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "email",
       }),
-      "z.string().email()",
+      "z.email()",
     );
   });
 
@@ -46,7 +46,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "ipv6",
       }),
-      `z.string().ip({ version: "v6" })`,
+      `z.ipv6()`,
     );
   });
 
@@ -56,7 +56,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "uri",
       }),
-      `z.string().url()`,
+      `z.url()`,
     );
   });
 
@@ -66,7 +66,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "uuid",
       }),
-      `z.string().uuid()`,
+      `z.uuid()`,
     );
   });
 
@@ -116,7 +116,7 @@ suite("parseString", (test) => {
           contentEncoding: "x",
         },
       }),
-      'z.string().base64("x")',
+      'z.string().base64({ error: "x" })',
     );
     assert(
       parseString({
@@ -133,7 +133,7 @@ suite("parseString", (test) => {
           format: "x",
         },
       }),
-      'z.string().base64("x")',
+      'z.string().base64({ error: "x" })',
     );
   });
 
@@ -184,7 +184,7 @@ suite("parseString", (test) => {
           contentSchema: "y",
         },
       }),
-      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, "x").pipe(z.object({ "name": z.string(), "age": z.number().int() }), "y")',
+      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, { error: "x" }).pipe(z.object({ "name": z.string(), "age": z.number().int() }), { error: "y" })',
     );
   });
 
@@ -203,7 +203,75 @@ suite("parseString", (test) => {
           maxLength: "nuts",
         },
       }),
-      'z.string().ip({ version: "v4", message: "ayy" }).regex(new RegExp("x"), "lmao").min(1, "deez").max(2, "nuts")',
+      'z.ipv4({ error: "ayy" }).regex(new RegExp("x"), { error: "lmao" }).min(1, { error: "deez" }).max(2, { error: "nuts" })',
     );
+  });
+
+  test("should map extra string formats to Zod v4 helpers", (assert) => {
+    assert(
+      parseString({ type: "string", format: "jwt", errorMessage: { format: "x" } }),
+      'z.jwt({ error: "x" })',
+    );
+
+    assert(
+      parseString({ type: "string", format: "cuid" }),
+      "z.cuid()",
+    );
+
+    assert(
+      parseString({ type: "string", format: "cuid2" }),
+      "z.cuid2()",
+    );
+
+    assert(
+      parseString({ type: "string", format: "nanoid" }),
+      "z.nanoid()",
+    );
+
+    assert(
+      parseString({ type: "string", format: "ulid" }),
+      "z.ulid()",
+    );
+
+    assert(
+      parseString({ type: "string", format: "e164", errorMessage: { format: "y" } }),
+      'z.e164({ error: "y" })',
+    );
+
+    assert(
+      parseString({ type: "string", format: "base64url" }),
+      "z.base64url()",
+    );
+
+    assert(
+      parseString({ type: "string", format: "emoji" }),
+      "z.emoji()",
+    );
+  });
+
+  test("should map additional standard formats", (assert) => {
+    assert(
+      parseString({ type: "string", format: "hostname" }),
+      "z.string().refine((val) => { if (typeof val !== \"string\" || val.length === 0 || val.length > 253) return false; return val.split(\".\").every((label) => label.length > 0 && label.length <= 63 && /^[A-Za-z0-9-]+$/.test(label) && label[0] !== \"-\" && label[label.length - 1] !== \"-\"); })",
+    );
+
+    assert(
+      parseString({ type: "string", format: "json-pointer", errorMessage: { format: "x" } }),
+      'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { error: "x" })',
+    );
+
+    assert(
+      parseString({ type: "string", format: "regex" }),
+      "z.string().refine((val) => { try { new RegExp(val); return true; } catch { return false; } })",
+    );
+  });
+
+  test("should warn on unknown format when hook provided", (assert) => {
+    const seen: { format: string; path: (string | number)[] }[] = [];
+    parseString(
+      { type: "string", format: "made-up" } as any,
+      { path: ["root"], onUnknownFormat: (format, path) => seen.push({ format, path }) } as any,
+    );
+    assert(seen, [{ format: "made-up", path: ["root"] }]);
   });
 });

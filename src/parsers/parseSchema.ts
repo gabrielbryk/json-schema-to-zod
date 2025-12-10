@@ -33,6 +33,7 @@ export const parseSchema = (
   // Ensure ref bookkeeping exists so $ref declarations and getter-based recursion work
   refs.root = refs.root ?? schema;
   refs.declarations = refs.declarations ?? new Map();
+  refs.dependencies = refs.dependencies ?? new Map();
   refs.inProgress = refs.inProgress ?? new Set();
   refs.refNameByPointer = refs.refNameByPointer ?? new Map();
   refs.usedNames = refs.usedNames ?? new Set();
@@ -108,6 +109,32 @@ const parseRef = (schema: JsonSchemaObject & { $ref: string }, refs: Refs): stri
     });
     refs.inProgress!.delete(refName);
     refs.declarations!.set(refName, declaration);
+  }
+
+  const current = refs.currentSchemaName;
+  if (current) {
+    const deps = refs.dependencies!;
+    const set = deps.get(current) ?? new Set<string>();
+    set.add(refName);
+    deps.set(current, set);
+  }
+
+  const currentComponent = refs.currentSchemaName
+    ? refs.cycleComponentByName?.get(refs.currentSchemaName)
+    : undefined;
+  const targetComponent = refs.cycleComponentByName?.get(refName);
+
+  const isSameCycle =
+    currentComponent !== undefined &&
+    targetComponent !== undefined &&
+    currentComponent === targetComponent &&
+    refs.cycleRefNames?.has(refName);
+
+  // Only lazy if the ref stays inside the current strongly-connected component
+  // (or is currently being resolved). This avoids TDZ on true cycles while
+  // letting ordered, acyclic refs stay direct.
+  if (isSameCycle || refs.inProgress!.has(refName)) {
+    return `z.lazy(() => ${refName})`;
   }
 
   return refName;
@@ -259,7 +286,7 @@ const selectParser: ParserSelector = (schema, refs) => {
   } else if (its.a.multipleType(schema)) {
     return parseMultipleType(schema, refs);
   } else if (its.a.primitive(schema, "string")) {
-    return parseString(schema);
+    return parseString(schema, refs);
   } else if (
     its.a.primitive(schema, "number") ||
     its.a.primitive(schema, "integer")

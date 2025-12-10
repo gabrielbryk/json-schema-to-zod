@@ -111,6 +111,11 @@ export type Options = {
    * @default false
    */
   strictOneOf?: boolean;
+  /**
+   * Called when a string format is encountered that has no built-in mapping.
+   * Can be used to log or throw on unknown formats.
+   */
+  onUnknownFormat?: (format: string, path: (string | number)[]) => void;
 };
 
 export type Refs = Options & {
@@ -118,10 +123,13 @@ export type Refs = Options & {
   seen: Map<object | boolean, { n: number; r: string | undefined }>;
   root?: JsonSchema;
   declarations?: Map<string, string>;
+  dependencies?: Map<string, Set<string>>;
   inProgress?: Set<string>;
   refNameByPointer?: Map<string, string>;
   usedNames?: Set<string>;
   currentSchemaName?: string;
+  cycleRefNames?: Set<string>;
+  cycleComponentByName?: Map<string, number>;
 };
 
 export type SimpleDiscriminatedOneOfSchema<D extends string = string> = JsonSchemaObject & {

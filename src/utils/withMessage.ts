@@ -4,7 +4,12 @@ type Opener = string;
 type MessagePrefix = string;
 type Closer = string;
 
-type Builder = [Opener, Closer] | [Opener, MessagePrefix, Closer];
+type Builder = {
+  opener: Opener;
+  closer: Closer;
+  messagePrefix?: MessagePrefix;
+  messageCloser?: Closer;
+};
 
 export function withMessage(
   schema: JsonSchemaObject,
@@ -19,16 +24,16 @@ export function withMessage(
     const got = get({ value, json: JSON.stringify(value) });
 
     if (got) {
-      const opener = got[0];
-      const prefix = got.length === 3 ? got[1] : "";
-      const closer = got.length === 3 ? got[2] : got[1];
+      const { opener, closer, messagePrefix = "", messageCloser } = got;
 
       r += opener;
 
       if (schema.errorMessage?.[key] !== undefined) {
-        r += prefix + JSON.stringify(schema.errorMessage[key]);
+        r += messagePrefix + JSON.stringify(schema.errorMessage[key]);
+        r += messageCloser ?? closer;
+        return r;
       }
-      r;
+
       r += closer;
     }
   }

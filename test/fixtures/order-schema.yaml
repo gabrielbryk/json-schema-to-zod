@@ -1,0 +1,88 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: OrderPayload
+type: object
+properties:
+  orderId:
+    type: string
+    pattern: "^[A-Z0-9-]{8,}$"
+  status:
+    enum:
+      - pending
+      - fulfilled
+      - cancelled
+  customer:
+    $ref: "#/definitions/customer"
+  items:
+    type: array
+    items:
+      $ref: "#/definitions/item"
+    minItems: 1
+  notes:
+    type: string
+    nullable: true
+    maxLength: 2000
+  tags:
+    type: array
+    items:
+      type: string
+    uniqueItems: true
+  metadata:
+    type: object
+    additionalProperties:
+      type:
+        - string
+        - number
+        - boolean
+        - null
+required:
+  - orderId
+  - customer
+  - items
+  - status
+definitions:
+  customer:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      email:
+        type: string
+        format: email
+      address:
+        $ref: "#/definitions/address"
+    required:
+      - id
+      - email
+  item:
+    type: object
+    properties:
+      sku:
+        type: string
+      quantity:
+        type: integer
+        minimum: 1
+      price:
+        type: number
+        minimum: 0
+    required:
+      - sku
+      - quantity
+      - price
+  address:
+    type: object
+    properties:
+      line1:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      postalCode:
+        type:
+          - string
+          - null
+    required:
+      - line1
+      - city
+      - country

@@ -41,24 +41,43 @@ export const parseArray = (
         path: [...refs.path, "items"],
       })})`;
 
-  r += withMessage(schema, "minItems", ({ json }) => [
-    `.min(${json}`,
-    ", ",
-    ")",
-  ]);
+  r += withMessage(schema, "minItems", ({ json }) => ({
+    opener: `.min(${json}`,
+    closer: ")",
+    messagePrefix: ", { error: ",
+    messageCloser: " })",
+  }));
 
-  r += withMessage(schema, "maxItems", ({ json }) => [
-    `.max(${json}`,
-    ", ",
-    ")",
-  ]);
-  
+  r += withMessage(schema, "maxItems", ({ json }) => ({
+    opener: `.max(${json}`,
+    closer: ")",
+    messagePrefix: ", { error: ",
+    messageCloser: " })",
+  }));
+
   if (schema.uniqueItems === true) {
-    r += withMessage(schema, "uniqueItems", () => [
-      ".unique(",
-      "",
-      ")",
-    ]);
+    r += `.superRefine((arr, ctx) => {
+  const seen = new Set();
+  for (const [index, value] of arr.entries()) {
+    let key;
+    if (value && typeof value === "object") {
+      try {
+        key = JSON.stringify(value);
+      } catch {
+        key = String(value);
+      }
+    } else {
+      key = JSON.stringify(value);
+    }
+
+    if (seen.has(key)) {
+      ctx.addIssue({ code: "custom", message: "Array items must be unique", path: [index] });
+      return;
+    }
+
+    seen.add(key);
+  }
+})`;
   }
 
   if (schema.contains) {

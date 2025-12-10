@@ -1,4 +1,6 @@
-import { readFileSync } from "fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { spawnSync } from "child_process";
+import { join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
 import { suite } from "./suite";
@@ -19,5 +21,48 @@ suite("workflow.yaml", (test) => {
     assert(output.includes("const TaskList ="));
     assert(output.includes("const RuntimeExpression ="));
     assert(output.includes("export const workflowSchema ="));
+
+    const compiled = compileEsmModule(output, "workflowSchema");
+    assert(compiled.hasExport);
+    assert(compiled.hasSafeParse);
+    assert(compiled.parseSuccess === false);
   });
 });
+
+function compileEsmModule(source: string, exportName: string) {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-workflow-schema-"));
+  const schemaPath = join(dir, "schema.mjs");
+  const runnerPath = join(dir, "runner.mjs");
+
+  writeFileSync(schemaPath, source);
+
+  const runner = `import { ${exportName} } from './schema.mjs';
+const parsed = typeof ${exportName} === 'object' && typeof ${exportName}.safeParse === 'function'
+  ? ${exportName}.safeParse({})
+  : null;
+
+console.log(JSON.stringify({
+  hasExport: Boolean(${exportName}),
+  hasSafeParse: typeof ${exportName} === 'object' && typeof ${exportName}.safeParse === 'function',
+  parseSuccess: parsed ? parsed.success : null,
+}));
+`;
+
+  writeFileSync(runnerPath, runner);
+
+  const { status, stdout, stderr, error } = spawnSync(process.execPath, [
+    runnerPath,
+  ], {
+    encoding: "utf8",
+  });
+
+  rmSync(dir, { recursive: true, force: true });
+
+  if (status !== 0) {
+    throw new Error(
+      stderr || (error ? String(error) : "Failed to run compiled schema"),
+    );
+  }
+
+  return JSON.parse(stdout);
+}

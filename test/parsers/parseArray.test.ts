@@ -65,7 +65,28 @@ suite("parseArray", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      "z.array(z.string()).unique()",
+      `z.array(z.string()).superRefine((arr, ctx) => {
+  const seen = new Set();
+  for (const [index, value] of arr.entries()) {
+    let key;
+    if (value && typeof value === "object") {
+      try {
+        key = JSON.stringify(value);
+      } catch {
+        key = String(value);
+      }
+    } else {
+      key = JSON.stringify(value);
+    }
+
+    if (seen.has(key)) {
+      ctx.addIssue({ code: "custom", message: "Array items must be unique", path: [index] });
+      return;
+    }
+
+    seen.add(key);
+  }
+})`,
     );
   });
 })
