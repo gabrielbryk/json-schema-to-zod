@@ -7,7 +7,7 @@ export const parseString = (
   refs?: Refs,
 ) => {
   const formatError = schema.errorMessage?.format;
-  const refContext: Refs = refs ?? ({ path: [] } as Refs);
+  const refContext: Refs = ensureRefs(refs);
 
   const topLevelFormatMap: Record<string, string> = {
     email: "z.email",
@@ -313,7 +313,7 @@ export const parseString = (
     r += withMessage(schema, "contentSchema", ({ value }) => {
       if (value && value instanceof Object) {
         return {
-          opener: `.pipe(${parseSchema(value)}`,
+          opener: `.pipe(${parseSchema(value, refContext)}`,
           closer: ")",
           messagePrefix: ", { error: ",
           messageCloser: " })",
@@ -324,3 +324,17 @@ export const parseString = (
 
   return r;
 };
+
+function ensureRefs(refs?: Refs): Refs {
+  if (refs) return refs;
+
+  return {
+    path: [],
+    seen: new Map(),
+    declarations: new Map(),
+    dependencies: new Map(),
+    inProgress: new Set(),
+    refNameByPointer: new Map(),
+    usedNames: new Set(),
+  };
+}
