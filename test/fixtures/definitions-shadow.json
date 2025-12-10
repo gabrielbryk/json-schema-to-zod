@@ -1,0 +1,22 @@
+{
+  "definitions": {
+    "shared": { "type": "string", "title": "RootShared" }
+  },
+  "$defs": {
+    "alpha": {
+      "definitions": {
+        "shared": { "type": "number", "title": "InlineShared" }
+      },
+      "type": "object",
+      "properties": {
+        "v": { "$ref": "#/$defs/alpha/definitions/shared" },
+        "w": { "$ref": "#/definitions/shared" }
+      },
+      "required": ["v", "w"]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "alpha": { "$ref": "#/$defs/alpha" }
+  }
+}

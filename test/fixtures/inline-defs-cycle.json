@@ -1,0 +1,24 @@
+{
+  "$defs": {
+    "outer": {
+      "type": "object",
+      "$defs": {
+        "inner": {
+          "type": "object",
+          "properties": {
+            "outerRef": { "$ref": "#/$defs/outer" }
+          }
+        }
+      },
+      "properties": {
+        "self": { "$ref": "#/$defs/outer/$defs/inner" }
+      },
+      "required": ["self"]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "outer": { "$ref": "#/$defs/outer" }
+  },
+  "required": ["outer"]
+}

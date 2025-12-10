@@ -1,4 +1,5 @@
-import { jsonSchemaToZod } from "../jsonSchemaToZod.js";
+import { analyzeSchema } from "../core/analyzeSchema.js";
+import { emitZod } from "../core/emitZod.js";
 import { JsonSchema, JsonSchemaObject, Options, Refs } from "../Types.js";
 
 type DefInfo = {
@@ -8,6 +9,16 @@ type DefInfo = {
   typeName?: string;
   dependencies: Set<string>;
   hasCycle: boolean;
+};
+
+type BundleTarget = {
+  defName: string | null;
+  schemaWithDefs: JsonSchemaObject;
+  schemaName: string;
+  typeName?: string;
+  fileName: string;
+  usedRefs: Set<string>;
+  isRoot: boolean;
 };
 
 export type SplitDefsOptions = {
@@ -36,6 +47,11 @@ export type RefResolutionOptions = {
     path: (string | number)[];
     isCycle: boolean;
   }) => RefResolutionResult | undefined;
+  /**
+   * When true, cross-def references that participate in a cycle are emitted as z.lazy(() => Ref)
+   * to avoid TDZ issues across files.
+   */
+  lazyCrossRefs?: boolean;
   /** Called for unknown $refs (outside of $defs/definitions) */
   onUnknownRef?: (ctx: { ref: string; currentDef: string | null }) => RefResolutionResult | undefined;
 };
@@ -60,80 +76,55 @@ export type SchemaBundleResult = {
   defNames: string[];
 };
 
-export const generateSchemaBundle = (
-  schema: JsonSchema,
-  options: GenerateBundleOptions = {},
-): SchemaBundleResult => {
+export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundleOptions = {}): SchemaBundleResult => {
   const module = options.module ?? "esm";
-
-  const rootName = options.splitDefs?.rootName ?? options.name ?? "RootSchema";
-  const rootTypeName =
-    typeof options.type === "string"
-      ? options.type
-      : options.splitDefs?.rootTypeName ?? (typeof options.type === "boolean" && options.type ? rootName : undefined);
 
   if (!schema || typeof schema !== "object") {
     throw new Error("generateSchemaBundle requires an object schema");
   }
 
-  const defs = (schema as JsonSchemaObject).$defs || (schema as JsonSchemaObject).definitions || {};
+  const defs = (schema as JsonSchemaObject).$defs || {};
+  const definitions = (schema as JsonSchemaObject).definitions || {};
   const defNames = Object.keys(defs);
 
-  const defInfoMap = buildDefInfoMap(defNames, defs, options);
-  const cycles = detectCycles(defInfoMap);
-
-  for (const defName of cycles) {
-    const info = defInfoMap.get(defName);
-    if (info) info.hasCycle = true;
-  }
+  const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, defs, options);
 
   const files: GeneratedFile[] = [];
 
-  // Generate individual $def files
-  for (const defName of defNames) {
-    const info = defInfoMap.get(defName)!;
-    const usedRefs = new Set<string>();
+  const targets = planBundleTargets(
+    schema as JsonSchemaObject,
+    defs,
+    definitions,
+    defNames,
+    options,
+    rootName,
+    rootTypeName,
+  );
 
-    const defSchemaWithDefs: JsonSchemaObject = {
-      ...(defs[defName] as JsonSchemaObject),
-      $defs: defs,
-    };
+  for (const target of targets) {
+    const usedRefs = target.usedRefs;
 
-    const zodSchema = jsonSchemaToZod(defSchemaWithDefs, {
+    const analysis = analyzeSchema(target.schemaWithDefs, {
       ...options,
       module,
-      name: info.schemaName,
-      type: info.typeName,
-      parserOverride: createRefHandler(defName, defInfoMap, usedRefs, defs, options),
+      name: target.schemaName,
+      type: target.typeName,
+      parserOverride: createRefHandler(
+        target.defName,
+        defInfoMap,
+        usedRefs,
+        {
+          ...(target.schemaWithDefs.$defs || {}),
+          ...(target.schemaWithDefs.definitions || {}),
+        },
+        options,
+      ),
     });
 
+    const zodSchema = emitZod(analysis);
     const finalSchema = buildSchemaFile(zodSchema, usedRefs, defInfoMap, module);
 
-    const fileName = options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
-
-    files.push({ fileName, contents: finalSchema });
-  }
-
-  // Generate root schema if requested
-  if (options.splitDefs?.includeRoot ?? true) {
-    const usedRefs = new Set<string>();
-
-    const workflowSchemaWithDefs: JsonSchemaObject = {
-      ...(schema as JsonSchemaObject),
-    };
-
-    const workflowZodSchema = jsonSchemaToZod(workflowSchemaWithDefs, {
-      ...options,
-      module,
-      name: rootName,
-      type: rootTypeName,
-      parserOverride: createRefHandler(null, defInfoMap, usedRefs, defs, options),
-    });
-
-    const finalWorkflow = buildSchemaFile(workflowZodSchema, usedRefs, defInfoMap, module);
-
-    const rootFile = options.splitDefs?.fileName?.("root", { isRoot: true }) ?? "workflow.schema.ts";
-    files.push({ fileName: rootFile, contents: finalWorkflow });
+    files.push({ fileName: target.fileName, contents: finalSchema });
   }
 
   // Nested types extraction (optional)
@@ -187,6 +178,28 @@ const buildDefInfoMap = (
   return map;
 };
 
+const buildBundleContext = (
+  defNames: string[],
+  defs: Record<string, JsonSchema>,
+  options: GenerateBundleOptions,
+) => {
+  const defInfoMap = buildDefInfoMap(defNames, defs, options);
+  const cycles = detectCycles(defInfoMap);
+
+  for (const defName of cycles) {
+    const info = defInfoMap.get(defName);
+    if (info) info.hasCycle = true;
+  }
+
+  const rootName = options.splitDefs?.rootName ?? options.name ?? "RootSchema";
+  const rootTypeName =
+    typeof options.type === "string"
+      ? options.type
+      : options.splitDefs?.rootTypeName ?? (typeof options.type === "boolean" && options.type ? rootName : undefined);
+
+  return { defInfoMap, rootName, rootTypeName };
+};
+
 const createRefHandler = (
   currentDefName: string | null,
   defInfoMap: Map<string, DefInfo>,
@@ -201,6 +214,10 @@ const createRefHandler = (
 
       if (match) {
         const refName = match[1];
+        // Only intercept top-level def refs (no nested path like a/$defs/x)
+        if (refName.includes("/")) {
+          return undefined;
+        }
         const refInfo = defInfoMap.get(refName);
 
         if (refInfo) {
@@ -220,7 +237,17 @@ const createRefHandler = (
 
           if (resolved) return resolved;
 
+          if (isCycle && options.refResolution?.lazyCrossRefs) {
+            return `z.lazy(() => ${refInfo.schemaName})`;
+          }
+
           return refInfo.schemaName;
+        }
+
+        // If the ref points to a local/inline $def (not part of top-level defs),
+        // let the default parser resolve it normally.
+        if (allDefs && Object.prototype.hasOwnProperty.call(allDefs, refName)) {
+          return undefined;
         }
       }
 
@@ -228,15 +255,6 @@ const createRefHandler = (
       if (unknown) return unknown;
 
       return options.useUnknown ? "z.unknown()" : "z.any()";
-    }
-
-    // Inline $defs within a schema
-    if (schema["$defs"] && typeof schema["$defs"] === "object") {
-      return jsonSchemaToZod(schema as JsonSchemaObject, {
-        ...options,
-        module: options.module ?? "esm",
-        parserOverride: createRefHandler(currentDefName, defInfoMap, usedRefs, allDefs, options),
-      });
     }
 
     return undefined;
@@ -266,6 +284,67 @@ const buildSchemaFile = (
     'import { z } from "zod"',
     `import { z } from "zod"\n${imports.join("\n")}`,
   );
+};
+
+const planBundleTargets = (
+  rootSchema: JsonSchemaObject,
+  defs: Record<string, JsonSchema>,
+  definitions: Record<string, JsonSchema>,
+  defNames: string[],
+  options: GenerateBundleOptions,
+  rootName: string,
+  rootTypeName?: string,
+): BundleTarget[] => {
+  const targets: BundleTarget[] = [];
+
+  for (const defName of defNames) {
+    const defSchema = defs[defName] as JsonSchemaObject;
+    const defSchemaWithDefs: JsonSchemaObject = {
+      ...defSchema,
+      $defs: { ...(defs as Record<string, JsonSchema>), ...(defSchema?.$defs as Record<string, JsonSchema> | undefined) },
+      definitions: {
+        ...((defSchema as JsonSchemaObject).definitions as Record<string, JsonSchema> | undefined),
+        ...(definitions as Record<string, JsonSchema>),
+      },
+    };
+
+    const pascalName = toPascalCase(defName);
+    const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
+    const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
+    const fileName = options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
+
+    targets.push({
+      defName,
+      schemaWithDefs: defSchemaWithDefs,
+      schemaName,
+      typeName,
+      fileName,
+      usedRefs: new Set<string>(),
+      isRoot: false,
+    });
+  }
+
+  if (options.splitDefs?.includeRoot ?? true) {
+    const rootFile = options.splitDefs?.fileName?.("root", { isRoot: true }) ?? "workflow.schema.ts";
+
+    targets.push({
+      defName: null,
+      schemaWithDefs: {
+        ...rootSchema,
+        definitions: {
+          ...(rootSchema.definitions as Record<string, JsonSchema> | undefined),
+          ...(definitions as Record<string, JsonSchema>),
+        },
+      },
+      schemaName: rootName,
+      typeName: rootTypeName,
+      fileName: rootFile,
+      usedRefs: new Set<string>(),
+      isRoot: true,
+    });
+  }
+
+  return targets;
 };
 
 const findRefDependencies = (schema: JsonSchema | undefined, validDefNames: string[]): Set<string> => {
@@ -399,7 +478,7 @@ const findNestedTypesInSchema = (
 
   const record = schema as Record<string, unknown>;
 
-  if (record.title && typeof record.title === "string" && record.type === "object") {
+  if (record.title && typeof record.title === "string") {
     const title = record.title as string;
     if (title !== parentTypeName && !defNames.map((d) => toPascalCase(d)).includes(title)) {
       nestedTypes.push({
@@ -408,6 +487,13 @@ const findNestedTypesInSchema = (
         propertyPath: [...currentPath],
         file: "",
       });
+    }
+  }
+
+  // inline $defs
+  if (record.$defs && typeof record.$defs === "object") {
+    for (const [_defName, defSchema] of Object.entries(record.$defs as Record<string, unknown>)) {
+      nestedTypes.push(...findNestedTypesInSchema(defSchema, parentTypeName, defNames, currentPath));
     }
   }
 
@@ -424,11 +510,13 @@ const findNestedTypesInSchema = (
   }
 
   if (record.items) {
-    nestedTypes.push(...findNestedTypesInSchema(record.items, parentTypeName, defNames, currentPath));
+    nestedTypes.push(...findNestedTypesInSchema(record.items, parentTypeName, defNames, [...currentPath, "items"]));
   }
 
   if (record.additionalProperties && typeof record.additionalProperties === "object") {
-    nestedTypes.push(...findNestedTypesInSchema(record.additionalProperties, parentTypeName, defNames, currentPath));
+    nestedTypes.push(
+      ...findNestedTypesInSchema(record.additionalProperties, parentTypeName, defNames, [...currentPath, "additionalProperties"]),
+    );
   }
 
   return nestedTypes;
@@ -453,13 +541,14 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
     byParent.get(info.parentType)!.push(info);
   }
 
-  const imports = new Set<string>();
+  const imports = new Map<string, string>(); // file -> type name
   for (const info of nestedTypes) {
-    imports.add(info.file);
+    if (!imports.has(info.file)) {
+      imports.set(info.file, info.parentType);
+    }
   }
 
-  for (const file of [...imports].sort()) {
-    const typeName = file === "workflow" ? "Workflow" : toPascalCase(file);
+  for (const [file, typeName] of [...imports.entries()].sort()) {
     lines.push(`import type { ${typeName} } from './${file}.schema.js';`);
   }
 

@@ -15,6 +15,8 @@ import "./parsers/parseOneOf.test.js";
 import "./parsers/parseSchema.test.js";
 import "./parsers/parseMultipleType.test.js";
 import "./parsers/parseString.test.js";
+import "./generateSchemaBundle.test.js";
+import "./generateSchemaBundle.snap.test.js";
 import "./compileGeneratedSchema.test.js";
 import "./functional-validation.test.js";
 import "./utils/cliTools.test.js";
