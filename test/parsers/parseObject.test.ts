@@ -754,4 +754,44 @@ ctx.addIssue({
 
     assert(typeof result === "string");
   });
+
+  test("dependentRequired", (assert) => {
+    const schema: JSONSchema7 & { type: "object" } = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+        b: { type: "number" },
+        c: { type: "boolean" },
+      },
+      dependentRequired: {
+        a: ["b", "c"],
+      },
+    };
+
+    const result = parseObject(schema, { path: [], seen: new Map() });
+
+    assert(typeof result === "string");
+    assert(result.includes("Dependent required properties missing"), true);
+  });
+
+  test("dependentRequired with custom message", (assert) => {
+    const schema: JSONSchema7 & { type: "object" } = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+        b: { type: "number" },
+      },
+      dependentRequired: {
+        a: ["b"],
+      },
+      errorMessage: {
+        dependentRequired: "deps missing",
+      } as any,
+    };
+
+    const result = parseObject(schema, { path: [], seen: new Map() });
+
+    assert(typeof result === "string");
+    assert(result.includes("deps missing"), true);
+  });
 });

@@ -346,6 +346,33 @@ export function parseObject(
     }
   }
 
+  // dependentRequired
+  if (objectSchema.dependentRequired && typeof objectSchema.dependentRequired === "object") {
+    const entries = Object.entries(objectSchema.dependentRequired);
+    if (entries.length) {
+      const depRequiredMessage =
+        (objectSchema as any).errorMessage?.dependentRequired ?? "Dependent required properties missing";
+      output += `.superRefine((obj, ctx) => {
+  ${entries
+    .map(([prop, deps]) => {
+      const arr = Array.isArray(deps) ? deps : [];
+      if (!arr.length) return "";
+      const jsonDeps = JSON.stringify(arr);
+      return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(prop)})) {
+    const missing = ${jsonDeps}.filter((d) => !Object.prototype.hasOwnProperty.call(obj, d));
+    if (missing.length) {
+      ctx.addIssue({ code: "custom", message: ${JSON.stringify(
+        depRequiredMessage,
+      )}, path: [], params: { missing } });
+    }
+  }`;
+    })
+    .filter(Boolean)
+    .join("\n  ")}
+})`;
+    }
+  }
+
   return output;
 }
 
