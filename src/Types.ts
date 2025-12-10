@@ -12,6 +12,11 @@ export type JsonSchemaObject = {
   type?: string | string[];
   $id?: string;
   $ref?: string;
+  $anchor?: string;
+  $dynamicRef?: string;
+  $dynamicAnchor?: string;
+  $recursiveRef?: string;
+  $recursiveAnchor?: boolean;
   $defs?: Record<string, JsonSchema>;
   definitions?: Record<string, JsonSchema>;
   title?: string;
@@ -67,7 +72,7 @@ export type JsonSchemaObject = {
   enum?: Serializable[];
 
   errorMessage?: { [key: string]: string | undefined };
-} & { [key: string]: any };
+} & Record<string, unknown>;
 
 export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => string;
 export type ParserOverride = (

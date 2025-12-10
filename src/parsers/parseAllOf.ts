@@ -5,7 +5,7 @@ import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
 const originalIndex = Symbol("Original index");
 
 const ensureOriginalIndex = (arr: JsonSchema[]) => {
-  let newArr = [];
+  const newArr: JsonSchemaObject[] = [];
 
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
@@ -13,10 +13,10 @@ const ensureOriginalIndex = (arr: JsonSchema[]) => {
       newArr.push(
         item ? { [originalIndex]: i } : { [originalIndex]: i, not: {} },
       );
-    } else if (originalIndex in item) {
-      return arr;
+    } else if (typeof item === "object" && item !== null && originalIndex in item) {
+      return arr as JsonSchemaObject[];
     } else {
-      newArr.push({ ...item, [originalIndex]: i });
+      newArr.push({ ...(item as JsonSchemaObject), [originalIndex]: i });
     }
   }
 
@@ -34,10 +34,10 @@ export function parseAllOf(
 
     return parseSchema(item, {
       ...refs,
-      path: [...refs.path, "allOf", (item as any)[originalIndex]],
+      path: [...refs.path, "allOf", (item as JsonSchemaObject)[originalIndex] ?? 0],
     });
   } else {
-    const [left, right] = half(ensureOriginalIndex(schema.allOf)) as any;
+    const [left, right] = half(ensureOriginalIndex(schema.allOf));
 
     return `z.intersection(${parseAllOf({ allOf: left }, refs)}, ${parseAllOf(
       {

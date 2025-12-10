@@ -6,6 +6,6 @@ export const parseMultipleType = (
   refs: Refs,
 ) => {
   return `z.union([${schema.type
-    .map((type) => parseSchema({ ...schema, type } as any, {...refs, withoutDefaults: true}))
+    .map((type) => parseSchema({ ...schema, type }, { ...refs, withoutDefaults: true }))
     .join(", ")}])`;
 };

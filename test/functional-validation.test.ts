@@ -88,7 +88,7 @@ suite("functional-validation", (test) => {
     const code = parseSchema(schema, { path: [], seen: new Map() });
 
     // Test with "hi" - matches if (is string), but fails then (too short)
-    // This triggers the error path: result.error.errors vs result.error.issues
+    // This hits the error path and should surface ZodError.issues cleanly
     const compiled = evalAndParse(code, "hi");
 
     if (!compiled.compiled) {

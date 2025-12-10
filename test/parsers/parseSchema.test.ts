@@ -72,7 +72,7 @@ suite("parseSchema", (test) => {
     ? z.number().safeParse(value)
     : z.boolean().safeParse(value);
   if (!result.success) {
-    const issues = result.error.issues ?? result.error.errors ?? [];
+    const issues = result.error.issues;
     issues.forEach((issue) => ctx.addIssue(issue))
   }
 })`,

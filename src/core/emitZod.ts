@@ -130,8 +130,8 @@ export const emitZod = (analysis: AnalysisResult): string => {
     : "";
 
   const jsdocs =
-    rest.withJsdocs && typeof schema !== "boolean" && (schema as any).description
-      ? expandJsdocs((schema as any).description)
+    rest.withJsdocs && typeof schema === "object" && schema !== null && "description" in schema
+      ? expandJsdocs(String((schema as { description?: unknown }).description ?? ""))
       : "";
 
   const lines: string[] = [];
