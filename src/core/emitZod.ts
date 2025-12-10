@@ -98,6 +98,16 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
   const declarations = new Map<string, string>();
   const dependencies = new Map<string, Set<string>>();
+  const reserveName = (base: string): string => {
+    let candidate = base;
+    let i = 1;
+    while (usedNames.has(candidate) || declarations.has(candidate)) {
+      candidate = `${base}${i}`;
+      i += 1;
+    }
+    usedNames.add(candidate);
+    return candidate;
+  };
 
   const parsedSchema = parseSchema(schema as JsonSchema, {
     module,
@@ -129,20 +139,9 @@ export const emitZod = (analysis: AnalysisResult): string => {
             return [`${shouldExport ? "export " : ""}const ${refName} = ${value}`];
           }
 
-          const baseName = `${refName}Base`;
+          const baseName = `${refName}Def`;
           const lines = [`const ${baseName} = ${value}`];
-
-          // Maintain precise inference while breaking recursion via lazy
-          if (module === "esm") {
-            lines.push(
-              `${shouldExport ? "export " : ""}const ${refName}: z.ZodType<z.infer<typeof ${baseName}>> = z.lazy(() => ${baseName})`,
-            );
-          } else {
-            lines.push(
-              `${shouldExport ? "export " : ""}const ${refName} = z.lazy(() => ${baseName}) as z.ZodType<z.infer<typeof ${baseName}>>`,
-            );
-          }
-
+          lines.push(`${shouldExport ? "export " : ""}const ${refName} = ${baseName}`);
           return lines;
         })
         .join("\n")

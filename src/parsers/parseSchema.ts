@@ -160,6 +160,17 @@ const parseRef = (
   // (or is currently being resolved). This avoids TDZ on true cycles while
   // letting ordered, acyclic refs stay direct.
   if (isSameCycle || refs.inProgress!.has(refName)) {
+    const inObjectProperty =
+      refs.path.includes("properties") ||
+      refs.path.includes("patternProperties") ||
+      refs.path.includes("additionalProperties");
+
+    if (inObjectProperty && refName === refs.currentSchemaName) {
+      // Getter properties defer evaluation, so a direct reference avoids extra lazies
+      // for self-recursion.
+      return refName;
+    }
+
     return `z.lazy(() => ${refName})`;
   }
 

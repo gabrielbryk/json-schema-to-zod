@@ -388,5 +388,9 @@ const shouldUseGetter = (parsed: string, refs: Refs): boolean => {
     return true;
   }
 
+  if (refs.cycleRefNames?.has(parsed)) {
+    return true;
+  }
+
   return Boolean(refs.inProgress && refs.inProgress.has(parsed));
 };

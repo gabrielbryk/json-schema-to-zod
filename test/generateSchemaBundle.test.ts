@@ -119,10 +119,11 @@ suite("generateSchemaBundle", (test) => {
       refResolution: { lazyCrossRefs: true },
     });
 
-    const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
-    const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
-    assert(aFile.contents.includes("z.lazy(() => BSchema)"));
-    assert(bFile.contents.includes("z.lazy(() => ASchema)"));
+    const bundleFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
+    assert(bundleFile.contents.includes("export const ASchema = z.object"));
+    assert(bundleFile.contents.includes("export const BSchema = z.object"));
+    assert(bundleFile.contents.includes("z.lazy(() => BSchema)"));
+    assert(bundleFile.contents.includes("z.lazy(() => ASchema)"));
   });
 
   test("cycles in unions/arrays use lazy refs outside object properties", (assert) => {
@@ -150,7 +151,7 @@ suite("generateSchemaBundle", (test) => {
     const result = generateSchemaBundle(schema, { module: "esm" });
     const nodeFile = result.files.find((f) => f.fileName === "node.schema.ts")!;
 
-    assert(nodeFile.contents.includes('get "next"(){ return z.lazy(() => NodeSchema).optional() }'));
+    assert(nodeFile.contents.includes('get "next"(){ return NodeSchema.optional() }'));
     assert(nodeFile.contents.includes("z.array(z.lazy(() => NodeSchema))"));
     assert(!nodeFile.contents.includes("z.union([() =>"));
   });
@@ -283,15 +284,9 @@ suite("generateSchemaBundle", (test) => {
     const nestedFile = result.files.find((f) => f.fileName === "nested-types.ts")!;
     assert(nestedFile.contents.includes("import type { Root } from './workflow.schema.js';"));
     assert(nestedFile.contents.includes("import type { Item } from './item.schema.js';"));
-    assert(nestedFile.contents.includes("export type Config = NonNullable<Root[\"config\"]>;"));
-    assert(
-      nestedFile.contents.includes("export type NestedArray = NonNullable<NonNullable<Root[\"config\"]>[\"nestedArr\"]>;"),
-    );
-    assert(
-      nestedFile.contents.includes(
-        "export type NestedArrayItem = NonNullable<NonNullable<NonNullable<Root[\"config\"]>[\"nestedArr\"]>[number]>;",
-      ),
-    );
-    assert(nestedFile.contents.includes("export type ItemMeta = NonNullable<Item[\"meta\"]>;"));
+    assert(nestedFile.contents.includes("export type Config = Access<Root, [\"config\"]>;"));
+    assert(nestedFile.contents.includes("export type NestedArray = Access<Root, [\"config\", \"nestedArr\"]>;"));
+    assert(nestedFile.contents.includes("export type NestedArrayItem = Access<Root, [\"config\", \"nestedArr\", \"items\"]>;"));
+    assert(nestedFile.contents.includes("export type ItemMeta = Access<Item, [\"meta\"]>;"));
   });
 });

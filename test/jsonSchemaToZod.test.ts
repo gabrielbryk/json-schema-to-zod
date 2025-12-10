@@ -374,8 +374,8 @@ module.exports = z.string()
       jsonSchemaToZod(schema, { module: "esm" }),
       `import { z } from "zod"
 
-const NodeBase = z.object({ "value": z.string(), get "next"(){ return z.lazy(() => Node).optional() } })
-export const Node: z.ZodType<z.infer<typeof NodeBase>> = z.lazy(() => NodeBase)
+const NodeDef = z.object({ "value": z.string(), get "next"(){ return Node.optional() } })
+export const Node = NodeDef
 
 export default Node
 `,

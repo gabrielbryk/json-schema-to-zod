@@ -7,16 +7,21 @@ type DefInfo = {
   pascalName: string;
   schemaName: string;
   typeName?: string;
+  fileName: string;
   dependencies: Set<string>;
   hasCycle: boolean;
+  groupId: string;
 };
 
 type BundleTarget = {
-  defName: string | null;
-  schemaWithDefs: JsonSchemaObject;
-  schemaName: string;
-  typeName?: string;
+  groupId: string;
   fileName: string;
+  members: {
+    defName: string | null;
+    schemaWithDefs: JsonSchemaObject;
+    schemaName: string;
+    typeName?: string;
+  }[];
   usedRefs: Set<string>;
   isRoot: boolean;
 };
@@ -87,7 +92,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   const definitions = (schema as JsonSchemaObject).definitions || {};
   const defNames = Object.keys(defs);
 
-  const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, defs, options);
+  const { rootName, rootTypeName, defInfoMap, groups } = buildBundleContext(defNames, defs, options);
 
   const files: GeneratedFile[] = [];
 
@@ -99,30 +104,38 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     options,
     rootName,
     rootTypeName,
+    defInfoMap,
   );
 
   for (const target of targets) {
     const usedRefs = target.usedRefs;
 
-    const analysis = analyzeSchema(target.schemaWithDefs, {
-      ...options,
-      module,
-      name: target.schemaName,
-      type: target.typeName,
-      parserOverride: createRefHandler(
-        target.defName,
-        defInfoMap,
-        usedRefs,
-        {
-          ...(target.schemaWithDefs.$defs || {}),
-          ...(target.schemaWithDefs.definitions || {}),
-        },
-        options,
-      ),
-    });
+    const zodParts: string[] = [];
 
-    const zodSchema = emitZod(analysis);
-    const finalSchema = buildSchemaFile(zodSchema, usedRefs, defInfoMap, module, target);
+    for (const member of target.members) {
+      const analysis = analyzeSchema(member.schemaWithDefs, {
+        ...options,
+        module,
+        name: member.schemaName,
+        type: member.typeName,
+        parserOverride: createRefHandler(
+          member.defName,
+          defInfoMap,
+          usedRefs,
+          {
+            ...(member.schemaWithDefs.$defs || {}),
+            ...(member.schemaWithDefs.definitions || {}),
+          },
+          options,
+          target.groupId,
+        ),
+      });
+
+      const zodSchema = emitZod(analysis);
+      zodParts.push(zodSchema);
+    }
+
+    const finalSchema = buildSchemaFile(zodParts, usedRefs, defInfoMap, module, target);
 
     files.push({ fileName: target.fileName, contents: finalSchema });
   }
@@ -164,14 +177,17 @@ const buildDefInfoMap = (
 
     const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
     const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
+    const fileName = options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
 
     map.set(defName, {
       name: defName,
       pascalName,
       schemaName,
       typeName,
+      fileName,
       dependencies,
       hasCycle: false,
+      groupId: "",
     });
   }
 
@@ -191,13 +207,21 @@ const buildBundleContext = (
     if (info) info.hasCycle = true;
   }
 
+  const groups = buildSccGroups(defInfoMap);
+  for (const [groupId, members] of groups) {
+    for (const defName of members) {
+      const info = defInfoMap.get(defName);
+      if (info) info.groupId = groupId;
+    }
+  }
+
   const rootName = options.splitDefs?.rootName ?? options.name ?? "RootSchema";
   const rootTypeName =
     typeof options.type === "string"
       ? options.type
       : options.splitDefs?.rootTypeName ?? (typeof options.type === "boolean" && options.type ? rootName : undefined);
 
-  return { defInfoMap, rootName, rootTypeName };
+  return { defInfoMap, rootName, rootTypeName, groups };
 };
 
 const createRefHandler = (
@@ -206,6 +230,7 @@ const createRefHandler = (
   usedRefs: Set<string>,
   allDefs: Record<string, JsonSchema>,
   options: GenerateBundleOptions,
+  currentGroupId?: string,
 ) => {
   const useLazyCrossRefs = options.refResolution?.lazyCrossRefs ?? true;
 
@@ -224,7 +249,7 @@ const createRefHandler = (
 
         if (refInfo) {
           // Track imports when referencing other defs
-          if (refName !== currentDefName) {
+          if (refName !== currentDefName && refInfo.groupId !== currentGroupId) {
             usedRefs.add(refName);
           }
 
@@ -240,6 +265,14 @@ const createRefHandler = (
           if (resolved) return resolved;
 
           if (isCycle && useLazyCrossRefs) {
+            const inObjectProperty =
+              refs.path.includes("properties") ||
+              refs.path.includes("patternProperties") ||
+              refs.path.includes("additionalProperties");
+            if (inObjectProperty && refName === currentDefName) {
+              // Self-recursion inside object getters can safely reference the schema name
+              return refInfo.schemaName;
+            }
             return `z.lazy(() => ${refInfo.schemaName})`;
           }
 
@@ -264,33 +297,49 @@ const createRefHandler = (
 };
 
 const buildSchemaFile = (
-  zodCode: string,
+  zodCodeParts: string[],
   usedRefs: Set<string>,
   defInfoMap: Map<string, DefInfo>,
   module: "esm" | "cjs" | "none",
   target: BundleTarget,
 ): string => {
-  if (module !== "esm") return zodCode;
+  if (module !== "esm") return zodCodeParts.join("\n");
 
-  const imports: string[] = [];
+  const groupFileById = new Map<string, string>();
+  for (const info of defInfoMap.values()) {
+    if (!groupFileById.has(info.groupId)) {
+      groupFileById.set(info.groupId, info.fileName.replace(/\.ts$/, ".js"));
+    }
+  }
+
+  const importsByFile = new Map<string, Set<string>>();
 
   for (const refName of [...usedRefs].sort()) {
     const refInfo = defInfoMap.get(refName);
     if (refInfo) {
-      imports.push(`import { ${refInfo.schemaName} } from './${refName}.schema.js';`);
+      const groupFile = groupFileById.get(refInfo.groupId) ?? refInfo.fileName.replace(/\.ts$/, ".js");
+      const path = `./${groupFile}`;
+      const set = importsByFile.get(path) ?? new Set<string>();
+      set.add(refInfo.schemaName);
+      importsByFile.set(path, set);
     }
   }
 
-  let result = zodCode;
-
-  if (imports.length) {
-    result = result.replace(
-      'import { z } from "zod"',
-      `import { z } from "zod"\n${imports.join("\n")}`,
-    );
+  const imports: string[] = [];
+  for (const [path, names] of [...importsByFile.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    imports.push(`import { ${[...names].sort().join(", ")} } from '${path}';`);
   }
 
-  return result;
+  const body = zodCodeParts
+    .map((code, idx) => {
+      if (idx === 0) return code;
+      return code.replace(/^import \{ z \} from "zod"\n?/, "");
+    })
+    .join("\n");
+
+  return imports.length
+    ? body.replace('import { z } from "zod"', `import { z } from "zod"\n${imports.join("\n")}`)
+    : body;
 };
 
 const planBundleTargets = (
@@ -301,31 +350,49 @@ const planBundleTargets = (
   options: GenerateBundleOptions,
   rootName: string,
   rootTypeName?: string,
+  defInfoMap: Map<string, DefInfo>,
 ): BundleTarget[] => {
   const targets: BundleTarget[] = [];
 
+  const groupById = new Map<string, string[]>();
   for (const defName of defNames) {
-    const defSchema = defs[defName] as JsonSchemaObject;
-    const defSchemaWithDefs: JsonSchemaObject = {
-      ...defSchema,
-      $defs: { ...(defs as Record<string, JsonSchema>), ...(defSchema?.$defs as Record<string, JsonSchema> | undefined) },
-      definitions: {
-        ...((defSchema as JsonSchemaObject).definitions as Record<string, JsonSchema> | undefined),
-        ...(definitions as Record<string, JsonSchema>),
-      },
-    };
+    const info = defInfoMap.get(defName);
+    const gid = info?.groupId || defName;
+    if (!groupById.has(gid)) groupById.set(gid, []);
+    groupById.get(gid)!.push(defName);
+  }
 
-    const pascalName = toPascalCase(defName);
-    const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
-    const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
-    const fileName = options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
+  for (const [groupId, memberDefs] of groupById.entries()) {
+    const orderedDefs = orderGroupMembers(memberDefs, defInfoMap);
+
+    const members = orderedDefs.map((defName) => {
+      const defSchema = defs[defName] as JsonSchemaObject;
+      const defSchemaWithDefs: JsonSchemaObject = {
+        ...defSchema,
+        $defs: { ...(defs as Record<string, JsonSchema>), ...(defSchema?.$defs as Record<string, JsonSchema> | undefined) },
+        definitions: {
+          ...((defSchema as JsonSchemaObject).definitions as Record<string, JsonSchema> | undefined),
+          ...(definitions as Record<string, JsonSchema>),
+        },
+      };
+
+      const pascalName = toPascalCase(defName);
+      const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
+      const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
+      // Use the first member's filename for the group (stable).
+      const first = memberDefs[0];
+      const firstInfo = defInfoMap.get(first);
+      const fileName = firstInfo?.fileName ?? `${first}.schema.ts`;
+
+      return { defName, schemaWithDefs: defSchemaWithDefs, schemaName, typeName, fileName };
+    });
+
+    const fileName = defInfoMap.get(memberDefs[0])?.fileName ?? `${memberDefs[0]}.schema.ts`;
 
     targets.push({
-      defName,
-      schemaWithDefs: defSchemaWithDefs,
-      schemaName,
-      typeName,
+      groupId,
       fileName,
+      members,
       usedRefs: new Set<string>(),
       isRoot: false,
     });
@@ -335,17 +402,23 @@ const planBundleTargets = (
     const rootFile = options.splitDefs?.fileName?.("root", { isRoot: true }) ?? "workflow.schema.ts";
 
     targets.push({
-      defName: null,
-      schemaWithDefs: {
-        ...rootSchema,
-        definitions: {
-          ...(rootSchema.definitions as Record<string, JsonSchema> | undefined),
-          ...(definitions as Record<string, JsonSchema>),
-        },
-      },
-      schemaName: rootName,
-      typeName: rootTypeName,
+      groupId: "root",
       fileName: rootFile,
+      members: [
+        {
+          defName: null,
+          schemaWithDefs: {
+            ...rootSchema,
+            definitions: {
+              ...(rootSchema.definitions as Record<string, JsonSchema> | undefined),
+              ...(definitions as Record<string, JsonSchema>),
+            },
+          },
+          schemaName: rootName,
+          typeName: rootTypeName,
+          fileName: rootFile,
+        },
+      ],
       usedRefs: new Set<string>(),
       isRoot: true,
     });
@@ -382,6 +455,38 @@ const findRefDependencies = (schema: JsonSchema | undefined, validDefNames: stri
 
   traverse(schema);
   return deps;
+};
+
+const orderGroupMembers = (defs: string[], defInfoMap: Map<string, DefInfo>): string[] => {
+  const inGroup = new Set(defs);
+  const visited = new Set<string>();
+  const temp = new Set<string>();
+  const result: string[] = [];
+
+  const visit = (name: string) => {
+    if (visited.has(name)) return;
+    if (temp.has(name)) {
+      return;
+    }
+    temp.add(name);
+    const info = defInfoMap.get(name);
+    if (info) {
+      for (const dep of info.dependencies) {
+        if (inGroup.has(dep)) {
+          visit(dep);
+        }
+      }
+    }
+    temp.delete(name);
+    visited.add(name);
+    result.push(name);
+  };
+
+  for (const name of defs) {
+    visit(name);
+  }
+
+  return result;
 };
 
 const detectCycles = (defInfoMap: Map<string, DefInfo>): Set<string> => {
@@ -422,6 +527,58 @@ const detectCycles = (defInfoMap: Map<string, DefInfo>): Set<string> => {
   }
 
   return cycleNodes;
+};
+
+const buildSccGroups = (defInfoMap: Map<string, DefInfo>): Map<string, string[]> => {
+  const indexMap = new Map<string, number>();
+  const lowLink = new Map<string, number>();
+  const onStack = new Set<string>();
+  const stack: string[] = [];
+  let index = 0;
+  const groups = new Map<string, string[]>();
+
+  const strongConnect = (node: string) => {
+    indexMap.set(node, index);
+    lowLink.set(node, index);
+    index += 1;
+    stack.push(node);
+    onStack.add(node);
+
+    const info = defInfoMap.get(node);
+    if (info) {
+      for (const dep of info.dependencies) {
+        if (!indexMap.has(dep)) {
+          strongConnect(dep);
+          lowLink.set(node, Math.min(lowLink.get(node)!, lowLink.get(dep)!));
+        } else if (onStack.has(dep)) {
+          lowLink.set(node, Math.min(lowLink.get(node)!, indexMap.get(dep)!));
+        }
+      }
+    }
+
+    if (lowLink.get(node) === indexMap.get(node)) {
+      const members: string[] = [];
+      let w: string | undefined;
+      do {
+        w = stack.pop();
+        if (w) {
+          onStack.delete(w);
+          members.push(w);
+        }
+      } while (w && w !== node);
+
+      const groupId = members.sort().join("__");
+      groups.set(groupId, members);
+    }
+  };
+
+  for (const name of defInfoMap.keys()) {
+    if (!indexMap.has(name)) {
+      strongConnect(name);
+    }
+  }
+
+  return groups;
 };
 
 type NestedTypeInfo = {
@@ -538,6 +695,26 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
     " * They are extracted using TypeScript indexed access types.",
     " */",
     "",
+    "type Access<T, P extends readonly (string | number)[]> =",
+    "  P extends []",
+    "    ? NonNullable<T>",
+    "    : P extends readonly [infer H, ...infer R]",
+    "      ? H extends \"items\"",
+    "        ? Access<NonNullable<T> extends Array<infer U> ? U : unknown, Extract<R, (string | number)[]>>",
+    "        : H extends \"additionalProperties\"",
+    "          ? Access<NonNullable<T> extends Record<string, infer V> ? V : unknown, Extract<R, (string | number)[]>>",
+    "          : H extends number",
+    "            ? Access<NonNullable<T> extends Array<infer U> ? U : unknown, Extract<R, (string | number)[]>>",
+    "            : H extends string",
+    "              ? Access<",
+    "                  H extends keyof NonNullable<T>",
+    "                    ? NonNullable<NonNullable<T>[H]>",
+    "                    : unknown,",
+    "                  Extract<R, (string | number)[]>",
+    "                >",
+    "              : unknown",
+    "      : unknown;",
+    "",
   ];
 
   const byParent = new Map<string, NestedTypeInfo[]>();
@@ -562,18 +739,8 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
   lines.push("");
 
   const buildAccessExpr = (parentType: string, propertyPath: (string | number)[]): string => {
-    // Cast parent to any to avoid "property does not exist on unknown" when parents include z.unknown()
-    let accessExpr = `${parentType} as any`;
-    for (const prop of propertyPath) {
-      const accessor =
-        prop === "items"
-          ? "[number]"
-          : typeof prop === "number"
-            ? `[${prop}]`
-            : `[${JSON.stringify(prop)}]`;
-      accessExpr = `NonNullable<${accessExpr}${accessor}>`;
-    }
-    return accessExpr;
+    const path = propertyPath.map((prop) => (typeof prop === "number" ? prop : JSON.stringify(prop))).join(", ");
+    return `Access<${parentType}, [${path}]>`;
   };
 
   for (const [parentType, types] of [...byParent.entries()].sort()) {
