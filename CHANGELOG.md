@@ -1,5 +1,12 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.10.1
+
+### Patch Changes
+
+- 1c318a0: Ensure bundled outputs remain type-safe by grouping strongly connected defs, emitting lazy getters for recursive object refs, and reordering bundle members to avoid duplicate exports.
+- 87526f0: Preserve precise types for recursive schemas by emitting typed lazy wrappers instead of erasing types, and add a workflow regression type-check to guard against inference blowups.
+
 ## 2.9.0
 
 ### Minor Changes
