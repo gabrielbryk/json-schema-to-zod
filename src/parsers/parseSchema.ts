@@ -110,6 +110,10 @@ const parseRef = (
 ): string => {
   const refValue = schema.$dynamicRef ?? schema.$ref;
 
+  if (typeof refValue !== "string") {
+    return anyOrUnknown(refs);
+  }
+
   const resolved = resolveRef(schema, refValue, refs);
 
   if (!resolved) {
@@ -406,9 +410,9 @@ const selectParser: ParserSelector = (schema, refs) => {
   ) {
     return parseNumber(schema);
   } else if (its.a.primitive(schema, "boolean")) {
-    return parseBoolean(schema);
+    return parseBoolean();
   } else if (its.a.primitive(schema, "null")) {
-    return parseNull(schema);
+    return parseNull();
   } else if (its.a.conditional(schema)) {
     return parseIfThenElse(schema, refs);
   } else {

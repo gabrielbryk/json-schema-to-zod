@@ -1,4 +1,4 @@
-import { JsonSchemaObject, Refs } from "../Types.js";
+import { JsonSchema, JsonSchemaObject, Refs } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 import { parseSchema } from "./parseSchema.js";
 
@@ -311,9 +311,9 @@ export const parseString = (
   if (contentMediaType != "") {
     r += contentMediaType;
     r += withMessage(schema, "contentSchema", ({ value }) => {
-      if (value && value instanceof Object) {
+      if (value && typeof value === "object") {
         return {
-          opener: `.pipe(${parseSchema(value, refContext)}`,
+          opener: `.pipe(${parseSchema(value as JsonSchema, refContext)}`,
           closer: ")",
           messagePrefix: ", { error: ",
           messageCloser: " })",

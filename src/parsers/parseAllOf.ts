@@ -2,21 +2,25 @@ import { parseSchema } from "./parseSchema.js";
 import { half } from "../utils/half.js";
 import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
 
-const originalIndex = Symbol("Original index");
+const originalIndexKey = "__originalIndex";
 
 const ensureOriginalIndex = (arr: JsonSchema[]) => {
-  const newArr: JsonSchemaObject[] = [];
+  const newArr: (JsonSchemaObject & { [originalIndexKey]: number })[] = [];
 
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (typeof item === "boolean") {
       newArr.push(
-        item ? { [originalIndex]: i } : { [originalIndex]: i, not: {} },
+        item ? { [originalIndexKey]: i } : { [originalIndexKey]: i, not: {} },
       );
-    } else if (typeof item === "object" && item !== null && originalIndex in item) {
-      return arr as JsonSchemaObject[];
+    } else if (
+      typeof item === "object" &&
+      item !== null &&
+      originalIndexKey in item
+    ) {
+      return arr as (JsonSchemaObject & { [originalIndexKey]: number })[];
     } else {
-      newArr.push({ ...(item as JsonSchemaObject), [originalIndex]: i });
+      newArr.push({ ...(item as JsonSchemaObject), [originalIndexKey]: i });
     }
   }
 
@@ -34,7 +38,13 @@ export function parseAllOf(
 
     return parseSchema(item, {
       ...refs,
-      path: [...refs.path, "allOf", (item as JsonSchemaObject)[originalIndex] ?? 0],
+      path: [
+        ...refs.path,
+        "allOf",
+        (item as JsonSchemaObject & { [originalIndexKey]?: number })[
+          originalIndexKey
+        ] ?? 0,
+      ],
     });
   } else {
     const [left, right] = half(ensureOriginalIndex(schema.allOf));
