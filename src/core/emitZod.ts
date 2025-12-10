@@ -121,10 +121,29 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
   const declarationBlock = declarations.size
     ? orderDeclarations(Array.from(declarations.entries()), dependencies)
-        .map(([refName, value]) => {
+        .flatMap(([refName, value]) => {
           const shouldExport = exportRefs && module === "esm";
-          const decl = `${shouldExport ? "export " : ""}const ${refName} = ${value}`;
-          return decl;
+          const isCycle = cycleRefNames.has(refName);
+
+          if (!isCycle) {
+            return [`${shouldExport ? "export " : ""}const ${refName} = ${value}`];
+          }
+
+          const baseName = `${refName}Base`;
+          const lines = [`const ${baseName} = ${value}`];
+
+          // Maintain precise inference while breaking recursion via lazy
+          if (module === "esm") {
+            lines.push(
+              `${shouldExport ? "export " : ""}const ${refName}: z.ZodType<z.infer<typeof ${baseName}>> = z.lazy(() => ${baseName})`,
+            );
+          } else {
+            lines.push(
+              `${shouldExport ? "export " : ""}const ${refName} = z.lazy(() => ${baseName}) as z.ZodType<z.infer<typeof ${baseName}>>`,
+            );
+          }
+
+          return lines;
         })
         .join("\n")
     : "";

@@ -122,7 +122,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     });
 
     const zodSchema = emitZod(analysis);
-    const finalSchema = buildSchemaFile(zodSchema, usedRefs, defInfoMap, module);
+    const finalSchema = buildSchemaFile(zodSchema, usedRefs, defInfoMap, module, target);
 
     files.push({ fileName: target.fileName, contents: finalSchema });
   }
@@ -268,6 +268,7 @@ const buildSchemaFile = (
   usedRefs: Set<string>,
   defInfoMap: Map<string, DefInfo>,
   module: "esm" | "cjs" | "none",
+  target: BundleTarget,
 ): string => {
   if (module !== "esm") return zodCode;
 
@@ -280,12 +281,16 @@ const buildSchemaFile = (
     }
   }
 
-  if (!imports.length) return zodCode;
+  let result = zodCode;
 
-  return zodCode.replace(
-    'import { z } from "zod"',
-    `import { z } from "zod"\n${imports.join("\n")}`,
-  );
+  if (imports.length) {
+    result = result.replace(
+      'import { z } from "zod"',
+      `import { z } from "zod"\n${imports.join("\n")}`,
+    );
+  }
+
+  return result;
 };
 
 const planBundleTargets = (
@@ -557,7 +562,8 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
   lines.push("");
 
   const buildAccessExpr = (parentType: string, propertyPath: (string | number)[]): string => {
-    let accessExpr = parentType;
+    // Cast parent to any to avoid "property does not exist on unknown" when parents include z.unknown()
+    let accessExpr = `${parentType} as any`;
     for (const prop of propertyPath) {
       const accessor =
         prop === "items"
