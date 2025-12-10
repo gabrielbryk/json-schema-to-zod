@@ -1,5 +1,18 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.9.0
+
+### Minor Changes
+
+- 0ef12db: - Extract analyzer/emitter core, refactor bundle generation to avoid recursion and preserve inline defs/definitions.
+  - Add scoped naming for inline $defs, lazy cross-ref handling, and nested types emission.
+  - Expand bundle test coverage with snapshots, inline-def fixtures, and nested-type extraction.
+
+### Patch Changes
+
+- b8f6248: - Commit remaining utility, ref resolution test, and config updates.
+- 7d257dd: - Ensure dist/esm emits real ESM with NodeNext settings and type:module, and update tests to run under ESM by providing createRequire shims.
+
 ## 2.8.0
 
 ### Minor Changes
