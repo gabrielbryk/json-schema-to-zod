@@ -2,10 +2,11 @@ export const omit = <T extends object, K extends keyof T>(
   obj: T,
   ...keys: K[]
 ): Omit<T, K> =>
-  Object.keys(obj).reduce((acc: Record<string, unknown>, key) => {
-    if (!keys.includes(key as K)) {
-      acc[key] = obj[key as K];
+  Object.keys(obj).reduce((acc: Partial<T>, key) => {
+    const typedKey = key as K;
+    if (!keys.includes(typedKey)) {
+      acc[typedKey] = obj[typedKey];
     }
 
     return acc;
-  }, {}) as any;
+  }, {}) as Omit<T, K>;

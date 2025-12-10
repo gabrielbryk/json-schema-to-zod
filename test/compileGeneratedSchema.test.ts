@@ -4,6 +4,7 @@ import vm from "vm";
 import { extname, join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
+import { JsonSchema } from "../src/Types.js";
 import { suite } from "./suite";
 
 const require = createRequire(import.meta.url);
@@ -70,8 +71,8 @@ const fixtures: Fixture[] = [
 suite("compiled zod output", (test) => {
   for (const { filePath, exportName, validData, invalidData } of fixtures) {
     test(`generates and compiles schema from ${filePath}`, (assert) => {
-      const schema = loadSchemaFromFile(filePath);
-      const generated = jsonSchemaToZod(schema as any, {
+      const schema = loadSchemaFromFile(filePath) as JsonSchema;
+      const generated = jsonSchemaToZod(schema, {
         module: "cjs",
         name: exportName,
       });
@@ -79,7 +80,9 @@ suite("compiled zod output", (test) => {
       const compiledModule = compileCjsModule(generated);
       assert(compiledModule && typeof compiledModule === "object");
 
-      const generatedSchema = (compiledModule as Record<string, any>)[exportName];
+      const generatedSchema = (compiledModule as Record<string, unknown>)[exportName] as
+        | { safeParse: (value: unknown) => { success: boolean } }
+        | undefined;
       assert(generatedSchema && typeof generatedSchema.safeParse === "function");
 
       if (validData !== undefined) {
@@ -114,10 +117,17 @@ function compileCjsModule(source: string) {
   writeFileSync(filePath, source);
 
   try {
-    const context = {
+    const context: {
+      require: NodeRequire;
+      module: { exports: unknown };
+      exports: unknown;
+      __dirname: string;
+      __filename: string;
+      console: typeof console;
+    } = {
       require,
-      module: { exports: {} as any },
-      exports: {} as any,
+      module: { exports: {} },
+      exports: {},
       __dirname: dir,
       __filename: filePath,
       console,

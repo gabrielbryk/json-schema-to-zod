@@ -9,7 +9,7 @@ suite("workflow.yaml", (test) => {
   test("converts workflow schema fixture", (assert) => {
     const schema = yaml.load(
       readFileSync("test/fixtures/workflow.yaml", "utf8"),
-    ) as any;
+    ) as Record<string, unknown>;
 
     const output = jsonSchemaToZod(schema, {
       module: "esm",

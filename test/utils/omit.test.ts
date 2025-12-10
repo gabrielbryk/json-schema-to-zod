@@ -11,18 +11,15 @@ suite("omit", (test) => {
     omit(
       input,
       "b",
-      // @ts-expect-error
+      // @ts-expect-error testing invalid key
       "c",
     );
 
     const output = omit(input, "b");
 
-    // @ts-expect-error
-    output.b;
-
     assert(output.a, true);
 
-    // @ts-expect-error
+    // @ts-expect-error property should be omitted
     assert(output.b, undefined);
   });
 });

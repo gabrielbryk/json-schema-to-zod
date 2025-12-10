@@ -1,4 +1,4 @@
-import { JsonSchema, JsonSchemaObject, Options } from "../Types.js";
+import { JsonSchema, JsonSchemaObject } from "../Types.js";
 import { resolveUri } from "./resolveUri.js";
 
 export type RefRegistryEntry = {
@@ -12,7 +12,6 @@ export type RefRegistryEntry = {
 export const buildRefRegistry = (
   schema: JsonSchema,
   rootBaseUri = "root:///",
-  opts: Options = {},
 ): { registry: Map<string, RefRegistryEntry>; rootBaseUri: string } => {
   const registry = new Map<string, RefRegistryEntry>();
 
@@ -24,7 +23,7 @@ export const buildRefRegistry = (
     const nextBase = obj.$id ? resolveUri(baseUri, obj.$id) : baseUri;
 
     // Legacy recursive anchor
-    if ((obj as any).$recursiveAnchor === true) {
+    if (obj.$recursiveAnchor === true) {
       const name = "__recursive__";
       registry.set(`${nextBase}#${name}`, {
         schema: node,
@@ -47,8 +46,8 @@ export const buildRefRegistry = (
       });
     }
 
-    if (typeof (obj as any).$dynamicAnchor === "string") {
-      const name = (obj as any).$dynamicAnchor as string;
+    if (typeof obj.$dynamicAnchor === "string") {
+      const name = obj.$dynamicAnchor;
       registry.set(`${nextBase}#${name}`, {
         schema: node,
         path,
@@ -59,7 +58,7 @@ export const buildRefRegistry = (
     }
 
     for (const key in obj) {
-      const value = (obj as any)[key];
+      const value = (obj as Record<string, unknown>)[key];
 
       if (Array.isArray(value)) {
         value.forEach((v, i) => walk(v as JsonSchema, nextBase, [...path, key, i]));

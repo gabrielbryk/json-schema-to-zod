@@ -23,13 +23,4 @@ export default [
       "@typescript-eslint/no-var-requires": "error",
     },
   },
-  {
-    files: ["test/**/*.{ts,tsx}"],
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-var-requires": "off",
-      "@typescript-eslint/no-require-imports": "off",
-    },
-  },
 ];

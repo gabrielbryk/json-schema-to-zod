@@ -272,8 +272,8 @@ suite("parseString", (test) => {
   test("should warn on unknown format when hook provided", (assert) => {
     const seen: { format: string; path: (string | number)[] }[] = [];
     parseString(
-      { type: "string", format: "made-up" } as any,
-      { path: ["root"], onUnknownFormat: (format, path) => seen.push({ format, path }) } as any,
+      { type: "string", format: "made-up" },
+      { path: ["root"], onUnknownFormat: (format, path) => seen.push({ format, path }) },
     );
     assert(seen, [{ format: "made-up", path: ["root"] }]);
   });

@@ -1,4 +1,4 @@
-import { parseNullable, parseSchema } from "../../src";
+import { parseSchema } from "../../src";
 import { suite } from "../suite";
 
 suite("parseNullable", (test) => {

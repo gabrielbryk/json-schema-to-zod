@@ -1,4 +1,4 @@
-import { SimpleDiscriminatedOneOfSchema, Refs, JsonSchemaObject } from "../Types.js";
+import { SimpleDiscriminatedOneOfSchema, Refs } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 

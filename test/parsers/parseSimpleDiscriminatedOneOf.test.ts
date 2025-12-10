@@ -338,13 +338,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
       discriminator: {
         propertyName: "type"
       }
-    } as any; // Using any for invalid test data
+    } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     const schema2 = {
       oneOf: undefined,
       discriminator: {
         propertyName: "type"
       }
-    } as any; // Using any for invalid test data
+    } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     assert(its.a.simpleDiscriminatedOneOf(schema1), false);
     assert(its.a.simpleDiscriminatedOneOf(schema2), false);
   });
@@ -402,7 +402,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
       discriminator: {
         propertyName: "type"
       }
-    } as any; // Using any for invalid test data
+    } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
 

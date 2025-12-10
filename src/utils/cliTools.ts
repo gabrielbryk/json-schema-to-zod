@@ -32,7 +32,7 @@ export function parseArgs<T extends Params>(
   args: string[],
   help?: boolean | string,
 ): InferReturnType<T> {
-  const result: Record<string, string | number | boolean> = {};
+  const result: Partial<Record<keyof T, string | number | boolean>> = {};
 
   if (help) {
     let index = args.indexOf("--help");
@@ -106,7 +106,7 @@ export function parseArgs<T extends Params>(
     }
   }
 
-  return result as any;
+  return result as InferReturnType<T>;
 }
 
 export function parseOrReadJSON(jsonOrPath: string): unknown {

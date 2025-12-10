@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { createRequire } from "module";
 import { JSONSchema7 } from "json-schema";
-import { ZodError } from "zod";
 import { parseObject } from "../../src/parsers/parseObject";
 import { suite } from "../suite";
 
@@ -392,12 +392,12 @@ suite("parseObject", (test) => {
       },
     };
 
-    const expected =
+    const _expected =
       'z.object({ "a": z.string(), "b": z.number().optional() })';
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(result, expected);
+    assert(result, _expected);
 
     assert(run(result, { a: "hello" }), {
       success: true,
@@ -426,12 +426,12 @@ suite("parseObject", (test) => {
       additionalProperties: { type: "boolean" },
     };
 
-    const expected =
+    const _expected =
       'z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.boolean())';
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(result, expected);
+    assert(result, _expected);
 
     assert(run(result, { b: "hello", x: "true" }).success, false);
   });
@@ -453,7 +453,7 @@ suite("parseObject", (test) => {
       },
     };
 
-    const expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.array(z.any())).superRefine((value, ctx) => {
+    const _expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.array(z.any())).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp("\\\\."))) {
 const result = z.array(z.any()).safeParse(value[key])
@@ -495,7 +495,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
+    const _expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
 for (const key in value) {
 let evaluated = ["a", "b"].includes(key)
 if (key.match(new RegExp("\\\\."))) {
@@ -553,11 +553,11 @@ ctx.addIssue({
       additionalProperties: { type: "boolean" },
     };
 
-    const expected = "z.record(z.string(), z.boolean())";
+    const _expected = "z.record(z.string(), z.boolean())";
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(result, expected);
+    assert(result, _expected);
   });
 
   test("Funcional tests - additionalProperties and patternProperties", (assert) => {
@@ -570,7 +570,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
+    const _expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1), z.boolean()])).superRefine((value, ctx) => {
 for (const key in value) {
 let evaluated = false
 if (key.match(new RegExp(\"\\\\.\"))) {
@@ -632,7 +632,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.string(), z.array(z.any())).superRefine((value, ctx) => {
+    const _expected = `z.record(z.string(), z.array(z.any())).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp("\\\\."))) {
 const result = z.array(z.any()).safeParse(value[key])
@@ -664,7 +664,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
+    const _expected = `z.record(z.string(), z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp(\"\\\\.\"))) {
 const result = z.array(z.any()).safeParse(value[key])
@@ -722,7 +722,7 @@ ctx.addIssue({
       },
     };
 
-    const expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
+    const _expected = `z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.union([z.array(z.any()), z.array(z.any()).min(1)])).superRefine((value, ctx) => {
 for (const key in value) {
 if (key.match(new RegExp(\"\\\\.\"))) {
 const result = z.array(z.any()).safeParse(value[key])
@@ -789,7 +789,7 @@ ctx.addIssue({
       },
       errorMessage: {
         dependentRequired: "deps missing",
-      } as any,
+      },
     };
 
     const result = parseObject(schema, { path: [], seen: new Map() });

@@ -247,11 +247,12 @@ export function parseObject(
         ...objectSchema,
         anyOf: objectSchema.anyOf.map((x) =>
           typeof x === "object" &&
+          x !== null &&
           !x.type &&
-          (x.properties || x.additionalProperties || x.patternProperties)
-            ? { ...x, type: "object" }
+          ((x as JsonSchemaObject).properties || (x as JsonSchemaObject).additionalProperties || (x as JsonSchemaObject).patternProperties)
+            ? { ...(x as JsonSchemaObject), type: "object" }
             : x,
-        ) as any,
+        ),
       },
       refs,
     )})`;
@@ -263,11 +264,12 @@ export function parseObject(
         ...objectSchema,
         oneOf: objectSchema.oneOf.map((x) =>
           typeof x === "object" &&
+          x !== null &&
           !x.type &&
-          (x.properties || x.additionalProperties || x.patternProperties)
-            ? { ...x, type: "object" }
+          ((x as JsonSchemaObject).properties || (x as JsonSchemaObject).additionalProperties || (x as JsonSchemaObject).patternProperties)
+            ? { ...(x as JsonSchemaObject), type: "object" }
             : x,
-        ) as any,
+        ),
       },
       refs,
     )})`;
@@ -279,11 +281,12 @@ export function parseObject(
         ...objectSchema,
         allOf: objectSchema.allOf.map((x) =>
           typeof x === "object" &&
+          x !== null &&
           !x.type &&
-          (x.properties || x.additionalProperties || x.patternProperties)
-            ? { ...x, type: "object" }
+          ((x as JsonSchemaObject).properties || (x as JsonSchemaObject).additionalProperties || (x as JsonSchemaObject).patternProperties)
+            ? { ...(x as JsonSchemaObject), type: "object" }
             : x,
-        ) as any,
+        ),
       },
       refs,
     )})`;
@@ -301,9 +304,10 @@ export function parseObject(
   if (objectSchema.propertyNames) {
     const normalizedPropNames =
       typeof objectSchema.propertyNames === "object" &&
+      objectSchema.propertyNames !== null &&
       !objectSchema.propertyNames.type &&
-      (objectSchema.propertyNames as any).pattern
-        ? { ...objectSchema.propertyNames, type: "string" }
+      (objectSchema.propertyNames as JsonSchemaObject).pattern
+        ? { ...(objectSchema.propertyNames as JsonSchemaObject), type: "string" }
         : objectSchema.propertyNames;
 
     const propNameSchema = parseSchema(normalizedPropNames, {
@@ -332,12 +336,12 @@ export function parseObject(
     if (entries.length) {
       output += `.superRefine((obj, ctx) => {
   ${entries
-    .map(([key, schema], idx) => {
+    .map(([key, schema]) => {
       const parsed = parseSchema(schema, { ...refs, path: [...refs.path, "dependentSchemas", key] });
       return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(key)})) {
     const result = ${parsed}.safeParse(obj);
     if (!result.success) {
-      ctx.addIssue({ code: "custom", message: "Dependent schema failed", path: [], params: { issues: result.error.issues } });
+      ctx.addIssue({ code: "custom", message: ${(objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentSchemas ?? JSON.stringify("Dependent schema failed")}, path: [], params: { issues: result.error.issues } });
     }
   }`;
     })
@@ -351,7 +355,8 @@ export function parseObject(
     const entries = Object.entries(objectSchema.dependentRequired);
     if (entries.length) {
       const depRequiredMessage =
-        (objectSchema as any).errorMessage?.dependentRequired ?? "Dependent required properties missing";
+        (objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentRequired ??
+        "Dependent required properties missing";
       output += `.superRefine((obj, ctx) => {
   ${entries
     .map(([prop, deps]) => {

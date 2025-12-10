@@ -151,9 +151,6 @@ const toPascalCase = (str: string): string =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join("");
 
-const isObjectPropertyPath = (path: (string | number)[]): boolean =>
-  path.some((segment, index) => segment === "properties" && typeof path[index + 1] === "string");
-
 const buildDefInfoMap = (
   defNames: string[],
   defs: Record<string, JsonSchema>,

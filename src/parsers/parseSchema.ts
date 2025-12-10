@@ -44,15 +44,12 @@ export const parseSchema = (
   if (typeof schema !== "object") return schema ? anyOrUnknown(refs) : "z.never()";
 
   const parentBase = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
-  const baseUri =
-    typeof (schema as any).$id === "string"
-      ? resolveUri(parentBase, (schema as any).$id as string)
-      : parentBase;
+  const baseUri = typeof schema.$id === "string" ? resolveUri(parentBase, schema.$id) : parentBase;
 
   const dynamicAnchors = Array.isArray(refs.dynamicAnchors) ? [...refs.dynamicAnchors] : [];
-  if (typeof (schema as any).$dynamicAnchor === "string") {
+  if (typeof schema.$dynamicAnchor === "string") {
     dynamicAnchors.push({
-      name: (schema as any).$dynamicAnchor as string,
+      name: schema.$dynamicAnchor,
       uri: baseUri,
       path: refs.path,
     });
@@ -111,7 +108,7 @@ const parseRef = (
   schema: JsonSchemaObject & { $ref?: string; $dynamicRef?: string },
   refs: Refs,
 ): string => {
-  const refValue = (schema as any).$dynamicRef ?? (schema as any).$ref;
+  const refValue = schema.$dynamicRef ?? schema.$ref;
 
   const resolved = resolveRef(schema, refValue, refs);
 
@@ -194,7 +191,7 @@ const resolveRef = (
   const base = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
 
   // Handle dynamicRef lookup via dynamicAnchors stack
-  const isDynamic = typeof (schemaNode as any).$dynamicRef === "string";
+  const isDynamic = typeof schemaNode.$dynamicRef === "string";
   if (isDynamic && refs.dynamicAnchors && ref.startsWith("#")) {
     const name = ref.slice(1);
     for (let i = refs.dynamicAnchors.length - 1; i >= 0; i -= 1) {
@@ -220,7 +217,7 @@ const resolveRef = (
   }
 
   // Legacy recursive ref: treat as dynamic to __recursive__
-  if ((schemaNode as any).$recursiveRef) {
+  if (schemaNode.$recursiveRef) {
     const recursiveKey = `${base}#__recursive__`;
     regEntry = refs.refRegistry?.get(recursiveKey);
     if (regEntry) {
@@ -239,7 +236,11 @@ const resolveRef = (
     const loaded = refs.resolveExternalRef(extBase);
     if (loaded) {
       // If async resolver is used synchronously here, it will be ignored; keep simple sync for now
-      const schema = (loaded as any).then ? undefined : (loaded as JsonSchema);
+      const maybePromise = loaded as { then?: unknown };
+      const schema =
+        typeof maybePromise.then === "function"
+          ? undefined
+          : (loaded as JsonSchema);
       if (schema) {
         const { registry } = buildRefRegistry(schema, extBase);
         registry.forEach((entry, k) => refs.refRegistry?.set(k, entry));
@@ -264,11 +265,11 @@ const resolveRef = (
       .filter((segment) => segment.length > 0)
       .map(decodePointerSegment);
 
-    let current: any = refs.root;
+    let current: unknown = refs.root;
 
     for (const segment of rawSegments) {
       if (typeof current !== "object" || current === null) return undefined;
-      current = current[segment as keyof typeof current];
+      current = (current as Record<string, unknown>)[segment as keyof typeof current];
     }
 
     return { schema: current as JsonSchema, path: rawSegments, baseUri: base, pointerKey: ref };
@@ -441,7 +442,7 @@ export const its = {
     nullable: (
       x: JsonSchemaObject,
     ): x is JsonSchemaObject & { nullable: true } =>
-      (x as any).nullable === true,
+      (x as { nullable?: boolean }).nullable === true,
     multipleType: (
       x: JsonSchemaObject,
     ): x is JsonSchemaObject & { type: string[] } => Array.isArray(x.type),
@@ -455,7 +456,7 @@ export const its = {
     ): x is JsonSchemaObject & {
       $ref?: string;
       $dynamicRef?: string;
-    } => typeof (x as any).$ref === "string" || typeof (x as any).$dynamicRef === "string",
+    } => typeof x.$ref === "string" || typeof x.$dynamicRef === "string",
     const: (
       x: JsonSchemaObject,
     ): x is JsonSchemaObject & {

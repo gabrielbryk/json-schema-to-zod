@@ -5,11 +5,11 @@ const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
 const RESET = "\x1b[39m";
 
-type TestContext = (assert: (result: any, expected?: any) => void) => void;
+type TestContext = (assert: (result: unknown, expected?: unknown) => void) => void;
 type TestFunction = (name: string, context: TestContext) => void;
 type SuiteContext = (test: TestFunction) => void;
-type Error = { expected: any; got: any };
-type ErrorMap = { [key: string]: Error | ErrorMap };
+type AssertionError = { expected: unknown; got: unknown };
+type ErrorMap = { [key: string]: AssertionError | ErrorMap };
 
 export function suite(suiteName: string, suiteContext: SuiteContext): void {
   let tests = 0;

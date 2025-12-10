@@ -80,7 +80,7 @@ describe("ref resolution", () => {
         next: { $recursiveRef: "#" },
       },
       required: ["value"],
-    } as any;
+    };
 
     const analysis = analyzeSchema(schema);
     const code = emitZod(analysis);
