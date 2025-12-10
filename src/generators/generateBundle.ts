@@ -103,8 +103,8 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     defNames,
     options,
     rootName,
-    rootTypeName,
     defInfoMap,
+    rootTypeName,
   );
 
   for (const target of targets) {
@@ -349,8 +349,8 @@ const planBundleTargets = (
   defNames: string[],
   options: GenerateBundleOptions,
   rootName: string,
-  rootTypeName?: string,
   defInfoMap: Map<string, DefInfo>,
+  rootTypeName?: string,
 ): BundleTarget[] => {
   const targets: BundleTarget[] = [];
 
@@ -379,12 +379,8 @@ const planBundleTargets = (
       const pascalName = toPascalCase(defName);
       const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
       const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
-      // Use the first member's filename for the group (stable).
-      const first = memberDefs[0];
-      const firstInfo = defInfoMap.get(first);
-      const fileName = firstInfo?.fileName ?? `${first}.schema.ts`;
 
-      return { defName, schemaWithDefs: defSchemaWithDefs, schemaName, typeName, fileName };
+      return { defName, schemaWithDefs: defSchemaWithDefs, schemaName, typeName };
     });
 
     const fileName = defInfoMap.get(memberDefs[0])?.fileName ?? `${memberDefs[0]}.schema.ts`;
@@ -416,7 +412,6 @@ const planBundleTargets = (
           },
           schemaName: rootName,
           typeName: rootTypeName,
-          fileName: rootFile,
         },
       ],
       usedRefs: new Set<string>(),
