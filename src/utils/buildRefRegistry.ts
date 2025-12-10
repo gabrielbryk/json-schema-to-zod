@@ -1,0 +1,75 @@
+import { JsonSchema, JsonSchemaObject, Options } from "../Types.js";
+import { resolveUri } from "./resolveUri.js";
+
+export type RefRegistryEntry = {
+  schema: JsonSchema;
+  path: (string | number)[];
+  baseUri: string;
+  dynamic?: boolean;
+  anchor?: string;
+};
+
+export const buildRefRegistry = (
+  schema: JsonSchema,
+  rootBaseUri = "root:///",
+  opts: Options = {},
+): { registry: Map<string, RefRegistryEntry>; rootBaseUri: string } => {
+  const registry = new Map<string, RefRegistryEntry>();
+
+  const walk = (node: JsonSchema, baseUri: string, path: (string | number)[]) => {
+    if (typeof node !== "object" || node === null) return;
+
+    const obj = node as JsonSchemaObject;
+
+    const nextBase = obj.$id ? resolveUri(baseUri, obj.$id) : baseUri;
+
+    // Legacy recursive anchor
+    if ((obj as any).$recursiveAnchor === true) {
+      const name = "__recursive__";
+      registry.set(`${nextBase}#${name}`, {
+        schema: node,
+        path,
+        baseUri: nextBase,
+        dynamic: true,
+        anchor: name,
+      });
+    }
+
+    // Register base entry
+    registry.set(nextBase, { schema: node, path, baseUri: nextBase });
+
+    if (typeof obj.$anchor === "string") {
+      registry.set(`${nextBase}#${obj.$anchor}`, {
+        schema: node,
+        path,
+        baseUri: nextBase,
+        anchor: obj.$anchor,
+      });
+    }
+
+    if (typeof (obj as any).$dynamicAnchor === "string") {
+      const name = (obj as any).$dynamicAnchor as string;
+      registry.set(`${nextBase}#${name}`, {
+        schema: node,
+        path,
+        baseUri: nextBase,
+        dynamic: true,
+        anchor: name,
+      });
+    }
+
+    for (const key in obj) {
+      const value = (obj as any)[key];
+
+      if (Array.isArray(value)) {
+        value.forEach((v, i) => walk(v as JsonSchema, nextBase, [...path, key, i]));
+      } else if (typeof value === "object" && value !== null) {
+        walk(value as JsonSchema, nextBase, [...path, key]);
+      }
+    }
+  };
+
+  walk(schema, rootBaseUri, []);
+
+  return { registry, rootBaseUri };
+};

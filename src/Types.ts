@@ -116,6 +116,16 @@ export type Options = {
    * Can be used to log or throw on unknown formats.
    */
   onUnknownFormat?: (format: string, path: (string | number)[]) => void;
+  /**
+   * Called when a $ref/$dynamicRef cannot be resolved.
+   * Can be used to log or throw on unknown references.
+   */
+  onUnresolvedRef?: (ref: string, path: (string | number)[]) => void;
+  /**
+   * Optional resolver for external $ref URIs.
+   * Return a JsonSchema to register, or undefined if not found.
+   */
+  resolveExternalRef?: (uri: string) => JsonSchema | Promise<JsonSchema> | undefined;
 };
 
 export type Refs = Options & {
@@ -130,6 +140,14 @@ export type Refs = Options & {
   currentSchemaName?: string;
   cycleRefNames?: Set<string>;
   cycleComponentByName?: Map<string, number>;
+  /** Base URI in scope while traversing */
+  currentBaseUri?: string;
+  /** Root/base URI for the document */
+  rootBaseUri?: string;
+  /** Prebuilt registry of resolved URIs/anchors */
+  refRegistry?: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
+  /** Stack of active dynamic anchors (nearest last) */
+  dynamicAnchors?: { name: string; uri: string; path: (string | number)[] }[];
 };
 
 export type SimpleDiscriminatedOneOfSchema<D extends string = string> = JsonSchemaObject & {
