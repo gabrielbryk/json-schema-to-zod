@@ -105,6 +105,18 @@ export type Options = {
   /** Export all generated reference schemas (for $refs) when using ESM */
   exportRefs?: boolean;
   /**
+   * Export TypeScript types for all generated schemas using z.infer.
+   * When true, exports a type for each schema (including lifted/ref schemas when exportRefs is true).
+   * Type names match their corresponding schema const names.
+   * @example
+   * // With typeExports: true, exportRefs: true, and name: "MySchema"
+   * export const SubSchema = z.object({...});
+   * export type SubSchema = z.infer<typeof SubSchema>;
+   * export const MySchema = z.object({ sub: SubSchema });
+   * export type MySchema = z.infer<typeof MySchema>;
+   */
+  typeExports?: boolean;
+  /**
    * Store original JSON Schema constructs in .meta({ __jsonSchema: {...} })
    * for features that can't be natively represented in Zod (patternProperties,
    * if/then/else, etc.). This enables round-trip conversion back to JSON Schema.

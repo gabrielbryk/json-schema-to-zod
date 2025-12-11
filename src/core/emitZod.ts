@@ -181,6 +181,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
     type,
     noImport,
     exportRefs,
+    typeExports,
     withMeta,
     ...rest
   } = options;
@@ -278,6 +279,14 @@ export const emitZod = (analysis: AnalysisResult): string => {
             expression: `${baseName}${methodChain}`,
             exported: exportRefs,
           });
+
+          // Export type for this declaration if typeExports is enabled
+          if (typeExports && exportRefs) {
+            emitter.addTypeExport({
+              name: refName,
+              type: `z.infer<typeof ${refName}>`,
+            });
+          }
           continue;
         }
       }
@@ -288,6 +297,14 @@ export const emitZod = (analysis: AnalysisResult): string => {
         exported: exportRefs,
         typeAnnotation: storedType !== "z.ZodTypeAny" ? storedType : undefined,
       });
+
+      // Export type for this declaration if typeExports is enabled
+      if (typeExports && exportRefs) {
+        emitter.addTypeExport({
+          name: refName,
+          type: `z.infer<typeof ${refName}>`,
+        });
+      }
     }
   }
 
@@ -305,7 +322,8 @@ export const emitZod = (analysis: AnalysisResult): string => {
     });
   }
 
-  if (type && name) {
+  // Export type for root schema if type option is set, or if typeExports is enabled
+  if (name && (type || typeExports)) {
     const typeName = typeof type === "string" ? type : `${name[0].toUpperCase()}${name.substring(1)}`;
     emitter.addTypeExport({
       name: typeName,
