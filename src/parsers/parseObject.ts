@@ -314,27 +314,29 @@ export function parseObject(
       : properties;
 
   const fallback = anyOrUnknown(refs);
-  let output: string = properties
-    ? patternProperties
-      ? properties + patternProperties
-      : additionalProperties
-        ? additionalProperties.expression === "z.never()"
-          // Don't use .strict() if there are composition keywords that add properties
-          ? hasCompositionKeywords
-            ? passthroughProperties
-            : properties + ".strict()"
-          : properties + `.catchall(${additionalProperties.expression})`
-        : passthroughProperties
-    : patternProperties
-      ? patternProperties
-      : additionalProperties
-        ? `z.record(z.string(), ${additionalProperties.expression})`
-        // If we have composition keywords, start with empty object instead of z.record()
-        // The composition will provide the actual schema via .and()
-        : hasCompositionKeywords
-          ? "z.object({})"
-          // No constraints = any object. Use z.record() which is cleaner than z.object({}).catchall()
-          : `z.record(z.string(), ${fallback.expression})`;
+  let output: string;
+  if (properties) {
+    if (patternProperties) {
+      output = properties + patternProperties;
+    } else if (additionalProperties) {
+      if (additionalProperties.expression === "z.never()") {
+        // Don't use .strict() if there are composition keywords that add properties
+        output = hasCompositionKeywords ? passthroughProperties! : properties + ".strict()";
+      } else {
+        output = properties + `.catchall(${additionalProperties.expression})`;
+      }
+    } else {
+      output = passthroughProperties!;
+    }
+  } else if (patternProperties) {
+    output = patternProperties;
+  } else if (additionalProperties) {
+    output = `z.record(z.string(), ${additionalProperties.expression})`;
+  } else {
+    // If we have composition keywords, start with empty object instead of z.record()
+    // The composition will provide the actual schema via .and()
+    output = hasCompositionKeywords ? "z.object({})" : `z.record(z.string(), ${fallback.expression})`;
+  }
 
   if (unevaluated === false && properties && !hasCompositionKeywords) {
     output += ".strict()";
