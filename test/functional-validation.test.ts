@@ -9,28 +9,50 @@
  */
 
 import { createRequire } from "module";
-import { jsonSchemaToZod } from "../src/jsonSchemaToZod.js";
 import { parseSchema } from "../src/parsers/parseSchema.js";
 import { suite } from "./suite";
 
 const require = createRequire(import.meta.url);
 
-const runZodCode = <T = unknown>(zodCode: string): T => {
-  if (zodCode.includes("module.exports")) {
-    const module = { exports: {} as T };
-    const exports = module.exports;
-    new Function("require", "module", "exports", zodCode)(
-      require,
-      module,
-      exports,
-    );
-    return module.exports;
+const esmToCjs = (code: string): string => {
+  const importsReplaced = code.replace(/^import { z } from "zod";?\n?/m, 'const { z } = require("zod");\n');
+  const hasDefaultExport = /^export default /m.test(importsReplaced);
+  const exportedConsts = Array.from(importsReplaced.matchAll(/^export const (\w+) =/gm)).map((m) => m[1]);
+
+  let transformed = importsReplaced
+    .replace(/^export const (\w+) =/gm, "const $1 =")
+    .replace(/^export default /m, "const __default__ = ")
+    .replace(/^export type .*$/gm, "");
+
+  if (hasDefaultExport || exportedConsts.length) {
+    const exportsList = [
+      ...(hasDefaultExport ? ["__default__"] : []),
+      ...exportedConsts,
+    ];
+    const exportValue = exportsList.length === 1 ? exportsList[0] : `{ ${exportsList.join(", ")} }`;
+    transformed += `\nmodule.exports = ${exportValue};`;
   }
 
-  return new Function("require", `
-    const { z } = require("zod");
-    return (${zodCode});
-  `)(require) as T;
+  return transformed;
+};
+
+const runZodCode = <T = unknown>(zodCode: string): T => {
+  const isEsm = /export (default|const)/.test(zodCode) || /^import { z } from "zod"/m.test(zodCode);
+
+  if (!isEsm) {
+    return new Function("require", `
+      const { z } = require("zod");
+      return (${zodCode});
+    `)(require) as T;
+  }
+
+  const normalized = esmToCjs(zodCode);
+  const module = { exports: {} as T };
+  const exports = module.exports;
+
+  new Function("require", "module", "exports", normalized)(require, module, exports);
+
+  return module.exports;
 };
 
 // Helper to eval generated code and run safeParse
@@ -291,7 +313,7 @@ suite("functional-validation", (test) => {
     assert(result.success, true);
   });
 
-  test("full jsonSchemaToZod output should be importable", (assert) => {
+  test("full parseSchema output should be importable", (assert) => {
     const schema = {
       type: "object",
       properties: {
@@ -301,14 +323,14 @@ suite("functional-validation", (test) => {
       required: ["name"]
     };
 
-    const output = jsonSchemaToZod(schema, { module: "cjs" });
+    const code = parseSchema(schema, { path: [], seen: new Map() });
 
     try {
-      const zodSchema = runZodCode(output);
+      const zodSchema = runZodCode<{ safeParse: (v: unknown) => { success: boolean } }>(code);
       const result = zodSchema.safeParse({ name: "test", age: 25 });
       assert(result.success, true);
     } catch (e) {
-      console.error("Generated code:", output);
+      console.error("Generated code:", code);
       console.error("Error:", e);
       assert(false, true);
     }

@@ -1,13 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { createRequire } from "module";
-import vm from "vm";
+import { spawnSync } from "child_process";
 import { extname, join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
 import { JsonSchema } from "../src/Types.js";
 import { suite } from "./suite";
-
-const require = createRequire(import.meta.url);
 
 type Fixture = {
   filePath: string;
@@ -73,26 +70,24 @@ suite("compiled zod output", (test) => {
     test(`generates and compiles schema from ${filePath}`, (assert) => {
       const schema = loadSchemaFromFile(filePath) as JsonSchema;
       const generated = jsonSchemaToZod(schema, {
-        module: "cjs",
         name: exportName,
+        exportRefs: true,
       });
 
-      const compiledModule = compileCjsModule(generated);
+      const compiledModule = compileTypeScriptModule(generated, exportName);
       assert(compiledModule && typeof compiledModule === "object");
+      assert(compiledModule.hasExport);
+      assert(compiledModule.hasSafeParse);
 
-      const generatedSchema = (compiledModule as Record<string, unknown>)[exportName] as
-        | { safeParse: (value: unknown) => { success: boolean } }
-        | undefined;
-      assert(generatedSchema && typeof generatedSchema.safeParse === "function");
-
-      if (validData !== undefined) {
-        const validResult = generatedSchema.safeParse(validData);
-        assert(validResult.success);
-      }
-
-      if (invalidData !== undefined) {
-        const invalidResult = generatedSchema.safeParse(invalidData);
-        assert(invalidResult.success === false);
+      // For validation tests, we need to run the schema directly
+      if (validData !== undefined || invalidData !== undefined) {
+        const validationResult = compileAndValidate(generated, exportName, validData, invalidData);
+        if (validData !== undefined) {
+          assert(validationResult.validSuccess);
+        }
+        if (invalidData !== undefined) {
+          assert(validationResult.invalidSuccess === false);
+        }
       }
     });
   }
@@ -109,34 +104,84 @@ function loadSchemaFromFile(filePath: string) {
   return JSON.parse(raw);
 }
 
-function compileCjsModule(source: string) {
+function compileTypeScriptModule(source: string, exportName: string) {
   // Keep the temp file inside the repo so Node resolution finds local node_modules/zod
   const dir = mkdtempSync(join(process.cwd(), ".tmp-compiled-"));
-  const filePath = join(dir, "schema.cjs");
+  const schemaPath = join(dir, "schema.ts");
+  const runnerPath = join(dir, "runner.ts");
 
-  writeFileSync(filePath, source);
+  writeFileSync(schemaPath, source);
 
-  try {
-    const context: {
-      require: NodeRequire;
-      module: { exports: unknown };
-      exports: unknown;
-      __dirname: string;
-      __filename: string;
-      console: typeof console;
-    } = {
-      require,
-      module: { exports: {} },
-      exports: {},
-      __dirname: dir,
-      __filename: filePath,
-      console,
-    };
-    vm.runInNewContext(readFileSync(filePath, "utf8"), context, {
-      filename: filePath,
-    });
-    return context.module.exports;
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+  // Create a runner that imports the schema and outputs JSON with results
+  const runner = `import { ${exportName} } from './schema.js';
+
+console.log(JSON.stringify({
+  hasExport: Boolean(${exportName}),
+  hasSafeParse: typeof ${exportName} === 'object' && typeof ${exportName}.safeParse === 'function',
+}));
+`;
+
+  writeFileSync(runnerPath, runner);
+
+  // Use tsx to run TypeScript directly
+  const tsxPath = join(process.cwd(), "node_modules/.bin/tsx");
+  const { status, stdout, stderr, error } = spawnSync(tsxPath, [runnerPath], {
+    encoding: "utf8",
+    cwd: dir,
+  });
+
+  rmSync(dir, { recursive: true, force: true });
+
+  if (status !== 0) {
+    throw new Error(
+      stderr || (error ? String(error) : "Failed to run compiled schema"),
+    );
   }
+
+  return JSON.parse(stdout);
+}
+
+function compileAndValidate(
+  source: string,
+  exportName: string,
+  validData: unknown,
+  invalidData: unknown,
+) {
+  const dir = mkdtempSync(join(process.cwd(), ".tmp-compiled-"));
+  const schemaPath = join(dir, "schema.ts");
+  const runnerPath = join(dir, "runner.ts");
+
+  writeFileSync(schemaPath, source);
+
+  const runner = `import { ${exportName} } from './schema.js';
+
+const validData = ${JSON.stringify(validData)};
+const invalidData = ${JSON.stringify(invalidData)};
+
+const validResult = validData !== null ? ${exportName}.safeParse(validData) : null;
+const invalidResult = invalidData !== null ? ${exportName}.safeParse(invalidData) : null;
+
+console.log(JSON.stringify({
+  validSuccess: validResult ? validResult.success : null,
+  invalidSuccess: invalidResult ? invalidResult.success : null,
+}));
+`;
+
+  writeFileSync(runnerPath, runner);
+
+  const tsxPath = join(process.cwd(), "node_modules/.bin/tsx");
+  const { status, stdout, stderr, error } = spawnSync(tsxPath, [runnerPath], {
+    encoding: "utf8",
+    cwd: dir,
+  });
+
+  rmSync(dir, { recursive: true, force: true });
+
+  if (status !== 0) {
+    throw new Error(
+      stderr || (error ? String(error) : "Failed to run validation"),
+    );
+  }
+
+  return JSON.parse(stdout);
 }

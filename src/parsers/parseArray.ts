@@ -1,4 +1,4 @@
-import { JsonSchemaObject, Refs } from "../Types.js";
+import { JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
@@ -6,14 +6,19 @@ import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 export const parseArray = (
   schema: JsonSchemaObject & { type: "array" },
   refs: Refs,
-) => {
+): SchemaRepresentation => {
   if (Array.isArray(schema.items)) {
-    let tuple = `z.tuple([${schema.items.map((v, i) =>
+    // Tuple case
+    const itemResults = schema.items.map((v, i) =>
       parseSchema(v, { ...refs, path: [...refs.path, "items", i] }),
-    )}])`;
+    );
+
+    let tuple = `z.tuple([${itemResults.map(r => r.expression).join(", ")}])`;
+    const tupleTypes = itemResults.map(r => r.type).join(", ");
+    let tupleType = `z.ZodTuple<[${tupleTypes}]>`;
 
     if (schema.contains) {
-      const containsSchema = parseSchema(schema.contains, {
+      const containsResult = parseSchema(schema.contains, {
         ...refs,
         path: [...refs.path, "contains"],
       });
@@ -21,7 +26,7 @@ export const parseArray = (
       const maxContains = schema.maxContains;
 
       tuple += `.superRefine((arr, ctx) => {
-  const matches = arr.filter((item) => ${containsSchema}.safeParse(item).success).length;
+  const matches = arr.filter((item) => ${containsResult.expression}.safeParse(item).success).length;
   if (${minContains ?? 0} && matches < ${minContains ?? 0}) {
     ctx.addIssue({ code: "custom", message: "Array contains too few matching items" });
   }
@@ -29,17 +34,27 @@ export const parseArray = (
     ctx.addIssue({ code: "custom", message: "Array contains too many matching items" });
   }
 })`;
+      // superRefine wraps the type
+      tupleType = `z.ZodEffects<${tupleType}>`;
     }
 
-    return tuple;
+    return {
+      expression: tuple,
+      type: tupleType,
+    };
   }
 
-  let r = !schema.items
-    ? `z.array(${anyOrUnknown(refs)})`
-    : `z.array(${parseSchema(schema.items, {
+  // Array case
+  const anyOrUnknownResult = anyOrUnknown(refs);
+  const itemResult = !schema.items
+    ? anyOrUnknownResult
+    : parseSchema(schema.items, {
         ...refs,
         path: [...refs.path, "items"],
-      })})`;
+      });
+
+  let r = `z.array(${itemResult.expression})`;
+  let arrayType = `z.ZodArray<${itemResult.type}>`;
 
   r += withMessage(schema, "minItems", ({ json }) => ({
     opener: `.min(${json}`,
@@ -55,7 +70,10 @@ export const parseArray = (
     messageCloser: " })",
   }));
 
+  let hasRefinement = false;
+
   if (schema.uniqueItems === true) {
+    hasRefinement = true;
     r += `.superRefine((arr, ctx) => {
   const seen = new Set();
   for (const [index, value] of arr.entries()) {
@@ -81,7 +99,8 @@ export const parseArray = (
   }
 
   if (schema.contains) {
-    const containsSchema = parseSchema(schema.contains, {
+    hasRefinement = true;
+    const containsResult = parseSchema(schema.contains, {
       ...refs,
       path: [...refs.path, "contains"],
     });
@@ -90,7 +109,7 @@ export const parseArray = (
     const maxContains = schema.maxContains;
 
     r += `.superRefine((arr, ctx) => {
-  const matches = arr.filter((item) => ${containsSchema}.safeParse(item).success).length;
+  const matches = arr.filter((item) => ${containsResult.expression}.safeParse(item).success).length;
   if (${minContains ?? 0} && matches < ${minContains ?? 0}) {
     ctx.addIssue({ code: "custom", message: "Array contains too few matching items" });
   }
@@ -99,6 +118,14 @@ export const parseArray = (
   }
 })`;
   }
-  
-  return r;
+
+  // Wrap in ZodEffects if we added refinements
+  if (hasRefinement) {
+    arrayType = `z.ZodEffects<${arrayType}>`;
+  }
+
+  return {
+    expression: r,
+    type: arrayType,
+  };
 };

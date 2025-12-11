@@ -1,4 +1,4 @@
-import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
+import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 
 export const parseIfThenElse = (
@@ -8,7 +8,7 @@ export const parseIfThenElse = (
     else: JsonSchema;
   },
   refs: Refs,
-): string => {
+): SchemaRepresentation => {
   const $if = parseSchema(schema.if, { ...refs, path: [...refs.path, "if"] });
   const $then = parseSchema(schema.then, {
     ...refs,
@@ -18,10 +18,11 @@ export const parseIfThenElse = (
     ...refs,
     path: [...refs.path, "else"],
   });
-  let result = `z.union([${$then}, ${$else}]).superRefine((value,ctx) => {
-  const result = ${$if}.safeParse(value).success
-    ? ${$then}.safeParse(value)
-    : ${$else}.safeParse(value);
+
+  let expression = `z.union([${$then.expression}, ${$else.expression}]).superRefine((value,ctx) => {
+  const result = ${$if.expression}.safeParse(value).success
+    ? ${$then.expression}.safeParse(value)
+    : ${$else.expression}.safeParse(value);
   if (!result.success) {
     const issues = result.error.issues;
     issues.forEach((issue) => ctx.addIssue({ ...issue }))
@@ -35,8 +36,11 @@ export const parseIfThenElse = (
       then: schema.then,
       else: schema.else,
     });
-    result += `.meta({ __jsonSchema: { conditional: ${conditionalMeta} } })`;
+    expression += `.meta({ __jsonSchema: { conditional: ${conditionalMeta} } })`;
   }
 
-  return result;
+  return {
+    expression,
+    type: `z.ZodEffects<z.ZodUnion<[${$then.type}, ${$else.type}]>>`,
+  };
 };

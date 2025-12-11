@@ -1,32 +1,123 @@
-import { JsonSchema } from "../Types.js";
+import { JsonSchema, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "../parsers/parseSchema.js";
 import { expandJsdocs } from "../utils/jsdocs.js";
 import { AnalysisResult } from "./analyzeSchema.js";
+import { inferTypeFromExpression } from "../utils/schemaRepresentation.js";
+import { EsmEmitter } from "../utils/esmEmitter.js";
+
+/**
+ * Split a z.object({...}).method1().method2() expression into base and method chain.
+ * This is needed for Rule 2: Don't chain methods on recursive types.
+ *
+ * Only splits if the TOP-LEVEL z.object() contains a getter (not nested ones in .and() etc.)
+ */
+const splitObjectMethodChain = (expr: string): { base: string; methodChain: string | null } => {
+  if (!expr.startsWith("z.object(")) {
+    return { base: expr, methodChain: null };
+  }
+
+  // Find the matching closing brace for z.object({
+  let depth = 1;
+  let i = 9; // length of "z.object("
+
+  // Find the opening { of the object literal
+  while (i < expr.length && expr[i] !== "{") {
+    i++;
+  }
+  if (i >= expr.length) {
+    return { base: expr, methodChain: null };
+  }
+  const objectLiteralStart = i;
+  i++; // move past the {
+
+  // Find the matching }
+  while (i < expr.length && depth > 0) {
+    const char = expr[i];
+    if (char === "{" || char === "(" || char === "[") {
+      depth++;
+    } else if (char === "}" || char === ")" || char === "]") {
+      depth--;
+    }
+    i++;
+  }
+  const objectLiteralEnd = i - 1; // position of closing }
+
+  // Extract just the top-level object literal content
+  const objectLiteralContent = expr.substring(objectLiteralStart, objectLiteralEnd + 1);
+
+  // Check if the TOP-LEVEL object has a getter (not nested ones)
+  // A getter in the top-level object would appear as "get " at depth 1
+  if (!hasTopLevelGetter(objectLiteralContent)) {
+    return { base: expr, methodChain: null };
+  }
+
+  // Now find the closing ) for z.object(
+  while (i < expr.length && expr[i] !== ")") {
+    i++;
+  }
+  if (i >= expr.length) {
+    return { base: expr, methodChain: null };
+  }
+  i++; // move past the )
+
+  // Everything after is the method chain
+  const base = expr.substring(0, i);
+  const methodChain = expr.substring(i);
+
+  // Only return a method chain if there actually is one (like .strict() or .meta())
+  // Don't split if the method chain is .and() since that's adding more schema, not metadata
+  if (!methodChain || methodChain.length === 0 || methodChain.startsWith(".and(")) {
+    return { base: expr, methodChain: null };
+  }
+
+  return { base, methodChain };
+};
+
+/**
+ * Check if an object literal has a getter at its top level (not nested).
+ */
+const hasTopLevelGetter = (objectLiteral: string): boolean => {
+  let depth = 0;
+  for (let i = 0; i < objectLiteral.length - 4; i++) {
+    const char = objectLiteral[i];
+    if (char === "{" || char === "(" || char === "[") {
+      depth++;
+    } else if (char === "}" || char === ")" || char === "]") {
+      depth--;
+    } else if (depth === 1 && objectLiteral.substring(i, i + 4) === "get ") {
+      // Found "get " at depth 1 (inside the top-level object, not nested)
+      return true;
+    }
+  }
+  return false;
+};
 
 const orderDeclarations = (
-  entries: Array<[string, string]>,
+  entries: Array<[string, SchemaRepresentation]>,
   dependencies: Map<string, Set<string>>,
-): Array<[string, string]> => {
-  const valueByName = new Map(entries);
+): Array<[string, SchemaRepresentation]> => {
+  const repByName = new Map<string, SchemaRepresentation>(entries);
   const depGraph = new Map<string, Set<string>>();
 
-  for (const [from, set] of dependencies.entries()) {
+  const depEntries = Array.from(dependencies.entries()) as Array<[string, Set<string>]>;
+  for (const [from, set] of depEntries) {
     const onlyKnown = new Set<string>();
-    for (const dep of set) {
-      if (valueByName.has(dep) && dep !== from) {
+    const depArray = Array.from(set) as string[];
+    for (const dep of depArray) {
+      if (repByName.has(dep) && dep !== from) {
         onlyKnown.add(dep);
       }
     }
     if (onlyKnown.size) depGraph.set(from, onlyKnown);
   }
 
-  const names = Array.from(valueByName.keys());
-  for (const [name, value] of entries) {
+  const names = Array.from(repByName.keys());
+  for (const [name, rep] of entries) {
     const deps = depGraph.get(name) ?? new Set<string>();
     for (const candidate of names) {
       if (candidate === name) continue;
       const matcher = new RegExp(`\\b${candidate}\\b`);
-      if (matcher.test(value)) {
+      if (matcher.test(rep.expression)) {
         deps.add(candidate);
       }
     }
@@ -49,8 +140,8 @@ const orderDeclarations = (
     temp.add(name);
     const deps = depGraph.get(name);
     if (deps) {
-      for (const dep of deps) {
-        if (valueByName.has(dep)) {
+      for (const dep of Array.from(deps)) {
+        if (repByName.has(dep)) {
           visit(dep);
         }
       }
@@ -60,7 +151,7 @@ const orderDeclarations = (
     ordered.push(name);
   };
 
-  for (const name of valueByName.keys()) {
+  for (const name of Array.from(repByName.keys())) {
     visit(name);
   }
 
@@ -73,7 +164,7 @@ const orderDeclarations = (
     }
   }
 
-  return unique.map((name) => [name, valueByName.get(name)!]);
+  return unique.map((name) => [name, repByName.get(name)!]);
 };
 
 export const emitZod = (analysis: AnalysisResult): string => {
@@ -87,7 +178,6 @@ export const emitZod = (analysis: AnalysisResult): string => {
   } = analysis;
 
   const {
-    module,
     name,
     type,
     noImport,
@@ -96,21 +186,10 @@ export const emitZod = (analysis: AnalysisResult): string => {
     ...rest
   } = options;
 
-  const declarations = new Map<string, string>();
+  const declarations = new Map<string, SchemaRepresentation>();
   const dependencies = new Map<string, Set<string>>();
-  const reserveName = (base: string): string => {
-    let candidate = base;
-    let i = 1;
-    while (usedNames.has(candidate) || declarations.has(candidate)) {
-      candidate = `${base}${i}`;
-      i += 1;
-    }
-    usedNames.add(candidate);
-    return candidate;
-  };
 
   const parsedSchema = parseSchema(schema as JsonSchema, {
-    module,
     name,
     path: [],
     seen: new Map(),
@@ -129,66 +208,105 @@ export const emitZod = (analysis: AnalysisResult): string => {
     withMeta,
   });
 
-  const declarationBlock = declarations.size
-    ? orderDeclarations(Array.from(declarations.entries()), dependencies)
-        .flatMap(([refName, value]) => {
-          const shouldExport = exportRefs && module === "esm";
-          const isCycle = cycleRefNames.has(refName);
-
-          if (!isCycle) {
-            return [`${shouldExport ? "export " : ""}const ${refName} = ${value}`];
-          }
-
-          const baseName = `${refName}Def`;
-          const lines = [`const ${baseName} = ${value}`];
-          lines.push(`${shouldExport ? "export " : ""}const ${refName} = ${baseName}`);
-          return lines;
-        })
-        .join("\n")
-    : "";
-
   const jsdocs =
     rest.withJsdocs && typeof schema === "object" && schema !== null && "description" in schema
-      ? expandJsdocs(String((schema as { description?: unknown }).description ?? ""))
+      ? expandJsdocs(
+          typeof (schema as { description?: unknown }).description === "string"
+            ? (schema as { description: string }).description
+            : ""
+        )
       : "";
 
-  const lines: string[] = [];
+  const emitter = new EsmEmitter();
 
-  if (module === "cjs" && !noImport) {
-    lines.push(`const { z } = require("zod")`);
+  if (!noImport) {
+    emitter.addNamedImport("z", "zod");
   }
 
-  if (module === "esm" && !noImport) {
-    lines.push(`import { z } from "zod"`);
+  if (declarations.size) {
+    for (const [refName, rep] of orderDeclarations(Array.from(declarations.entries()), dependencies)) {
+      const expression = typeof rep === "string" ? rep : (rep as { expression: string }).expression;
+      if (typeof expression !== "string") {
+        throw new Error(`Expected declaration expression for ${refName}`);
+      }
+      const hintedType = typeof rep === "object" && rep && "type" in rep && typeof (rep as { type?: string }).type === "string"
+        ? (rep as { type?: string }).type
+        : undefined;
+
+      const hasLazy = expression.includes("z.lazy(");
+      const hasGetter = expression.includes("get ");
+      const isUnion = expression.startsWith("z.union(") || expression.startsWith("z.discriminatedUnion(");
+
+      // Check if this union references any cycle members (recursive schemas)
+      const referencesRecursiveSchema = isUnion && Array.from(cycleRefNames).some(
+        cycleName => new RegExp(`\\b${cycleName}\\b`).test(expression)
+      );
+
+      // Per Zod v4 docs: type annotations should be on GETTERS for recursive types, not on const declarations.
+      // TypeScript can infer the type of const declarations.
+      // Exceptions that need explicit type annotation:
+      // 1. z.lazy() without getters
+      // 2. Union types that reference recursive schemas (for proper type inference)
+      const needsTypeAnnotation = (hasLazy && !hasGetter) || referencesRecursiveSchema;
+      const storedType = needsTypeAnnotation ? (hintedType ?? inferTypeFromExpression(expression)) : undefined;
+
+      // Rule 2 from Zod v4: Don't chain methods on recursive types
+      // If the schema has getters (recursive), we need to split it:
+      // 1. Emit base schema as _RefName
+      // 2. Emit decorated schema as RefName = _RefName.methods()
+      if (hasGetter && expression.startsWith("z.object(")) {
+        const { base, methodChain } = splitObjectMethodChain(expression);
+
+        if (methodChain) {
+          // Emit base schema (internal, not exported)
+          // No type annotation needed - type is on getters, TypeScript infers the rest
+          const baseName = `_${refName}`;
+          emitter.addConst({
+            name: baseName,
+            expression: base,
+            exported: false,
+          });
+
+          // Emit decorated schema (exported)
+          emitter.addConst({
+            name: refName,
+            expression: `${baseName}${methodChain}`,
+            exported: exportRefs,
+          });
+          continue;
+        }
+      }
+
+      emitter.addConst({
+        name: refName,
+        expression,
+        exported: exportRefs,
+        typeAnnotation: storedType !== "z.ZodTypeAny" ? storedType : undefined,
+      });
+    }
   }
 
-  if (declarationBlock) {
-    lines.push(declarationBlock);
-  }
-
-  if (module === "cjs") {
-    const payload = name ? `{ ${JSON.stringify(name)}: ${parsedSchema} }` : parsedSchema;
-    lines.push(`${jsdocs}module.exports = ${payload}`);
-  } else if (module === "esm") {
-    const exportLine = `${jsdocs}export ${name ? `const ${name} =` : `default`} ${parsedSchema}`;
-    lines.push(exportLine);
-  } else if (name) {
-    lines.push(`${jsdocs}const ${name} = ${parsedSchema}`);
+  if (name) {
+    emitter.addConst({
+      name,
+      expression: parsedSchema.expression,
+      exported: true,
+      jsdoc: jsdocs,
+    });
   } else {
-    lines.push(`${jsdocs}${parsedSchema}`);
+    emitter.addDefaultExport({
+      expression: parsedSchema.expression,
+      jsdoc: jsdocs,
+    });
   }
-
-  let typeLine: string | undefined;
 
   if (type && name) {
     const typeName = typeof type === "string" ? type : `${name[0].toUpperCase()}${name.substring(1)}`;
-    typeLine = `export type ${typeName} = z.infer<typeof ${name}>`;
+    emitter.addTypeExport({
+      name: typeName,
+      type: `z.infer<typeof ${name}>`,
+    });
   }
 
-  const joined = lines.filter(Boolean).join("\n\n");
-  const combined = typeLine ? `${joined}\n${typeLine}` : joined;
-
-  const shouldEndWithNewline = module === "esm" || module === "cjs";
-
-  return `${combined}${shouldEndWithNewline ? "\n" : ""}`;
+  return emitter.render();
 };

@@ -22,16 +22,17 @@ import {
   JsonSchema,
   Serializable,
   SimpleDiscriminatedOneOfSchema,
+  SchemaRepresentation,
 } from "../Types.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveUri } from "../utils/resolveUri.js";
-import { buildRefRegistry } from "../utils/buildRefRegistry.js";
+import { resolveRef } from "../utils/resolveRef.js";
 
 export const parseSchema = (
   schema: JsonSchema,
   refs: Refs = { seen: new Map(), path: [] },
   blockMeta?: boolean,
-): string => {
+): SchemaRepresentation => {
   // Ensure ref bookkeeping exists so $ref declarations and getter-based recursion work
   refs.root = refs.root ?? schema;
   refs.rootBaseUri = refs.rootBaseUri ?? "root:///";
@@ -41,7 +42,11 @@ export const parseSchema = (
   refs.refNameByPointer = refs.refNameByPointer ?? new Map();
   refs.usedNames = refs.usedNames ?? new Set();
 
-  if (typeof schema !== "object") return schema ? anyOrUnknown(refs) : "z.never()";
+  if (typeof schema !== "object") {
+    return schema
+      ? anyOrUnknown(refs)
+      : { expression: "z.never()", type: "z.ZodNever" };
+  }
 
   const parentBase = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
   const baseUri = typeof schema.$id === "string" ? resolveUri(parentBase, schema.$id) : parentBase;
@@ -59,7 +64,8 @@ export const parseSchema = (
     const custom = refs.parserOverride(schema, { ...refs, currentBaseUri: baseUri, dynamicAnchors });
 
     if (typeof custom === "string") {
-      return custom;
+      // ParserOverride returns string for backward compatibility
+      return { expression: custom, type: "z.ZodTypeAny" };
     }
   }
 
@@ -87,6 +93,7 @@ export const parseSchema = (
   }
 
   let parsed = selectParser(schema, { ...refs, currentBaseUri: baseUri, dynamicAnchors });
+
   if (!blockMeta) {
     if (!refs.withoutDescribes) {
       parsed = addDescribes(schema, parsed, { ...refs, currentBaseUri: baseUri, dynamicAnchors });
@@ -96,7 +103,7 @@ export const parseSchema = (
       parsed = addDefaults(schema, parsed);
     }
 
-    parsed = addAnnotations(schema, parsed)
+    parsed = addAnnotations(schema, parsed);
   }
 
   seen.r = parsed;
@@ -107,7 +114,7 @@ export const parseSchema = (
 const parseRef = (
   schema: JsonSchemaObject & { $ref?: string; $dynamicRef?: string },
   refs: Refs,
-): string => {
+): SchemaRepresentation => {
   const refValue = schema.$dynamicRef ?? schema.$ref;
 
   if (typeof refValue !== "string") {
@@ -126,7 +133,7 @@ const parseRef = (
 
   if (!refs.declarations!.has(refName) && !refs.inProgress!.has(refName)) {
     refs.inProgress!.add(refName);
-    const declaration = parseSchema(target, {
+    const result = parseSchema(target, {
       ...refs,
       path,
       currentBaseUri: resolved.baseUri,
@@ -134,7 +141,7 @@ const parseRef = (
       root: refs.root,
     });
     refs.inProgress!.delete(refName);
-    refs.declarations!.set(refName, declaration);
+    refs.declarations!.set(refName, result);
   }
 
   const current = refs.currentSchemaName;
@@ -156,28 +163,57 @@ const parseRef = (
     currentComponent === targetComponent &&
     refs.cycleRefNames?.has(refName);
 
-  // Only lazy if the ref stays inside the current strongly-connected component
-  // (or is currently being resolved). This avoids TDZ on true cycles while
-  // letting ordered, acyclic refs stay direct.
-  if (isSameCycle || refs.inProgress!.has(refName)) {
-    const inObjectProperty =
-      refs.path.includes("properties") ||
-      refs.path.includes("patternProperties") ||
-      refs.path.includes("additionalProperties");
+  // Check if this is a true forward reference (target not yet declared)
+  // We only need z.lazy() for forward refs, not for back-refs to already-declared schemas
+  const isForwardRef = refs.inProgress!.has(refName);
 
-    if (inObjectProperty && refName === refs.currentSchemaName) {
-      // Getter properties defer evaluation, so a direct reference avoids extra lazies
-      // for self-recursion.
-      return refName;
+  const refType = `typeof ${refName}`;
+
+  // For same-cycle refs, check if we need special handling
+  if (isSameCycle || isForwardRef) {
+    // Check context: are we inside an object property where getters work?
+    // IMPORTANT: additionalProperties becomes z.record() which does NOT support getters
+    // Only named properties (properties, patternProperties) can use getters
+    const inNamedProperty =
+      refs.path.includes("properties") ||
+      refs.path.includes("patternProperties");
+
+    // additionalProperties becomes z.record() value - getters don't work there
+    // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
+    const inRecordContext = refs.path.includes("additionalProperties");
+
+    // Self-recursion in named object properties: use direct ref (getter handles deferred eval)
+    const isSelfRecursion = refName === refs.currentSchemaName;
+    if (inNamedProperty && isSelfRecursion) {
+      return { expression: refName, type: refType };
     }
 
-    return `z.lazy(() => ${refName})`;
+    // Cross-schema refs in named object properties within same cycle: use direct ref
+    // The getter in parseObject.ts will handle deferred evaluation
+    if (inNamedProperty && isSameCycle && !isForwardRef) {
+      return { expression: refName, type: refType };
+    }
+
+    // z.record() values with recursive refs MUST use z.lazy() (Colin confirmed in #4881)
+    // Also arrays, unions, and other non-object contexts with forward refs need z.lazy()
+    if (isForwardRef || inRecordContext) {
+      return {
+        expression: `z.lazy(() => ${refName})`,
+        type: `z.ZodLazy<${refType}>`
+      };
+    }
   }
 
-  return refName;
+  return { expression: refName, type: refType };
 };
 
-const addDescribes = (schema: JsonSchemaObject, parsed: string, refs?: Refs): string => {
+const addDescribes = (
+  schema: JsonSchemaObject,
+  parsed: SchemaRepresentation,
+  refs?: Refs
+): SchemaRepresentation => {
+  let { expression, type } = parsed;
+
   // Use .meta() for richer metadata when withMeta is enabled
   if (refs?.withMeta) {
     const meta: Record<string, unknown> = {};
@@ -189,121 +225,13 @@ const addDescribes = (schema: JsonSchemaObject, parsed: string, refs?: Refs): st
     if (schema.deprecated) meta.deprecated = schema.deprecated;
 
     if (Object.keys(meta).length > 0) {
-      parsed += `.meta(${JSON.stringify(meta)})`;
+      expression += `.meta(${JSON.stringify(meta)})`;
     }
   } else if (schema.description) {
-    parsed += `.describe(${JSON.stringify(schema.description)})`;
+    expression += `.describe(${JSON.stringify(schema.description)})`;
   }
 
-  return parsed;
-};
-
-const resolveRef = (
-  schemaNode: JsonSchemaObject,
-  ref: string,
-  refs: Refs,
-): { schema: JsonSchema; path: (string | number)[]; baseUri: string; pointerKey: string } | undefined => {
-  const base = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
-
-  // Handle dynamicRef lookup via dynamicAnchors stack
-  const isDynamic = typeof schemaNode.$dynamicRef === "string";
-  if (isDynamic && refs.dynamicAnchors && ref.startsWith("#")) {
-    const name = ref.slice(1);
-    for (let i = refs.dynamicAnchors.length - 1; i >= 0; i -= 1) {
-      const entry = refs.dynamicAnchors[i];
-      if (entry.name === name) {
-        const key = `${entry.uri}#${name}`;
-        const target = refs.refRegistry?.get(key);
-        if (target) {
-          return { schema: target.schema, path: target.path, baseUri: target.baseUri, pointerKey: key };
-        }
-      }
-    }
-  }
-
-  // Resolve URI against base
-  const resolvedUri = resolveUri(base, ref);
-  const [uriBase, fragment] = resolvedUri.split("#");
-  const key = fragment ? `${uriBase}#${fragment}` : uriBase;
-
-  let regEntry = refs.refRegistry?.get(key);
-  if (regEntry) {
-    return { schema: regEntry.schema, path: regEntry.path, baseUri: regEntry.baseUri, pointerKey: key };
-  }
-
-  // Legacy recursive ref: treat as dynamic to __recursive__
-  if (schemaNode.$recursiveRef) {
-    const recursiveKey = `${base}#__recursive__`;
-    regEntry = refs.refRegistry?.get(recursiveKey);
-    if (regEntry) {
-      return {
-        schema: regEntry.schema,
-        path: regEntry.path,
-        baseUri: regEntry.baseUri,
-        pointerKey: recursiveKey,
-      };
-    }
-  }
-
-  // External resolver hook
-  const extBase = uriBaseFromRef(resolvedUri);
-  if (refs.resolveExternalRef && extBase && !isLocalBase(extBase, refs.rootBaseUri ?? "")) {
-    const loaded = refs.resolveExternalRef(extBase);
-    if (loaded) {
-      // If async resolver is used synchronously here, it will be ignored; keep simple sync for now
-      const maybePromise = loaded as { then?: unknown };
-      const schema =
-        typeof maybePromise.then === "function"
-          ? undefined
-          : (loaded as JsonSchema);
-      if (schema) {
-        const { registry } = buildRefRegistry(schema, extBase);
-        registry.forEach((entry, k) => refs.refRegistry?.set(k, entry));
-        regEntry = refs.refRegistry?.get(key);
-        if (regEntry) {
-          return {
-            schema: regEntry.schema,
-            path: regEntry.path,
-            baseUri: regEntry.baseUri,
-            pointerKey: key,
-          };
-        }
-      }
-    }
-  }
-
-  // Backward compatibility: JSON Pointer into root
-  if (refs.root && ref.startsWith("#/")) {
-    const rawSegments = ref
-      .slice(2)
-      .split("/")
-      .filter((segment) => segment.length > 0)
-      .map(decodePointerSegment);
-
-    let current: unknown = refs.root;
-
-    for (const segment of rawSegments) {
-      if (typeof current !== "object" || current === null) return undefined;
-      current = (current as Record<string, unknown>)[segment as keyof typeof current];
-    }
-
-    return { schema: current as JsonSchema, path: rawSegments, baseUri: base, pointerKey: ref };
-  }
-
-  return undefined;
-};
-
-const decodePointerSegment = (segment: string) =>
-  segment.replace(/~1/g, "/").replace(/~0/g, "~");
-
-const uriBaseFromRef = (resolvedUri: string): string | undefined => {
-  const hashIdx = resolvedUri.indexOf("#");
-  return hashIdx === -1 ? resolvedUri : resolvedUri.slice(0, hashIdx);
-};
-
-const isLocalBase = (base: string, rootBase: string): boolean => {
-  if (!rootBase) return false;
-  return base === rootBase;
+  return { expression, type };
 };
 
 const getOrCreateRefName = (
@@ -338,18 +266,18 @@ const buildNameFromPath = (
 
   const base = filtered.length
     ? filtered
-        .map((segment) =>
-          typeof segment === "number"
-            ? `Ref${segment}`
-            : segment
-                .toString()
-                .replace(/[^a-zA-Z0-9_$]/g, " ")
-                .split(" ")
-                .filter(Boolean)
-                .map(capitalize)
-                .join(""),
-        )
-        .join("")
+      .map((segment) =>
+        typeof segment === "number"
+          ? `Ref${segment}`
+          : segment
+            .toString()
+            .replace(/[^a-zA-Z0-9_$]/g, " ")
+            .split(" ")
+            .filter(Boolean)
+            .map(capitalize)
+            .join(""),
+      )
+      .join("")
     : "Ref";
 
   const sanitized = sanitizeIdentifier(base || "Ref");
@@ -374,20 +302,32 @@ const sanitizeIdentifier = (value: string): string => {
 const capitalize = (value: string) =>
   value.length ? value[0].toUpperCase() + value.slice(1) : value;
 
-const addDefaults = (schema: JsonSchemaObject, parsed: string): string => {
+const addDefaults = (
+  schema: JsonSchemaObject,
+  parsed: SchemaRepresentation
+): SchemaRepresentation => {
+  let { expression, type } = parsed;
+
   if (schema.default !== undefined) {
-    parsed += `.default(${JSON.stringify(schema.default)})`;
+    expression += `.default(${JSON.stringify(schema.default)})`;
+    type = `z.ZodDefault<${type}>`;
   }
 
-  return parsed;
+  return { expression, type };
 };
 
-const addAnnotations = (schema: JsonSchemaObject, parsed: string): string => {
+const addAnnotations = (
+  schema: JsonSchemaObject,
+  parsed: SchemaRepresentation
+): SchemaRepresentation => {
+  let { expression, type } = parsed;
+
   if (schema.readOnly) {
-    parsed += ".readonly()";
+    expression += ".readonly()";
+    type = `z.ZodReadonly<${type}>`;
   }
 
-  return parsed;
+  return { expression, type };
 };
 
 const selectParser: ParserSelector = (schema, refs) => {
@@ -408,7 +348,7 @@ const selectParser: ParserSelector = (schema, refs) => {
   } else if (its.a.not(schema)) {
     return parseNot(schema, refs);
   } else if (its.an.enum(schema)) {
-    return parseEnum(schema); //<-- needs to come before primitives
+    return parseEnum(schema);
   } else if (its.a.const(schema)) {
     return parseConst(schema);
   } else if (its.a.multipleType(schema)) {
@@ -517,17 +457,17 @@ export const its = {
           typeof schema.properties !== "object" ||
           !(discriminatorProp in schema.properties)
         ) {
-        return false;
-      }
+          return false;
+        }
 
-      const property = schema.properties[discriminatorProp];
-      return (
-        property &&
-        typeof property === "object" &&
+        const property = schema.properties[discriminatorProp];
+        return (
+          property &&
+          typeof property === "object" &&
           (property.type === undefined || property.type === "string") &&
           // Ensure discriminator has a constant value (const or single-value enum)
           (property.const !== undefined ||
-           (property.enum && Array.isArray(property.enum) && property.enum.length === 1)) &&
+            (property.enum && Array.isArray(property.enum) && property.enum.length === 1)) &&
           // Ensure discriminator property is required
           Array.isArray(schema.required) &&
           schema.required.includes(discriminatorProp)

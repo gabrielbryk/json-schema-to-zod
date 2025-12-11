@@ -2,15 +2,12 @@ import { createRequire } from "module";
 import { parseString } from "../../src/parsers/parseString";
 import { suite } from "../suite";
 
-const require = createRequire(import.meta.url);
-
 suite("parseString", (test) => {
-  const run = (output: string, data: unknown) =>
-    eval(
-      `const {z} = require("zod"); ${output}.safeParse(${JSON.stringify(
-        data,
-      )})`,
-    );
+  const run = (output: string, data: unknown) => {
+    const { z } = createRequire(import.meta.url)("zod");
+    const schema = new Function("z", `return ${output};`)(z);
+    return schema.safeParse(data);
+  };
 
   test("DateTime format", (assert) => {
     const datetime = "2018-11-13T20:20:39Z";

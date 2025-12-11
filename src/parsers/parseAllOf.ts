@@ -1,6 +1,6 @@
 import { parseSchema } from "./parseSchema.js";
 import { half } from "../utils/half.js";
-import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
+import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
 
 const originalIndexKey = "__originalIndex";
 
@@ -30,9 +30,9 @@ const ensureOriginalIndex = (arr: JsonSchema[]) => {
 export function parseAllOf(
   schema: JsonSchemaObject & { allOf: JsonSchema[] },
   refs: Refs,
-): string {
+): SchemaRepresentation {
   if (schema.allOf.length === 0) {
-    return "z.never()";
+    return { expression: "z.never()", type: "z.ZodNever" };
   } else if (schema.allOf.length === 1) {
     const item = schema.allOf[0];
 
@@ -49,11 +49,12 @@ export function parseAllOf(
   } else {
     const [left, right] = half(ensureOriginalIndex(schema.allOf));
 
-    return `z.intersection(${parseAllOf({ allOf: left }, refs)}, ${parseAllOf(
-      {
-        allOf: right,
-      },
-      refs,
-    )})`;
+    const leftResult = parseAllOf({ allOf: left }, refs);
+    const rightResult = parseAllOf({ allOf: right }, refs);
+
+    return {
+      expression: `z.intersection(${leftResult.expression}, ${rightResult.expression})`,
+      type: `z.ZodIntersection<${leftResult.type}, ${rightResult.type}>`,
+    };
   }
 }

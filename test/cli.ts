@@ -97,15 +97,16 @@ suite("cli", (test) => {
     assert(stderr.includes('Expected a value for argument depth'));
   });
 
-  test("cli should err with bad array value", (assert) => {
+  test("cli accepts type flag when name is provided", (assert) => {
     const { stderr } = spawnSync('tsx', [
       'src/cli.ts',
-      '--output', 'test/output/output.js',
       '-i', 'test/all.json',
-      '-m', 'notAModule'
+      '-n', 'MySchema',
+      '-t', 'MyType'
     ], {
       encoding: 'utf8'
     });
-    assert(stderr.includes('Value of argument module must be one of esm,cjs,none'));
+    assert(!stderr);
   });
+
 });

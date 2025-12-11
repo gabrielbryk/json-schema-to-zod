@@ -12,7 +12,6 @@ function main() {
   const schema = yaml.load(readFileSync(WORKFLOW_SOURCE, "utf8")) as any;
 
   const generated = jsonSchemaToZod(schema, {
-    module: "esm",
     name: "workflowSchema",
     exportRefs: true,
   });

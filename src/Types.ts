@@ -6,6 +6,17 @@ export type Serializable =
   | boolean
   | null;
 
+/**
+ * Dual representation of a Zod schema - tracks both the runtime expression
+ * and its TypeScript type annotation for proper recursive schema typing.
+ */
+export interface SchemaRepresentation {
+  /** The Zod runtime expression, e.g., "z.array(MySchema).optional()" */
+  expression: string;
+  /** The Zod TypeScript type, e.g., "z.ZodOptional<z.ZodArray<typeof MySchema>>" */
+  type: string;
+}
+
 export type JsonSchema = JsonSchemaObject | boolean;
 export type JsonSchemaObject = {
   // left permissive by design
@@ -74,7 +85,7 @@ export type JsonSchemaObject = {
   errorMessage?: { [key: string]: string | undefined };
 } & Record<string, unknown>;
 
-export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => string;
+export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => SchemaRepresentation;
 export type ParserOverride = (
   schema: JsonSchemaObject,
   refs: Refs,
@@ -82,7 +93,6 @@ export type ParserOverride = (
 
 export type Options = {
   name?: string;
-  module?: "cjs" | "esm" | "none";
   withoutDefaults?: boolean;
   withoutDescribes?: boolean;
   withJsdocs?: boolean;
@@ -135,9 +145,10 @@ export type Options = {
 
 export type Refs = Options & {
   path: (string | number)[];
-  seen: Map<object | boolean, { n: number; r: string | undefined }>;
+  seen: Map<object | boolean, { n: number; r: SchemaRepresentation | undefined }>;
   root?: JsonSchema;
-  declarations?: Map<string, string>;
+  /** Stores schema declarations with both expression and type */
+  declarations?: Map<string, SchemaRepresentation>;
   dependencies?: Map<string, Set<string>>;
   inProgress?: Set<string>;
   refNameByPointer?: Map<string, string>;

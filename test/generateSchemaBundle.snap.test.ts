@@ -24,7 +24,7 @@ suite("generateSchemaBundle snapshots", (test) => {
       required: ["user"],
     };
 
-    const result = generateSchemaBundle(schema, { module: "esm", name: "RootSchema", type: "Root" });
+    const result = generateSchemaBundle(schema, { name: "RootSchema", type: "Root" });
 
     assert(result, {
       defNames: ["address", "user"],

@@ -12,21 +12,20 @@ suite("workflow.yaml", (test) => {
     ) as Record<string, unknown>;
 
     const output = jsonSchemaToZod(schema, {
-      module: "esm",
       name: "workflowSchema",
     });
 
     assert(typeof output === "string");
-    assert(output.includes("const Task ="));
-    assert(output.includes("const TaskList ="));
-    assert(output.includes("const RuntimeExpression ="));
+    assert(output.includes("export const Task"));
+    assert(output.includes("export const TaskList"));
+    assert(output.includes("export const RuntimeExpression"));
     assert(output.includes("export const workflowSchema ="));
 
-  const compiled = compileEsmModule(output, "workflowSchema");
-  assert(compiled.hasExport);
-  assert(compiled.hasSafeParse);
-  assert(compiled.parseSuccess === false);
-});
+    const compiled = compileEsmModule(output, "workflowSchema");
+    assert(compiled.hasExport);
+    assert(compiled.hasSafeParse);
+    assert(compiled.parseSuccess === false);
+  });
 
   test("workflow schema type-checks without loosening types", (assert) => {
     const schema = yaml.load(
@@ -34,7 +33,6 @@ suite("workflow.yaml", (test) => {
     ) as Record<string, unknown>;
 
     const source = jsonSchemaToZod(schema, {
-      module: "esm",
       name: "workflowSchema",
     });
 
@@ -65,12 +63,12 @@ suite("workflow.yaml", (test) => {
 
 function compileEsmModule(source: string, exportName: string) {
   const dir = mkdtempSync(join(process.cwd(), ".tmp-workflow-schema-"));
-  const schemaPath = join(dir, "schema.mjs");
-  const runnerPath = join(dir, "runner.mjs");
+  const schemaPath = join(dir, "schema.ts");
+  const runnerPath = join(dir, "runner.ts");
 
   writeFileSync(schemaPath, source);
 
-  const runner = `import { ${exportName} } from './schema.mjs';
+  const runner = `import { ${exportName} } from './schema.js';
 const parsed = typeof ${exportName} === 'object' && typeof ${exportName}.safeParse === 'function'
   ? ${exportName}.safeParse({})
   : null;
@@ -84,10 +82,11 @@ console.log(JSON.stringify({
 
   writeFileSync(runnerPath, runner);
 
-  const { status, stdout, stderr, error } = spawnSync(process.execPath, [
-    runnerPath,
-  ], {
+  // Use tsx to run TypeScript directly
+  const tsxPath = join(process.cwd(), "node_modules/.bin/tsx");
+  const { status, stdout, stderr, error } = spawnSync(tsxPath, [runnerPath], {
     encoding: "utf8",
+    cwd: dir,
   });
 
   rmSync(dir, { recursive: true, force: true });

@@ -3,7 +3,7 @@ import pluginTs from "@typescript-eslint/eslint-plugin";
 
 export default [
   {
-    ignores: ["dist", "node_modules", "test/output/**"],
+    ignores: ["dist", "node_modules", "test/output/**", "*.config.js", "*.config.cjs", ".tmp-*"],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],
@@ -18,7 +18,9 @@ export default [
       "@typescript-eslint": pluginTs,
     },
     rules: {
-      ...pluginTs.configs.recommended.rules,
+      // Use only non-type-aware rules from recommended
+      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-require-imports": "error",
       "@typescript-eslint/no-var-requires": "error",
     },

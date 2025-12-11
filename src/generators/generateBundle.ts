@@ -70,8 +70,6 @@ export type GenerateBundleOptions = Options & {
   splitDefs?: SplitDefsOptions;
   refResolution?: RefResolutionOptions;
   nestedTypes?: NestedTypesOptions;
-  /** Force module kind for generated files (defaults to esm) */
-  module?: "esm" | "cjs" | "none";
 };
 
 export type GeneratedFile = { fileName: string; contents: string };
@@ -82,8 +80,6 @@ export type SchemaBundleResult = {
 };
 
 export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundleOptions = {}): SchemaBundleResult => {
-  const module = options.module ?? "esm";
-
   if (!schema || typeof schema !== "object") {
     throw new Error("generateSchemaBundle requires an object schema");
   }
@@ -92,7 +88,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   const definitions = (schema as JsonSchemaObject).definitions || {};
   const defNames = Object.keys(defs);
 
-  const { rootName, rootTypeName, defInfoMap, groups } = buildBundleContext(defNames, defs, options);
+  const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, defs, options);
 
   const files: GeneratedFile[] = [];
 
@@ -115,7 +111,6 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     for (const member of target.members) {
       const analysis = analyzeSchema(member.schemaWithDefs, {
         ...options,
-        module,
         name: member.schemaName,
         type: member.typeName,
         parserOverride: createRefHandler(
@@ -135,7 +130,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
       zodParts.push(zodSchema);
     }
 
-    const finalSchema = buildSchemaFile(zodParts, usedRefs, defInfoMap, module, target);
+    const finalSchema = buildSchemaFile(zodParts, usedRefs, defInfoMap);
 
     files.push({ fileName: target.fileName, contents: finalSchema });
   }
@@ -273,7 +268,7 @@ const createRefHandler = (
               // Self-recursion inside object getters can safely reference the schema name
               return refInfo.schemaName;
             }
-            return `z.lazy(() => ${refInfo.schemaName})`;
+            return `z.lazy<typeof ${refInfo.schemaName}>(() => ${refInfo.schemaName})`;
           }
 
           return refInfo.schemaName;
@@ -300,11 +295,7 @@ const buildSchemaFile = (
   zodCodeParts: string[],
   usedRefs: Set<string>,
   defInfoMap: Map<string, DefInfo>,
-  module: "esm" | "cjs" | "none",
-  target: BundleTarget,
 ): string => {
-  if (module !== "esm") return zodCodeParts.join("\n");
-
   const groupFileById = new Map<string, string>();
   for (const info of defInfoMap.values()) {
     if (!groupFileById.has(info.groupId)) {
@@ -337,9 +328,11 @@ const buildSchemaFile = (
     })
     .join("\n");
 
-  return imports.length
+  const withImports = imports.length
     ? body.replace('import { z } from "zod"', `import { z } from "zod"\n${imports.join("\n")}`)
     : body;
+
+  return withImports;
 };
 
 const planBundleTargets = (

@@ -1,33 +1,35 @@
-import { JsonSchema, JsonSchemaObject, Refs } from "../Types.js";
+import { JsonSchema, JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 import { parseSchema } from "./parseSchema.js";
 
 export const parseString = (
   schema: JsonSchemaObject & { type: "string" },
   refs?: Refs,
-) => {
+): SchemaRepresentation => {
   const formatError = schema.errorMessage?.format;
   const refContext: Refs = ensureRefs(refs);
 
-  const topLevelFormatMap: Record<string, string> = {
-    email: "z.email",
-    ipv4: "z.ipv4",
-    ipv6: "z.ipv6",
-    uri: "z.url",
-    uuid: "z.uuid",
-    cuid: "z.cuid",
-    cuid2: "z.cuid2",
-    nanoid: "z.nanoid",
-    ulid: "z.ulid",
-    jwt: "z.jwt",
-    e164: "z.e164",
-    base64url: "z.base64url",
-    base64: "z.base64",
-    emoji: "z.emoji",
-    "idn-email": "z.email",
+  // Map formats to top-level Zod functions and their return types
+  const topLevelFormatMap: Record<string, { fn: string; zodType: string }> = {
+    email: { fn: "z.email", zodType: "z.ZodEmail" },
+    ipv4: { fn: "z.ipv4", zodType: "z.ZodIPv4" },
+    ipv6: { fn: "z.ipv6", zodType: "z.ZodIPv6" },
+    uri: { fn: "z.url", zodType: "z.ZodURL" },
+    uuid: { fn: "z.uuid", zodType: "z.ZodUUID" },
+    cuid: { fn: "z.cuid", zodType: "z.ZodCUID" },
+    cuid2: { fn: "z.cuid2", zodType: "z.ZodCUID2" },
+    nanoid: { fn: "z.nanoid", zodType: "z.ZodNanoID" },
+    ulid: { fn: "z.ulid", zodType: "z.ZodULID" },
+    jwt: { fn: "z.jwt", zodType: "z.ZodJWT" },
+    e164: { fn: "z.e164", zodType: "z.ZodE164" },
+    base64url: { fn: "z.base64url", zodType: "z.ZodBase64URL" },
+    base64: { fn: "z.base64", zodType: "z.ZodBase64" },
+    emoji: { fn: "z.emoji", zodType: "z.ZodEmoji" },
+    "idn-email": { fn: "z.email", zodType: "z.ZodEmail" },
   };
 
-  const formatFn = schema.format && topLevelFormatMap[schema.format];
+  const formatInfo = schema.format ? topLevelFormatMap[schema.format] : undefined;
+  const formatFn = formatInfo?.fn;
   const formatParam =
     formatError !== undefined ? `{ error: ${JSON.stringify(formatError)} }` : "";
 
@@ -322,7 +324,13 @@ export const parseString = (
     });
   }
 
-  return r;
+  // Use the correct Zod type based on whether a format function was used
+  const zodType = formatInfo?.zodType ?? "z.ZodString";
+
+  return {
+    expression: r,
+    type: zodType,
+  };
 };
 
 function ensureRefs(refs?: Refs): Refs {

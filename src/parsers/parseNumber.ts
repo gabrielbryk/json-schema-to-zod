@@ -1,9 +1,9 @@
-import { JsonSchemaObject } from "../Types.js";
+import { JsonSchemaObject, SchemaRepresentation } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 
 export const parseNumber = (
   schema: JsonSchemaObject & { type: "number" | "integer" },
-) => {
+): SchemaRepresentation => {
   const formatError = schema.errorMessage?.format;
 
   const numericFormatMap: Record<string, string> = {
@@ -120,5 +120,8 @@ export const parseNumber = (
     }));
   }
 
-  return r;
+  return {
+    expression: r,
+    type: "z.ZodNumber",
+  };
 };

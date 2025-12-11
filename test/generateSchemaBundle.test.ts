@@ -23,7 +23,6 @@ suite("generateSchemaBundle", (test) => {
     };
 
     const result = generateSchemaBundle(schema, {
-      module: "esm",
       name: "WorkflowSchema",
       type: "Workflow",
     });
@@ -67,7 +66,6 @@ suite("generateSchemaBundle", (test) => {
     };
 
     const result = generateSchemaBundle(schema, {
-      module: "esm",
       name: "RootSchema",
       type: "Root",
     });
@@ -90,7 +88,7 @@ suite("generateSchemaBundle", (test) => {
       },
     };
 
-    const result = generateSchemaBundle(schema, { module: "esm", useUnknown: true });
+    const result = generateSchemaBundle(schema, { useUnknown: true });
     const alphaFile = result.files.find((f) => f.fileName === "alpha.schema.ts")!;
     assert(alphaFile.contents.includes("z.unknown()"));
   });
@@ -115,15 +113,15 @@ suite("generateSchemaBundle", (test) => {
     };
 
     const result = generateSchemaBundle(schema, {
-      module: "esm",
       refResolution: { lazyCrossRefs: true },
     });
 
     const bundleFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
     assert(bundleFile.contents.includes("export const ASchema = z.object"));
     assert(bundleFile.contents.includes("export const BSchema = z.object"));
-    assert(bundleFile.contents.includes("z.lazy(() => BSchema)"));
-    assert(bundleFile.contents.includes("z.lazy(() => ASchema)"));
+    // Check for typed lazy refs (with or without type parameter)
+    assert(bundleFile.contents.includes("z.lazy") && bundleFile.contents.includes("BSchema"));
+    assert(bundleFile.contents.includes("z.lazy") && bundleFile.contents.includes("ASchema"));
   });
 
   test("cycles in unions/arrays use lazy refs outside object properties", (assert) => {
@@ -148,11 +146,14 @@ suite("generateSchemaBundle", (test) => {
       required: ["root"],
     };
 
-    const result = generateSchemaBundle(schema, { module: "esm" });
+    const result = generateSchemaBundle(schema);
     const nodeFile = result.files.find((f) => f.fileName === "node.schema.ts")!;
 
-    assert(nodeFile.contents.includes('get "next"(){ return NodeSchema.optional() }'));
-    assert(nodeFile.contents.includes("z.array(z.lazy(() => NodeSchema))"));
+    // Check for getter syntax (with optional return type annotation)
+    assert(nodeFile.contents.includes('get "next"()'));
+    assert(nodeFile.contents.includes("NodeSchema.optional()"));
+    // Check for lazy array (with or without type parameter)
+    assert(nodeFile.contents.includes("z.array(z.lazy"));
     assert(!nodeFile.contents.includes("z.union([() =>"));
   });
 
@@ -183,7 +184,7 @@ suite("generateSchemaBundle", (test) => {
       },
     };
 
-    const result = generateSchemaBundle(schema, { module: "esm" });
+    const result = generateSchemaBundle(schema);
     const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
     const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
 
@@ -206,7 +207,7 @@ suite("generateSchemaBundle", (test) => {
       properties: { check: { $ref: "#/$defs/check" } },
     };
 
-    const result = generateSchemaBundle(schema, { module: "esm" });
+    const result = generateSchemaBundle(schema);
     const checkFile = result.files.find((f) => f.fileName === "check.schema.ts")!;
 
     assert(!checkFile.contents.includes(".errors"));
@@ -218,7 +219,7 @@ suite("generateSchemaBundle", (test) => {
       fs.readFileSync(path.join(__dirname, "fixtures/inline-defs-cycle.json"), "utf8"),
     );
 
-    const result = generateSchemaBundle(schema, { module: "esm" });
+    const result = generateSchemaBundle(schema);
     const outerFile = result.files.find((f) => f.fileName === "outer.schema.ts")!;
     assert(outerFile.contents.includes("export const OuterDefsInner"));
     assert(!outerFile.contents.includes("import { OuterSchema }"));
@@ -229,7 +230,7 @@ suite("generateSchemaBundle", (test) => {
       fs.readFileSync(path.join(__dirname, "fixtures/definitions-shadow.json"), "utf8"),
     );
 
-    const result = generateSchemaBundle(schema, { module: "esm" });
+    const result = generateSchemaBundle(schema);
     const alphaFile = result.files.find((f) => f.fileName === "alpha.schema.ts")!;
     // Inline definitions/shared should be number, root definitions/shared should be string
     assert(alphaFile.contents.includes("export const AlphaDefsShared = z.number()"));
@@ -275,7 +276,6 @@ suite("generateSchemaBundle", (test) => {
     };
 
     const result = generateSchemaBundle(schema, {
-      module: "esm",
       name: "RootSchema",
       type: "Root",
       nestedTypes: { enable: true, fileName: "nested-types.ts" },

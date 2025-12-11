@@ -15,7 +15,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.record(z.string(), z.any())`
+      `z.object({}).catchall(z.any())`
     )
   });
 
@@ -232,7 +232,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.any()]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.any()]))`,
     );
 
     assert(
@@ -331,7 +331,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.object({ "a": z.string() }).and(z.intersection(z.object({ "b": z.string() }), z.object({ "c": z.string() })))',
+      'z.object({ "a": z.string() }).and(z.intersection(z.object({ "b": z.string() }).strict(), z.object({ "c": z.string() }).strict()))',
     );
 
     assert(

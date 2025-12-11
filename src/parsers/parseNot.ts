@@ -1,13 +1,19 @@
-import { JsonSchemaObject, JsonSchema, Refs } from "../Types.js";
+import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseNot = (
   schema: JsonSchemaObject & { not: JsonSchema },
   refs: Refs,
-) => {
-  return `${anyOrUnknown(refs)}.refine((value) => !${parseSchema(schema.not, {
+): SchemaRepresentation => {
+  const baseSchema = anyOrUnknown(refs);
+  const notSchema = parseSchema(schema.not, {
     ...refs,
     path: [...refs.path, "not"],
-  })}.safeParse(value).success, "Invalid input: Should NOT be valid against schema")`;
+  });
+
+  return {
+    expression: `${baseSchema.expression}.refine((value) => !${notSchema.expression}.safeParse(value).success, "Invalid input: Should NOT be valid against schema")`,
+    type: `z.ZodEffects<${baseSchema.type}>`,
+  };
 };
