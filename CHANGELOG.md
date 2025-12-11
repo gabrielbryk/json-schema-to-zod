@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.12.1
+
+### Patch Changes
+
+- e8cbafc: Fix `unevaluatedProperties: false` with `oneOf` by avoiding strict union branches, allowing base properties through, and enforcing unknown-key rejection after composition.
+
 ## 2.12.0
 
 ### Minor Changes
