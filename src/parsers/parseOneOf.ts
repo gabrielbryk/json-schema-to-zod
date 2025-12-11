@@ -122,17 +122,77 @@ const collectSchemaProperties = (
 };
 
 /**
+ * Result of discriminator detection.
+ * - 'full': All options have constant discriminator values → use z.discriminatedUnion
+ * - 'withDefault': Some options have const values, one has not:{enum:[...]} matching those values
+ *                  → use z.union([z.discriminatedUnion(...), defaultCase])
+ * - undefined: Cannot use discriminated union optimization
+ */
+type DiscriminatorResult =
+  | { type: 'full'; key: string }
+  | { type: 'withDefault'; key: string; defaultIndex: number; constValues: string[] }
+  | undefined;
+
+/**
+ * Check if two sets contain the same elements.
+ */
+const setsEqual = (a: Set<string>, b: Set<string>): boolean => {
+  if (a.size !== b.size) return false;
+  for (const item of a) {
+    if (!b.has(item)) return false;
+  }
+  return true;
+};
+
+/**
+ * Extract the constant value from a property schema.
+ * Returns the string value if it's a const or single-element enum, undefined otherwise.
+ */
+const getConstValue = (prop: JsonSchemaObject): string | undefined => {
+  if (prop.const !== undefined && typeof prop.const === 'string') {
+    return prop.const;
+  }
+  if (
+    prop.enum &&
+    Array.isArray(prop.enum) &&
+    prop.enum.length === 1 &&
+    typeof prop.enum[0] === 'string'
+  ) {
+    return prop.enum[0];
+  }
+  return undefined;
+};
+
+/**
+ * Extract the negated enum values from a property schema.
+ * Returns the enum values if the property has { not: { enum: [...] } }, undefined otherwise.
+ */
+const getNegatedEnumValues = (prop: JsonSchemaObject): string[] | undefined => {
+  if (
+    prop.not &&
+    typeof prop.not === 'object' &&
+    prop.not !== null &&
+    Array.isArray((prop.not as JsonSchemaObject).enum) &&
+    (prop.not as JsonSchemaObject).enum!.every((v: unknown) => typeof v === 'string')
+  ) {
+    return (prop.not as JsonSchemaObject).enum as string[];
+  }
+  return undefined;
+};
+
+/**
  * Attempts to find a discriminator property common to all options.
  * A discriminator must:
  * 1. Be present in 'properties' of all options (resolving $refs and allOf if needed)
  * 2. Be required in all options (checking both direct required and allOf required)
- * 3. Have a constant string value (const or enum: [val]) in all options
- * 4. Have unique values across all options
+ * 3. Have a constant string value (const or enum: [val]) in all options, OR
+ *    have constant values in all but one option which has not:{enum:[those values]}
+ * 4. Have unique values across all options (for const values)
  */
 const findImplicitDiscriminator = (
   options: JsonSchema[],
   refs: Refs
-): string | undefined => {
+): DiscriminatorResult => {
   if (options.length < 2) return undefined;
 
   // Fully resolve schemas and collect their properties (including from allOf)
@@ -172,10 +232,15 @@ const findImplicitDiscriminator = (
   const candidateKeys = Object.keys(firstProps);
 
   for (const key of candidateKeys) {
-    const values = new Set<string>();
+    const constValues: string[] = [];
+    const constValuesSet = new Set<string>();
+    let defaultIndex: number | undefined;
+    let defaultEnumValues: string[] | undefined;
     let isValidDiscriminator = true;
 
-    for (const opt of resolvedOptions) {
+    for (let i = 0; i < resolvedOptions.length; i++) {
+      const opt = resolvedOptions[i];
+
       // Must be required
       if (!opt.required.includes(key)) {
         isValidDiscriminator = false;
@@ -202,34 +267,56 @@ const findImplicitDiscriminator = (
         break;
       }
 
-      // Must be a constant (const or single-element enum) string
-      let value: string | undefined;
-
-      if (prop.const !== undefined && typeof prop.const === 'string') {
-        value = prop.const;
-      } else if (
-        prop.enum &&
-        Array.isArray(prop.enum) &&
-        prop.enum.length === 1 &&
-        typeof prop.enum[0] === 'string'
-      ) {
-        value = prop.enum[0];
+      // Check for constant value
+      const constValue = getConstValue(prop);
+      if (constValue !== undefined) {
+        if (constValuesSet.has(constValue)) {
+          isValidDiscriminator = false; // Duplicate value found
+          break;
+        }
+        constValuesSet.add(constValue);
+        constValues.push(constValue);
+        continue;
       }
 
-      if (value === undefined) {
-        isValidDiscriminator = false;
-        break;
+      // Check for negated enum (default case pattern)
+      const negatedEnum = getNegatedEnumValues(prop);
+      if (negatedEnum !== undefined) {
+        if (defaultIndex !== undefined) {
+          // Multiple defaults - can't optimize
+          isValidDiscriminator = false;
+          break;
+        }
+        defaultIndex = i;
+        defaultEnumValues = negatedEnum;
+        continue;
       }
 
-      if (values.has(value)) {
-        isValidDiscriminator = false; // Duplicate value found
-        break;
-      }
-      values.add(value);
+      // Neither const nor not.enum - can't use discriminated union
+      isValidDiscriminator = false;
+      break;
     }
 
-    if (isValidDiscriminator) {
-      return key;
+    if (!isValidDiscriminator) {
+      continue;
+    }
+
+    // Check if all options have const values (full discriminated union)
+    if (constValues.length === resolvedOptions.length) {
+      return { type: 'full', key };
+    }
+
+    // Check if we have a valid default case pattern
+    if (
+      defaultIndex !== undefined &&
+      defaultEnumValues !== undefined &&
+      constValues.length === resolvedOptions.length - 1
+    ) {
+      // Verify the negated enum exactly matches the const values
+      const enumSet = new Set(defaultEnumValues);
+      if (setsEqual(constValuesSet, enumSet)) {
+        return { type: 'withDefault', key, defaultIndex, constValues };
+      }
     }
   }
 
@@ -260,7 +347,9 @@ export const parseOneOf = (
 
   // Optimize: Check for implicit discriminated union
   const discriminator = findImplicitDiscriminator(schema.oneOf, refs);
-  if (discriminator) {
+
+  if (discriminator?.type === 'full') {
+    // All options have constant discriminator values
     const options = schema.oneOf.map((s, i) =>
       parseSchema(s, {
         ...refs,
@@ -272,11 +361,16 @@ export const parseOneOf = (
     const types = options.map(o => o.type).join(", ");
 
     return {
-      expression: `z.discriminatedUnion("${discriminator}", [${expressions}])`,
+      expression: `z.discriminatedUnion("${discriminator.key}", [${expressions}])`,
       // Use readonly tuple for union type annotations (required for recursive type inference)
-      type: `z.ZodDiscriminatedUnion<"${discriminator}", readonly [${types}]>`,
+      type: `z.ZodDiscriminatedUnion<"${discriminator.key}", readonly [${types}]>`,
     };
   }
+
+  // Note: 'withDefault' case (discriminated union with catch-all) cannot be optimized
+  // in Zod v4 because ZodDiscriminatedUnion cannot be nested inside ZodUnion at the type level.
+  // The runtime would work, but the types wouldn't match, causing compile errors.
+  // So we fall through to the regular union handling below.
 
   // Fallback: Standard z.union
   const parsedSchemas: SchemaRepresentation[] = schema.oneOf.map((s, i) => {

@@ -1,5 +1,5 @@
 ---
-"json-schema-to-zod": minor
+"@gabrielbryk/json-schema-to-zod": minor
 ---
 
 Fix Zod v4 type compatibility and improve discriminated union detection

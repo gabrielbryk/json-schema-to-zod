@@ -1,5 +1,9 @@
 # Proposal: Discriminated Union with Default Case Detection
 
+## Status: Blocked by Zod v4 Type System
+
+**TL;DR**: The runtime optimization works, but Zod v4's type system prevents `ZodDiscriminatedUnion` from being nested inside `ZodUnion`. Until this is resolved upstream, we cannot implement this optimization while maintaining type safety.
+
 ## Summary
 
 Enhance `parseOneOf` to detect and optimize JSON Schema patterns where a oneOf contains multiple variants with constant discriminator values plus a "catch-all" default variant using `not: { enum: [...] }`.
@@ -176,6 +180,35 @@ export const parseOneOf = (schema, refs) => {
   // ... existing logic for full discriminated union or regular union
 };
 ```
+
+## Zod v4 Type System Limitation
+
+**Problem**: In Zod v4, `ZodDiscriminatedUnion` cannot be used as a member of `ZodUnion` at the type level.
+
+When we generate:
+```typescript
+z.union([
+  z.discriminatedUnion("call", [known1, known2, ...]),
+  defaultVariant
+])
+```
+
+The runtime works correctly, but TypeScript fails with:
+```
+Type 'ZodDiscriminatedUnion<...>' is not assignable to type 'SomeType'.
+The types of '_zod.values' are incompatible between these types.
+```
+
+**Root Cause**: Zod v4's internal `SomeType` constraint doesn't include `ZodDiscriminatedUnion`. This appears to be an intentional design decision, as discriminated unions are meant to be "leaf" schemas, not composable with regular unions.
+
+**Workaround Attempted**: Use a type annotation listing all individual variants while keeping the optimized runtime expression. This fails because Zod v4's strict tuple checking requires the type annotation tuple length to match the runtime tuple length.
+
+**Potential Solutions**:
+1. **Wait for Zod v4 update**: If Zod adds `ZodDiscriminatedUnion` to `SomeType`, this would work
+2. **Use type assertion**: Cast the result with `as unknown as ZodUnion<...>` - unsafe but functional
+3. **Request Zod feature**: Open an issue requesting discriminated union composability
+
+For now, we fall back to regular `z.union()` for schemas with a default case.
 
 ## Edge Cases
 

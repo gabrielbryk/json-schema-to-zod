@@ -23,8 +23,9 @@ Lift inline, non-cyclic object schemas into top-level `$defs` so both bundle and
 - Use `name`/`rootName` as the base parent name; fallback to `Root` when absent.
 
 ## Integration Points
-- **Single file (`jsonSchemaToZod`)**: run lifting before `analyzeSchema`; feed transformed schema into analyzer/emitter.
+- **Single file (`jsonSchemaToZod`)**: run lifting before `analyzeSchema`; feed transformed schema into analyzer/emitter so parity is maintained with bundle.
 - **Bundle (`generateSchemaBundle`)**: run lifting before `buildBundleContext/planBundleTargets`; use returned `$defs`/defNames/root in downstream steps.
+- **Shared hook**: expose the lifting pass via the public options on both paths to avoid divergent behavior.
 - **Nested types feature**: lifted items no longer count as “nested” (they are top-level), which is expected when the flag is on.
 
 ## Naming Strategy (default)
@@ -47,13 +48,17 @@ Lift inline, non-cyclic object schemas into top-level `$defs` so both bundle and
 - **Integration**:
   - Flag off: existing snapshots unchanged.
   - Flag on (single + bundle): workflow fixture shows CallTask `with` shapes as top-level defs; CallTask branches reference them; `pnpm test` + workflow snapshot pass.
+  - Maintain snapshots for both modes to contain churn; default-off remains the baseline.
 
 ## Risks / Mitigations
-- **Semantics drift**: lifting could change validation if sibling keywords depend on inline position. Mitigate with conservative skip logic and opt-in flag.
-- **Naming collisions**: resolved via suffixing and hook.
-- **Import churn**: expected only when flag is on; keep default off.
+- **Semantics drift**: lifting could change validation if sibling keywords depend on inline position (e.g., `unevaluatedProperties`, composition in `parseObject`). Mitigate with conservative skip logic; if inline context is ambiguous, do not lift. Keep behavior opt-in (flag default off).
+- **Cycle misdetection**: identity-only checks can miss `$ref`/`$dynamicRef` loops, causing infinite recursion or skipped lifts. Mitigate by reusing `buildRefRegistry`/`resolveRef` to detect ancestor/self refs during the lifting pass.
+- **Naming collisions**: new defs could clash with existing `$defs` or generated names. Mitigate with suffixing and an optional `nameForPath` hook; check against `defInfoMap` inputs before insertion.
+- **Bundle import gaps**: if lifted defs are not added to `defInfoMap`/`planBundleTargets`, `$ref` targets may emit without definitions. Mitigate by running the lifting pass before context/build planning so new `defNames` flow through imports.
+- **Single/bundle divergence**: wiring only the bundle path would leave single-file outputs unchanged, confusing users. Mitigate by invoking the same lifting pass in `jsonSchemaToZod` and exposing the flag in shared `Options`.
 
 ## Implementation Notes
 - New helper: `src/utils/liftInlineObjects.ts` (pure, no side effects).
 - Returns `{ rootSchema, defs, addedDefNames, pathToDefName }` for debugging/tests.
 - Reuse `toPascalCase` from bundle generator; keep ASCII identifiers.
+- Consider reusing traversal patterns from `findNestedTypesInSchema` to avoid missing positions (properties/items/allOf/etc.).
