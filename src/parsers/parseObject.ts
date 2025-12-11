@@ -314,7 +314,7 @@ export function parseObject(
       : properties;
 
   const fallback = anyOrUnknown(refs);
-  let output = properties
+  let output: string = properties
     ? patternProperties
       ? properties + patternProperties
       : additionalProperties
@@ -441,12 +441,12 @@ export function parseObject(
       : [];
     const patternRegexpsLiteral = patternRegexps.length
       ? `[${patternRegexps.map((r) => r.toString()).join(", ")}]`
-      : "[]";
+      : "[new RegExp(\"$^\")]";
 
     output += `.superRefine((value, ctx) => {
   if (!value || typeof value !== "object") return;
   const knownKeys = ${JSON.stringify(knownKeys)};
-  const patternRegexps: RegExp[] = ${patternRegexpsLiteral};
+  const patternRegexps = ${patternRegexpsLiteral};
   for (const key in value) {
     const isKnown = knownKeys.includes(key);
     const matchesPattern = patternRegexps.length ? patternRegexps.some((r) => r.test(key)) : false;
