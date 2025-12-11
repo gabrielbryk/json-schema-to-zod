@@ -1,6 +1,7 @@
 import { analyzeSchema } from "../core/analyzeSchema.js";
 import { emitZod } from "../core/emitZod.js";
 import { JsonSchema, JsonSchemaObject, Options, Refs } from "../Types.js";
+import { liftInlineObjects } from "../utils/liftInlineObjects.js";
 
 type DefInfo = {
   name: string;
@@ -84,8 +85,20 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     throw new Error("generateSchemaBundle requires an object schema");
   }
 
-  const defs = (schema as JsonSchemaObject).$defs || {};
-  const definitions = (schema as JsonSchemaObject).definitions || {};
+  const liftOpts = options.liftInlineObjects ?? {};
+  const useLift = liftOpts.enable !== false;
+  const liftedSchema = useLift
+    ? (liftInlineObjects(schema, {
+      enable: true,
+      nameForPath: liftOpts.nameForPath,
+      parentName: options.splitDefs?.rootTypeName ?? options.splitDefs?.rootName ?? (schema as JsonSchemaObject).title,
+      dedup: liftOpts.dedup === true,
+      allowInDefs: liftOpts.allowInDefs,
+    }).schema as JsonSchemaObject)
+    : (schema as JsonSchemaObject);
+
+  const defs = liftedSchema.$defs || {};
+  const definitions = liftedSchema.definitions || {};
   const defNames = Object.keys(defs);
 
   const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, defs, options);
@@ -93,7 +106,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   const files: GeneratedFile[] = [];
 
   const targets = planBundleTargets(
-    schema as JsonSchemaObject,
+    liftedSchema,
     defs,
     definitions,
     defNames,
@@ -138,7 +151,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   // Nested types extraction (optional)
   const nestedTypesEnabled = options.nestedTypes?.enable;
   if (nestedTypesEnabled) {
-    const nestedTypes = collectNestedTypes(schema as JsonSchemaObject, defs, defNames, rootTypeName ?? rootName);
+    const nestedTypes = collectNestedTypes(liftedSchema as JsonSchemaObject, defs, defNames, rootTypeName ?? rootName);
     if (nestedTypes.length > 0) {
       const nestedFileName = options.nestedTypes?.fileName ?? "nested-types.ts";
       const nestedContent = generateNestedTypesFile(nestedTypes);
@@ -418,8 +431,12 @@ const planBundleTargets = (
 const findRefDependencies = (schema: JsonSchema | undefined, validDefNames: string[]): Set<string> => {
   const deps = new Set<string>();
 
+  const seen = new WeakSet<object>();
+
   function traverse(obj: unknown): void {
     if (obj === null || typeof obj !== "object") return;
+    if (seen.has(obj as object)) return;
+    seen.add(obj as object);
 
     if (Array.isArray(obj)) {
       obj.forEach(traverse);

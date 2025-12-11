@@ -68,6 +68,7 @@ suite("generateSchemaBundle", (test) => {
     const result = generateSchemaBundle(schema, {
       name: "RootSchema",
       type: "Root",
+      liftInlineObjects: { enable: false },
     });
 
     const wrapper = result.files.find((f) => f.fileName === "wrapper.schema.ts")!;
@@ -146,7 +147,7 @@ suite("generateSchemaBundle", (test) => {
       required: ["root"],
     };
 
-    const result = generateSchemaBundle(schema);
+    const result = generateSchemaBundle(schema, { liftInlineObjects: { enable: false } });
     const nodeFile = result.files.find((f) => f.fileName === "node.schema.ts")!;
 
     // Check for getter syntax (with optional return type annotation)
@@ -184,7 +185,7 @@ suite("generateSchemaBundle", (test) => {
       },
     };
 
-    const result = generateSchemaBundle(schema);
+    const result = generateSchemaBundle(schema, { liftInlineObjects: { enable: false } });
     const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
     const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
 
@@ -279,6 +280,7 @@ suite("generateSchemaBundle", (test) => {
       name: "RootSchema",
       type: "Root",
       nestedTypes: { enable: true, fileName: "nested-types.ts" },
+      liftInlineObjects: { enable: false },
     });
 
     const nestedFile = result.files.find((f) => f.fileName === "nested-types.ts")!;

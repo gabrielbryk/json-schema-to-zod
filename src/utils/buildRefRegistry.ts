@@ -15,8 +15,12 @@ export const buildRefRegistry = (
 ): { registry: Map<string, RefRegistryEntry>; rootBaseUri: string } => {
   const registry = new Map<string, RefRegistryEntry>();
 
+  const seen = new WeakSet<object>();
+
   const walk = (node: JsonSchema, baseUri: string, path: (string | number)[]) => {
     if (typeof node !== "object" || node === null) return;
+    if (seen.has(node as object)) return;
+    seen.add(node as object);
 
     const obj = node as JsonSchemaObject;
 

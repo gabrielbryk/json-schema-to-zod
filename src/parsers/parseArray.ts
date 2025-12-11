@@ -69,10 +69,7 @@ export const parseArray = (
     messageCloser: " })",
   }));
 
-  let hasRefinement = false;
-
   if (schema.uniqueItems === true) {
-    hasRefinement = true;
     r += `.superRefine((arr, ctx) => {
   const seen = new Set();
   for (const [index, value] of arr.entries()) {
@@ -98,7 +95,6 @@ export const parseArray = (
   }
 
   if (schema.contains) {
-    hasRefinement = true;
     const containsResult = parseSchema(schema.contains, {
       ...refs,
       path: [...refs.path, "contains"],

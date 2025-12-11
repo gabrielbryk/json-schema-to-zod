@@ -99,18 +99,25 @@ const orderDeclarations = (
   const repByName = new Map<string, SchemaRepresentation>(entries);
   const depGraph = new Map<string, Set<string>>();
 
-  const depEntries = Array.from(dependencies.entries()) as Array<[string, Set<string>]>;
-  for (const [from, set] of depEntries) {
+  // Seed graph with empty deps for all nodes
+  for (const [name] of entries) {
+    depGraph.set(name, new Set<string>());
+  }
+
+  // Add explicit dependencies (analyzeSchema) filtered to known names
+  for (const [from, set] of dependencies.entries()) {
     const onlyKnown = new Set<string>();
-    const depArray = Array.from(set) as string[];
-    for (const dep of depArray) {
+    for (const dep of set) {
       if (repByName.has(dep) && dep !== from) {
         onlyKnown.add(dep);
       }
     }
-    if (onlyKnown.size) depGraph.set(from, onlyKnown);
+    const current = depGraph.get(from) ?? new Set<string>();
+    onlyKnown.forEach((d) => current.add(d));
+    depGraph.set(from, current);
   }
 
+  // Add regex-detected dependencies from expressions
   const names = Array.from(repByName.keys());
   for (const [name, rep] of entries) {
     const deps = depGraph.get(name) ?? new Set<string>();
@@ -121,50 +128,43 @@ const orderDeclarations = (
         deps.add(candidate);
       }
     }
-    if (deps.size) depGraph.set(name, deps);
+    depGraph.set(name, deps);
   }
 
-  const ordered: string[] = [];
-  const perm = new Set<string>();
-  const temp = new Set<string>();
-
-  const visit = (name: string) => {
-    if (perm.has(name)) return;
-    if (temp.has(name)) {
-      temp.delete(name);
-      perm.add(name);
-      ordered.push(name);
-      return;
+  // Kahn's algorithm with stable ordering
+  const indegree = new Map<string, number>();
+  for (const name of names) indegree.set(name, 0);
+  for (const [name, deps] of depGraph.entries()) {
+    const count = deps.size;
+    if (count > 0) {
+      indegree.set(name, (indegree.get(name) ?? 0) + count);
     }
+  }
 
-    temp.add(name);
-    const deps = depGraph.get(name);
-    if (deps) {
-      for (const dep of Array.from(deps)) {
-        if (repByName.has(dep)) {
-          visit(dep);
-        }
+  const queue: string[] = names.filter((n) => (indegree.get(n) ?? 0) === 0);
+  const ordered: string[] = [];
+
+  while (queue.length) {
+    const current = queue.shift() as string;
+    ordered.push(current);
+    for (const dep of depGraph.get(current) ?? []) {
+      indegree.set(dep, (indegree.get(dep) ?? 1) - 1);
+      if ((indegree.get(dep) ?? 0) === 0) {
+        queue.push(dep);
       }
     }
-    temp.delete(name);
-    perm.add(name);
-    ordered.push(name);
-  };
-
-  for (const name of Array.from(repByName.keys())) {
-    visit(name);
   }
 
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const name of ordered) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      unique.push(name);
+  // Fallback in case of cycles: append any remaining nodes
+  if (ordered.length < names.length) {
+    for (const name of names) {
+      if (!ordered.includes(name)) ordered.push(name);
     }
+    // const remaining = names.filter((n) => !ordered.includes(n)).sort();
+    // ordered.push(...remaining);
   }
 
-  return unique.map((name) => [name, repByName.get(name)!]);
+  return ordered.map((name) => [name, repByName.get(name)!]);
 };
 
 export const emitZod = (analysis: AnalysisResult): string => {
@@ -172,7 +172,6 @@ export const emitZod = (analysis: AnalysisResult): string => {
     schema,
     options,
     refNameByPointer,
-    usedNames,
     cycleRefNames,
     cycleComponentByName,
   } = analysis;
@@ -189,6 +188,12 @@ export const emitZod = (analysis: AnalysisResult): string => {
   const declarations = new Map<string, SchemaRepresentation>();
   const dependencies = new Map<string, Set<string>>();
 
+  // Fresh name registry for the emission pass.
+  // Seed only with reserved ref names (from $ref resolution) and the root name to keep names stable
+  // without inheriting inline allocations from the first pass.
+  const emitUsedNames = new Set<string>([...refNameByPointer.values()]);
+  if (name) emitUsedNames.add(name);
+
   const parsedSchema = parseSchema(schema as JsonSchema, {
     name,
     path: [],
@@ -197,7 +202,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
     dependencies,
     inProgress: new Set(),
     refNameByPointer,
-    usedNames,
+    usedNames: emitUsedNames,
     root: schema,
     currentSchemaName: name,
     cycleRefNames,
@@ -211,10 +216,10 @@ export const emitZod = (analysis: AnalysisResult): string => {
   const jsdocs =
     rest.withJsdocs && typeof schema === "object" && schema !== null && "description" in schema
       ? expandJsdocs(
-          typeof (schema as { description?: unknown }).description === "string"
-            ? (schema as { description: string }).description
-            : ""
-        )
+        typeof (schema as { description?: unknown }).description === "string"
+          ? (schema as { description: string }).description
+          : ""
+      )
       : "";
 
   const emitter = new EsmEmitter();

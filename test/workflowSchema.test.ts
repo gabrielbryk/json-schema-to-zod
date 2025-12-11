@@ -41,7 +41,7 @@ suite("workflow.yaml", (test) => {
     writeFileSync(schemaPath, source);
 
     const tscPath = join(process.cwd(), "node_modules/.bin/tsc");
-    const { status, stderr } = spawnSync(tscPath, [
+    const { status } = spawnSync(tscPath, [
       "--noEmit",
       "--module",
       "Node16",

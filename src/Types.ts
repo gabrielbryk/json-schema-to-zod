@@ -141,6 +141,20 @@ export type Options = {
    * Return a JsonSchema to register, or undefined if not found.
    */
   resolveExternalRef?: (uri: string) => JsonSchema | Promise<JsonSchema> | undefined;
+  /**
+   * Lift inline object schemas into top-level defs to improve reusability.
+   * Default is ON; set enable: false to opt out.
+   */
+  liftInlineObjects?: {
+    /** Whether to enable lifting inline object schemas (default: true). */
+    enable?: boolean;
+    /** Optional hook to override generated names for lifted defs. */
+    nameForPath?: (path: (string | number)[], ctx: { parentName?: string; existingNames: Set<string>; branchInfo?: unknown }) => string;
+    /** Deduplicate lifted shapes by structural hash (ignoring titles/descriptions). Default: false. */
+    dedup?: boolean;
+    /** Allow hoisting inside $defs content (default: true). */
+    allowInDefs?: boolean;
+  };
 };
 
 export type Refs = Options & {

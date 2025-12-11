@@ -333,7 +333,8 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.object({ "a": z.string() }).and(z.intersection(z.object({ "b": z.string() }), z.object({ "c": z.string() })))',
+      // Spread pattern: merges inline objects instead of using intersection
+      'z.object({ "a": z.string() }).and(z.object({ "b": z.string(), "c": z.string() }))',
     );
 
     assert(
