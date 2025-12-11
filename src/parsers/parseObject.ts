@@ -19,6 +19,16 @@ export function parseObject(
   const hasPatternProperties = objectSchema.patternProperties !== undefined;
   const hasNoDirectSchema = !hasDirectProperties && !hasAdditionalProperties && !hasPatternProperties;
 
+  const parentRequired = Array.isArray(objectSchema.required) ? objectSchema.required : [];
+  const allOfRequired = its.an.allOf(objectSchema)
+    ? objectSchema.allOf.flatMap((member) => {
+      if (typeof member !== "object" || member === null) return [];
+      const req = (member as JsonSchemaObject).required;
+      return Array.isArray(req) ? req : [];
+    })
+    : [];
+  const combinedAllOfRequired = [...new Set([...parentRequired, ...allOfRequired])];
+
   // Helper to add type: "object" to composition members that have properties but no explicit type
   const addObjectType = (members: JsonSchema[]): JsonSchema[] =>
     members.map((x) =>
@@ -30,9 +40,42 @@ export function parseObject(
         : x,
     );
 
+  const addObjectTypeAndMergeRequired = (members: JsonSchema[]): JsonSchema[] =>
+    members.map((x) => {
+      if (typeof x !== "object" || x === null) return x;
+
+      let normalized: JsonSchemaObject = x as JsonSchemaObject;
+      const hasShape = normalized.properties || normalized.additionalProperties || normalized.patternProperties;
+      if (hasShape && !normalized.type) {
+        normalized = { ...normalized, type: "object" as const };
+      }
+
+      if (
+        combinedAllOfRequired.length &&
+        normalized.properties &&
+        Object.keys(normalized.properties).length
+      ) {
+        const memberRequired = Array.isArray(normalized.required) ? normalized.required : [];
+        const mergedRequired = Array.from(
+          new Set([
+            ...memberRequired,
+            ...combinedAllOfRequired.filter((key) =>
+              Object.prototype.hasOwnProperty.call(normalized.properties!, key),
+            ),
+          ]),
+        );
+
+        if (mergedRequired.length) {
+          normalized = { ...normalized, required: mergedRequired };
+        }
+      }
+
+      return normalized;
+    });
+
   // If only allOf, delegate to parseAllOf
   if (hasNoDirectSchema && its.an.allOf(objectSchema) && !its.an.anyOf(objectSchema) && !its.a.oneOf(objectSchema) && !its.a.conditional(objectSchema)) {
-    return parseAllOf({ ...objectSchema, allOf: addObjectType(objectSchema.allOf!) }, refs);
+    return parseAllOf({ ...objectSchema, allOf: addObjectTypeAndMergeRequired(objectSchema.allOf!) }, refs);
   }
 
   // If only anyOf, delegate to parseAnyOf
@@ -349,14 +392,7 @@ export function parseObject(
     const allOfResult = parseAllOf(
       {
         ...objectSchema,
-        allOf: objectSchema.allOf.map((x) =>
-          typeof x === "object" &&
-            x !== null &&
-            !x.type &&
-            ((x as JsonSchemaObject).properties || (x as JsonSchemaObject).additionalProperties || (x as JsonSchemaObject).patternProperties)
-            ? { ...(x as JsonSchemaObject), type: "object" }
-            : x,
-        ),
+        allOf: addObjectTypeAndMergeRequired(objectSchema.allOf),
       },
       refs,
     );

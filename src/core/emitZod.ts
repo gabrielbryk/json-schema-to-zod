@@ -240,10 +240,10 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
       const hasLazy = expression.includes("z.lazy(");
       const hasGetter = expression.includes("get ");
-      const isUnion = expression.startsWith("z.union(") || expression.startsWith("z.discriminatedUnion(");
 
-      // Check if this union references any cycle members (recursive schemas)
-      const referencesRecursiveSchema = isUnion && Array.from(cycleRefNames).some(
+      // Check if this schema references any cycle members (recursive schemas)
+      // This can cause TS7056 when TypeScript tries to serialize the expanded type
+      const referencesRecursiveSchema = Array.from(cycleRefNames).some(
         cycleName => new RegExp(`\\b${cycleName}\\b`).test(expression)
       );
 
@@ -251,7 +251,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
       // TypeScript can infer the type of const declarations.
       // Exceptions that need explicit type annotation:
       // 1. z.lazy() without getters
-      // 2. Union types that reference recursive schemas (for proper type inference)
+      // 2. Any schema that references recursive schemas (to prevent TS7056)
       const needsTypeAnnotation = (hasLazy && !hasGetter) || referencesRecursiveSchema;
       const storedType = needsTypeAnnotation ? (hintedType ?? inferTypeFromExpression(expression)) : undefined;
 

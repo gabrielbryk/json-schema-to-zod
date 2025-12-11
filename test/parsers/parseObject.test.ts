@@ -367,6 +367,39 @@ suite("parseObject", (test) => {
     );
   });
 
+  test("allOf merges parent required into properties member", (assert) => {
+    const schema = {
+      type: "object" as const,
+      required: ["call", "with"],
+      allOf: [
+        {
+          properties: {
+            call: { type: "string", const: "asyncapi" },
+            with: {
+              type: "object",
+              unevaluatedProperties: false,
+              properties: {
+                doc: { type: "string" },
+              },
+            },
+          },
+          unevaluatedProperties: false,
+        },
+        {
+          required: ["call", "with"],
+        },
+      ],
+    } satisfies JSONSchema7 & { type: "object" };
+
+    const result = parseObject(schema, { path: [], seen: new Map() });
+    const expression = toExpression(result);
+
+    assert(run(result, { call: "asyncapi", with: { doc: "hi" } }).success, true);
+    assert(run(result, { call: "asyncapi" }).success, false);
+    assert(expression.includes('"call": z.literal("asyncapi")'), true);
+    assert(expression.includes('"with": z.object'), true);
+  });
+
   const run = (output: string | { expression: string }, data: unknown) => {
     const expression = toExpression(output);
     return eval(
