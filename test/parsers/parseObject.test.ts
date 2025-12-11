@@ -269,7 +269,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.object({ "c": z.string() }).strict()]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.object({ "c": z.string() })]))`,
     );
 
     assert(
@@ -298,7 +298,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.any()]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.any()]))`,
     );
 
     assert(
@@ -408,6 +408,32 @@ suite("parseObject", (test) => {
       )})`,
     );
   };
+
+  test("oneOf branches respect unevaluatedProperties when combined with base properties", (assert) => {
+    const schema = {
+      type: "object" as const,
+      unevaluatedProperties: false,
+      properties: {
+        base: { type: "string" },
+      },
+      oneOf: [
+        {
+          properties: { a: { type: "string" } },
+          required: ["a"],
+        },
+        {
+          properties: { b: { type: "number" } },
+          required: ["b"],
+        },
+      ],
+    };
+
+    const result = parseObject(schema, { path: [], seen: new Map() });
+
+    assert(run(result, { base: "hi", a: "ok" }).success, true);
+    assert(run(result, { base: "hi", b: 123 }).success, true);
+    assert(run(result, { base: "hi", a: "ok", unknown: true }).success, false);
+  });
 
   test("Funcional tests - run", (assert) => {
     assert(run("z.string()", "hello"), {

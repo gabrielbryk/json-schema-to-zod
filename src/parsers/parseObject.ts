@@ -8,6 +8,24 @@ import { addJsdocs } from "../utils/jsdocs.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { containsRecursiveRef, inferTypeFromExpression } from "../utils/schemaRepresentation.js";
 
+const collectKnownPropertyKeys = (schema: JsonSchemaObject): string[] => {
+  const keys = new Set<string>();
+  const visit = (node: JsonSchema | undefined) => {
+    if (typeof node !== "object" || node === null) return;
+    const obj = node as JsonSchemaObject;
+    if (obj.properties && typeof obj.properties === "object") {
+      Object.keys(obj.properties).forEach((key) => keys.add(key));
+    }
+  };
+
+  visit(schema);
+  if (Array.isArray(schema.oneOf)) schema.oneOf.forEach(visit);
+  if (Array.isArray(schema.anyOf)) schema.anyOf.forEach(visit);
+  if (Array.isArray(schema.allOf)) schema.allOf.forEach(visit);
+
+  return Array.from(keys);
+};
+
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
   refs: Refs,
@@ -289,6 +307,12 @@ export function parseObject(
   // we should NOT default to z.record(z.string(), z.any()) because that would allow any properties.
   // Instead, use z.object({}) and let the .and() call add properties from the composition.
   // This is especially important when unevaluatedProperties: false is set.
+  const shouldPassthroughForUnevaluated = unevaluated === false && hasCompositionKeywords;
+  const passthroughProperties =
+    shouldPassthroughForUnevaluated && properties && !patternProperties
+      ? `${properties}.passthrough()`
+      : properties;
+
   const fallback = anyOrUnknown(refs);
   let output = properties
     ? patternProperties
@@ -297,10 +321,10 @@ export function parseObject(
         ? additionalProperties.expression === "z.never()"
           // Don't use .strict() if there are composition keywords that add properties
           ? hasCompositionKeywords
-            ? properties
+            ? passthroughProperties
             : properties + ".strict()"
           : properties + `.catchall(${additionalProperties.expression})`
-        : properties
+        : passthroughProperties
     : patternProperties
       ? patternProperties
       : additionalProperties
@@ -408,6 +432,29 @@ export function parseObject(
     );
     output += `.and(${conditionalResult.expression})`;
     intersectionTypes.push(conditionalResult.type);
+  }
+
+  if (unevaluated === false && hasCompositionKeywords) {
+    const knownKeys = collectKnownPropertyKeys(objectSchema);
+    const patternRegexps = objectSchema.patternProperties
+      ? Object.keys(objectSchema.patternProperties).map((pattern) => new RegExp(pattern))
+      : [];
+    const patternRegexpsLiteral = patternRegexps.length
+      ? `[${patternRegexps.map((r) => r.toString()).join(", ")}]`
+      : "[]";
+
+    output += `.superRefine((value, ctx) => {
+  if (!value || typeof value !== "object") return;
+  const knownKeys = ${JSON.stringify(knownKeys)};
+  const patternRegexps: RegExp[] = ${patternRegexpsLiteral};
+  for (const key in value) {
+    const isKnown = knownKeys.includes(key);
+    const matchesPattern = patternRegexps.length ? patternRegexps.some((r) => r.test(key)) : false;
+    if (!isKnown && !matchesPattern) {
+      ctx.addIssue({ code: "unrecognized_keys", keys: [key], path: [key], message: "Unknown property" });
+    }
+  }
+})`;
   }
 
   // Only add required validation for missing keys when there are no composition keywords

@@ -372,6 +372,17 @@ export const parseOneOf = (
   // The runtime would work, but the types wouldn't match, causing compile errors.
   // So we fall through to the regular union handling below.
 
+  // If the parent object has its own shape (properties/patternProperties/additionalProperties)
+  // or explicitly forbids unevaluated properties, we shouldn't make the oneOf branches strict.
+  // Otherwise, the intersection with the parent schema would reject the parent's properties
+  // before the union gets a chance to validate.
+  const parentHasDirectObjectShape = Boolean(
+    schema.properties ||
+    schema.patternProperties ||
+    schema.additionalProperties,
+  );
+  const parentForbidsUnevaluated = schema.unevaluatedProperties === false;
+
   // Fallback: Standard z.union
   const parsedSchemas: SchemaRepresentation[] = schema.oneOf.map((s, i) => {
     const extracted = extractInlineObject(s, refs, [...refs.path, "oneOf", i]);
@@ -395,6 +406,8 @@ export const parseOneOf = (
       parsed.expression.startsWith("z.object(") && // Critical check: Must be a Zod object
       !parsed.expression.includes(".and(") &&
       !parsed.expression.includes(".intersection(") &&
+      !parentHasDirectObjectShape &&
+      !parentForbidsUnevaluated &&
       !parsed.expression.includes(".strict()") &&
       !parsed.expression.includes(".catchall") &&
       !parsed.expression.includes(".passthrough")
