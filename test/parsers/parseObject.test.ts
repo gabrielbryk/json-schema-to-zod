@@ -5,6 +5,8 @@ import { parseObject } from "../../src/parsers/parseObject";
 import { suite } from "../suite";
 
 const require = createRequire(import.meta.url);
+const toExpression = (value: string | { expression: string }) =>
+  typeof value === "string" ? value : value.expression;
 
 suite("parseObject", (test) => {
   test("should handle with missing properties", (assert) => {
@@ -15,7 +17,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.object({}).catchall(z.any())`
+      `z.record(z.string(), z.any())`
     )
   });
 
@@ -232,7 +234,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.any()]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.any()]))`,
     );
 
     assert(
@@ -267,7 +269,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.object({ "c": z.string() })]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.object({ "c": z.string() }).strict()]))`,
     );
 
     assert(
@@ -296,7 +298,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }), z.any()]))`,
+      `z.object({ "a": z.string() }).and(z.union([z.object({ "b": z.string() }).strict(), z.any()]))`,
     );
 
     assert(
@@ -331,7 +333,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.object({ "a": z.string() }).and(z.intersection(z.object({ "b": z.string() }).strict(), z.object({ "c": z.string() }).strict()))',
+      'z.object({ "a": z.string() }).and(z.intersection(z.object({ "b": z.string() }), z.object({ "c": z.string() })))',
     );
 
     assert(
@@ -364,12 +366,14 @@ suite("parseObject", (test) => {
     );
   });
 
-  const run = (output: string, data: unknown) =>
-    eval(
-      `const {z} = require("zod"); ${output}.safeParse(${JSON.stringify(
+  const run = (output: string | { expression: string }, data: unknown) => {
+    const expression = toExpression(output);
+    return eval(
+      `const {z} = require("zod"); ${expression}.safeParse(${JSON.stringify(
         data,
       )})`,
     );
+  };
 
   test("Funcional tests - run", (assert) => {
     assert(run("z.string()", "hello"), {
@@ -472,8 +476,7 @@ ctx.addIssue({
 })`;
 
     const result = parseObject(schema, { path: [], seen: new Map() });
-
-    assert(typeof result === "string");
+    assert(result, _expected);
   });
 
   test("Funcional tests - properties, additionalProperties and patternProperties", (assert) => {
@@ -544,7 +547,8 @@ ctx.addIssue({
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(result.includes("superRefine"));
+    const expression = toExpression(result);
+    assert(expression.includes("superRefine"));
   });
 
   test("Funcional tests - additionalProperties", (assert) => {
@@ -619,9 +623,8 @@ ctx.addIssue({
 
     const result = parseObject(schema, { path: [], seen: new Map() });
 
-    assert(typeof result === "string");
-
-    assert(run(result, { x: true, ".": [], ",": [] }).success, false);
+    const expression = toExpression(result);
+    assert(run(expression, { x: true, ".": [], ",": [] }).success, false);
   });
 
   test("Funcional tests - single-item patternProperties", (assert) => {
@@ -651,8 +654,7 @@ ctx.addIssue({
 })`;
 
     const result = parseObject(schema, { path: [], seen: new Map() });
-
-    assert(typeof result === "string");
+    assert(toExpression(result), _expected);
   });
 
   test("Funcional tests - patternProperties", (assert) => {
@@ -696,12 +698,13 @@ ctx.addIssue({
 })`;
 
     const result = parseObject(schema, { path: [], seen: new Map() });
+    const expression = toExpression(result);
 
-    assert(run(result, { ".": [] }).success, true);
+    assert(run(expression, { ".": [] }).success, true);
 
-    assert(run(result, { ",": [] }).success, false);
+    assert(run(expression, { ",": [] }).success, false);
 
-    assert(result.includes("superRefine"));
+    assert(expression.includes("superRefine"));
   });
 
   test("Funcional tests - patternProperties and properties", (assert) => {
@@ -754,8 +757,7 @@ ctx.addIssue({
 })`;
 
     const result = parseObject(schema, { path: [], seen: new Map() });
-
-    assert(typeof result === "string");
+    assert(result, _expected);
   });
 
   test("dependentRequired", (assert) => {
@@ -772,9 +774,9 @@ ctx.addIssue({
     };
 
     const result = parseObject(schema, { path: [], seen: new Map() });
+    const expression = toExpression(result);
 
-    assert(typeof result === "string");
-    assert(result.includes("Dependent required properties missing"), true);
+    assert(expression.includes("Dependent required properties missing"), true);
   });
 
   test("dependentRequired with custom message", (assert) => {
@@ -793,8 +795,8 @@ ctx.addIssue({
     };
 
     const result = parseObject(schema, { path: [], seen: new Map() });
+    const expression = toExpression(result);
 
-    assert(typeof result === "string");
-    assert(result.includes("deps missing"), true);
+    assert(expression.includes("deps missing"), true);
   });
 });

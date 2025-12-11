@@ -14,6 +14,7 @@ export const parseNot = (
 
   return {
     expression: `${baseSchema.expression}.refine((value) => !${notSchema.expression}.safeParse(value).success, "Invalid input: Should NOT be valid against schema")`,
-    type: `z.ZodEffects<${baseSchema.type}>`,
+    // In Zod v4, .refine() doesn't change the type
+    type: baseSchema.type,
   };
 };

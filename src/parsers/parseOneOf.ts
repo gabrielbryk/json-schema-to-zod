@@ -33,13 +33,15 @@ const isRequiredOnlySchema = (schema: JsonSchema): schema is JsonSchemaObject & 
 };
 
 /**
- * Generate a z.any() schema with superRefine that validates required field combinations.
+ * Generate a superRefine expression that validates required field combinations.
  * This handles the JSON Schema pattern where oneOf is used purely for validation.
- * Returns a complete schema expression that can be used in .and() context.
+ *
+ * When isRefinementOnly is true, the expression is just the refinement function body
+ * that should be appended with .superRefine() directly to the parent schema.
  */
 const generateRequiredFieldsRefinement = (
   requiredCombinations: string[][],
-): SchemaRepresentation => {
+): SchemaRepresentation & { isRefinementOnly: true; refinementBody: string } => {
   const conditions = requiredCombinations.map((fields) => {
     const checks = fields.map((f) => `obj[${JSON.stringify(f)}] !== undefined`).join(" && ");
     return `(${checks})`;
@@ -47,20 +49,83 @@ const generateRequiredFieldsRefinement = (
 
   const message = `Must have one of the following required field combinations: ${requiredCombinations.map((r) => r.join(", ")).join(" | ")}`;
 
-  // Return z.any() with refinement so it can be used in .and() context
-  const expression = `z.any().superRefine((obj, ctx) => { if (!(${conditions.join(" || ")})) { ctx.addIssue({ code: "custom", message: ${JSON.stringify(message)} }); } })`;
+  // The refinement function body (without the surrounding .superRefine())
+  const refinementBody = `(obj, ctx) => { if (!(${conditions.join(" || ")})) { ctx.addIssue({ code: "custom", message: ${JSON.stringify(message)} }); } }`;
+
+  // For standalone use, return z.any() with the refinement
+  const expression = `z.any().superRefine(${refinementBody})`;
 
   return {
     expression,
-    type: "z.ZodEffects<z.ZodAny>",
+    type: "z.ZodAny",
+    isRefinementOnly: true,
+    refinementBody,
   };
+};
+
+/**
+ * Collects all properties from a schema, including properties defined in allOf members.
+ * Returns merged properties object and combined required array.
+ */
+const collectSchemaProperties = (
+  schema: JsonSchemaObject,
+  refs: Refs
+): { properties: Record<string, JsonSchema>; required: string[] } | undefined => {
+  let properties: Record<string, JsonSchema> = {};
+  let required: string[] = [];
+
+  // Collect direct properties
+  if (schema.properties) {
+    properties = { ...properties, ...schema.properties };
+  }
+
+  // Collect direct required
+  if (Array.isArray(schema.required)) {
+    required = [...required, ...schema.required];
+  }
+
+  // Collect from allOf members
+  if (Array.isArray(schema.allOf)) {
+    for (const member of schema.allOf) {
+      if (typeof member !== 'object' || member === null) continue;
+
+      let resolvedMember = member as JsonSchemaObject;
+
+      // Resolve $ref if needed
+      if (resolvedMember.$ref || resolvedMember.$dynamicRef) {
+        const resolved = resolveRef(resolvedMember, (resolvedMember.$ref || resolvedMember.$dynamicRef)!, refs);
+        if (resolved && typeof resolved.schema === 'object' && resolved.schema !== null) {
+          resolvedMember = resolved.schema as JsonSchemaObject;
+        } else {
+          continue;
+        }
+      }
+
+      // Merge properties from this allOf member
+      if (resolvedMember.properties) {
+        properties = { ...properties, ...resolvedMember.properties };
+      }
+
+      // Merge required from this allOf member
+      if (Array.isArray(resolvedMember.required)) {
+        required = [...required, ...resolvedMember.required];
+      }
+    }
+  }
+
+  // Return undefined if no properties found
+  if (Object.keys(properties).length === 0) {
+    return undefined;
+  }
+
+  return { properties, required: [...new Set(required)] };
 };
 
 /**
  * Attempts to find a discriminator property common to all options.
  * A discriminator must:
- * 1. Be present in 'properties' of all options (resolving $refs if needed)
- * 2. Be required in all options
+ * 1. Be present in 'properties' of all options (resolving $refs and allOf if needed)
+ * 2. Be required in all options (checking both direct required and allOf required)
  * 3. Have a constant string value (const or enum: [val]) in all options
  * 4. Have unique values across all options
  */
@@ -70,27 +135,40 @@ const findImplicitDiscriminator = (
 ): string | undefined => {
   if (options.length < 2) return undefined;
 
-  // Fully resolve schemas to check their properties
-  const resolvedOptions: (JsonSchemaObject | undefined)[] = options.map(opt => {
+  // Fully resolve schemas and collect their properties (including from allOf)
+  const resolvedOptions: { properties: Record<string, JsonSchema>; required: string[] }[] = [];
+
+  for (const opt of options) {
     if (typeof opt !== 'object' || opt === null) return undefined;
 
+    let schemaObj = opt as JsonSchemaObject;
+
     // Resolve ref if needed
-    if (opt.$ref || opt.$dynamicRef) {
-      const resolved = resolveRef(opt as JsonSchemaObject, (opt.$ref || opt.$dynamicRef)!, refs);
+    if (schemaObj.$ref || schemaObj.$dynamicRef) {
+      const resolved = resolveRef(schemaObj, (schemaObj.$ref || schemaObj.$dynamicRef)!, refs);
       if (resolved && typeof resolved.schema === 'object' && resolved.schema !== null) {
-        return resolved.schema as JsonSchemaObject;
+        schemaObj = resolved.schema as JsonSchemaObject;
+      } else {
+        return undefined;
       }
+    }
+
+    // Must be an object type
+    if (schemaObj.type !== 'object') {
       return undefined;
     }
-    return opt as JsonSchemaObject;
-  });
 
-  if (resolvedOptions.some(o => !o || o.type !== 'object' || !o.properties)) {
-    return undefined; // Not all options are objects with properties
+    // Collect all properties including from allOf
+    const collected = collectSchemaProperties(schemaObj, refs);
+    if (!collected) {
+      return undefined;
+    }
+
+    resolvedOptions.push(collected);
   }
 
   // Get all possible keys from the first option
-  const firstProps = resolvedOptions[0]!.properties!;
+  const firstProps = resolvedOptions[0].properties;
   const candidateKeys = Object.keys(firstProps);
 
   for (const key of candidateKeys) {
@@ -98,15 +176,18 @@ const findImplicitDiscriminator = (
     let isValidDiscriminator = true;
 
     for (const opt of resolvedOptions) {
-      const schema = opt!;
-
       // Must be required
-      if (!Array.isArray(schema.required) || !schema.required.includes(key)) {
+      if (!opt.required.includes(key)) {
         isValidDiscriminator = false;
         break;
       }
 
-      const propBeforeResolve = schema.properties![key];
+      const propBeforeResolve = opt.properties[key];
+      if (!propBeforeResolve) {
+        isValidDiscriminator = false;
+        break;
+      }
+
       // Resolve property schema ref if needed (e.g. definitions/kind -> const)
       let prop: JsonSchema = propBeforeResolve;
       if (typeof prop === 'object' && prop !== null && (prop.$ref || prop.$dynamicRef)) {
@@ -261,8 +342,8 @@ export const parseOneOf = (
 
     return {
       expression,
-      // Use readonly tuple for union type annotations (required for recursive type inference)
-      type: `z.ZodEffects<z.ZodUnion<readonly [${unionTypes}]>>`,
+      // In Zod v4, .superRefine() doesn't change the type
+      type: `z.ZodUnion<readonly [${unionTypes}]>`,
     };
   }
 

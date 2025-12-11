@@ -1,4 +1,5 @@
 import { generateSchemaBundle } from "../src";
+import { normalizeCode } from "./utils/normalizeCode.js";
 import { suite } from "./suite";
 
 suite("generateSchemaBundle snapshots", (test) => {
@@ -25,8 +26,10 @@ suite("generateSchemaBundle snapshots", (test) => {
     };
 
     const result = generateSchemaBundle(schema, { name: "RootSchema", type: "Root" });
+    const normalizeFiles = (files: { fileName: string; contents: string }[]) =>
+      files.map((f) => ({ ...f, contents: normalizeCode(f.contents) }));
 
-    assert(result, {
+    const expected = {
       defNames: ["address", "user"],
       files: [
         {
@@ -56,6 +59,11 @@ export type Root = z.infer<typeof RootSchema>
 `,
         },
       ],
-    });
+    };
+
+    assert(
+      { ...result, files: normalizeFiles(result.files) },
+      { ...expected, files: normalizeFiles(expected.files) },
+    );
   });
 });

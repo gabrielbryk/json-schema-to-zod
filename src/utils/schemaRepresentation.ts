@@ -295,13 +295,14 @@ export const zodRefine = (
   type: base.type,
 });
 
-// Transform - changes output type but we track as effects
+// Transform - Zod v4 uses ZodPipe<Base, ZodTransform<Output, Input>>
+// Since we don't know the output type at codegen time, use ZodTypeAny for simplicity
 export const zodTransform = (
   base: SchemaRepresentation,
   transformFn: string
 ): SchemaRepresentation => ({
   expression: `${base.expression}.transform(${transformFn})`,
-  type: `z.ZodEffects<${base.type}>`,
+  type: `z.ZodPipe<${base.type}, z.ZodTypeAny>`,
 });
 
 // Pipe

@@ -41,6 +41,7 @@ export const parseIfThenElse = (
 
   return {
     expression,
-    type: `z.ZodEffects<z.ZodUnion<[${$then.type}, ${$else.type}]>>`,
+    // In Zod v4, .superRefine() doesn't change the type
+    type: `z.ZodUnion<[${$then.type}, ${$else.type}]>`,
   };
 };

@@ -53,8 +53,7 @@ json-refs resolve mySchema.json | json-schema-to-zod | prettier --parser typescr
 | `--output`     | `-o`      | A file path to write to. If not supplied stdout will be used.                                  |
 | `--name`       | `-n`      | The name of the schema in the output                                                           |
 | `--depth`      | `-d`      | Maximum depth of recursion in schema before falling back to `z.any()`. Defaults to 0.          |
-| `--module`     | `-m`      | Module syntax; `esm`, `cjs` or none. Defaults to `esm` in the CLI and `none` programmaticly.   |
-| `--type`       | `-t`      | Export a named type along with the schema. Requires `name` to be set and `module` to be `esm`. |
+| `--type`       | `-t`      | Export a named type along with the schema. Requires `name` to be set. |
 | `--noImport`   | `-ni`     | Removes the `import { z } from 'zod';` or equivalent from the output.                          |
 | `--withJsdocs` | `-wj`     | Generate jsdocs off of the description property.                                               |
 
@@ -74,26 +73,14 @@ const myObject = {
   },
 };
 
-const module = jsonSchemaToZod(myObject, { module: "esm" });
+const schemaCode = jsonSchemaToZod(myObject);
 
 // `type` can be either a string or - outside of the CLI - a boolean. If its `true`, the name of the type will be the name of the schema with a capitalized first letter.
 const moduleWithType = jsonSchemaToZod(myObject, {
   name: "mySchema",
-  module: "esm",
   type: true,
 });
-
-const cjs = jsonSchemaToZod(myObject, { module: "cjs", name: "mySchema" });
-
 const justTheSchema = jsonSchemaToZod(myObject);
-```
-
-##### `module`
-
-```typescript
-import { z } from "zod";
-
-export default z.object({ hello: z.string().optional() });
 ```
 
 ##### `moduleWithType`
@@ -103,20 +90,6 @@ import { z } from "zod";
 
 export const mySchema = z.object({ hello: z.string().optional() });
 export type MySchema = z.infer<typeof mySchema>;
-```
-
-##### `cjs`
-
-```typescript
-const { z } = require("zod");
-
-module.exports = { mySchema: z.object({ hello: z.string().optional() }) };
-```
-
-##### `justTheSchema`
-
-```typescript
-z.object({ hello: z.string().optional() });
 ```
 
 #### Example with `$refs` resolved and output formatted
@@ -148,10 +121,10 @@ Factored schemas (like object schemas with "oneOf" etc.) is only partially suppo
 
 The output of this package is not meant to be used at runtime. JSON Schema and Zod does not overlap 100% and the scope of the parsers are purposefully limited in order to help the author avoid a permanent state of chaotic insanity. As this may cause some details of the original schema to be lost in translation, it is instead recommended to use tools such as [Ajv](https://ajv.js.org/) to validate your runtime values directly against the original JSON Schema.
 
-That said, it's possible in most cases to use `eval`. Here's an example that you shouldn't use:
+That said, it's possible in most cases to load the generated ESM with a data URL. Here's an example that you still probably shouldn't use:
 
 ```typescript
-const zodSchema = eval(jsonSchemaToZod({ type: "string" }, { module: "cjs" }));
-
-zodSchema.safeParse("Please just use Ajv instead");
+const code = jsonSchemaToZod({ type: "string" }, { name: "mySchema" });
+const { mySchema } = await import(`data:text/javascript,${encodeURIComponent(code)}`);
+mySchema.safeParse("Please just use Ajv instead");
 ```

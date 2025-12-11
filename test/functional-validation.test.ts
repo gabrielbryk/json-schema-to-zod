@@ -14,6 +14,9 @@ import { suite } from "./suite";
 
 const require = createRequire(import.meta.url);
 
+const toExpression = (value: string | { expression: string }): string =>
+  typeof value === "string" ? value : value.expression;
+
 const esmToCjs = (code: string): string => {
   const importsReplaced = code.replace(/^import { z } from "zod";?\n?/m, 'const { z } = require("zod");\n');
   const hasDefaultExport = /^export default /m.test(importsReplaced);
@@ -56,10 +59,11 @@ const runZodCode = <T = unknown>(zodCode: string): T => {
 };
 
 // Helper to eval generated code and run safeParse
-const evalAndParse = (zodCode: string, data: unknown) => {
+const evalAndParse = (zodCode: string | { expression: string }, data: unknown) => {
+  const code = toExpression(zodCode);
   try {
     const schema = runZodCode<{ safeParse: (value: unknown) => unknown }>(
-      zodCode,
+      code,
     );
     return { compiled: true, result: schema.safeParse(data) };
   } catch (e) {
@@ -68,9 +72,10 @@ const evalAndParse = (zodCode: string, data: unknown) => {
 };
 
 // Helper to just check if code compiles
-const canCompile = (zodCode: string): { success: boolean; error?: string } => {
+const canCompile = (zodCode: string | { expression: string }): { success: boolean; error?: string } => {
+  const code = toExpression(zodCode);
   try {
-    runZodCode(zodCode);
+    runZodCode(code);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -324,13 +329,14 @@ suite("functional-validation", (test) => {
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
+    const expression = toExpression(code);
 
     try {
-      const zodSchema = runZodCode<{ safeParse: (v: unknown) => { success: boolean } }>(code);
+      const zodSchema = runZodCode<{ safeParse: (v: unknown) => { success: boolean } }>(expression);
       const result = zodSchema.safeParse({ name: "test", age: 25 });
       assert(result.success, true);
     } catch (e) {
-      console.error("Generated code:", code);
+      console.error("Generated code:", expression);
       console.error("Error:", e);
       assert(false, true);
     }

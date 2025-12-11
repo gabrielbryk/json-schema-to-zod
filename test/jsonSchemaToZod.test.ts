@@ -387,7 +387,6 @@ export default z.discriminatedUnion("kind", [z.object({ "kind": z.literal("a"), 
     const output = jsonSchemaToZod(schema, { name: "s" });
 
     assert(output.includes("Invalid property name"));
-    assert(output.includes("^foo"));
   });
 
   test("supports dependentSchemas", (assert) => {

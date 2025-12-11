@@ -34,8 +34,7 @@ export const parseArray = (
     ctx.addIssue({ code: "custom", message: "Array contains too many matching items" });
   }
 })`;
-      // superRefine wraps the type
-      tupleType = `z.ZodEffects<${tupleType}>`;
+      // In Zod v4, .superRefine() doesn't change the type
     }
 
     return {
@@ -119,10 +118,7 @@ export const parseArray = (
 })`;
   }
 
-  // Wrap in ZodEffects if we added refinements
-  if (hasRefinement) {
-    arrayType = `z.ZodEffects<${arrayType}>`;
-  }
+  // In Zod v4, .superRefine() doesn't change the type, so no wrapping needed
 
   return {
     expression: r,

@@ -13,7 +13,7 @@
 ## Proposed Architecture
 - **Analyzer (`analyzeSchema`)**: Convert JsonSchema + options into an intermediate representation (IR) containing symbols, ref pointer map, dependency graph, cycle info, and metadata flags. No code strings.
 - **Emitters**:
-  - `emitZod(ir, emitOptions)`: IR → zod code (esm/cjs/none), with naming hooks and export policies.
+  - `emitZod(ir, emitOptions)`: IR → zod code (esm), with naming hooks and export policies.
   - `emitTypes(ir, typeOptions)`: optional type-only exports (for nested types or barrel typing).
 - **Strategies**:
   - `SingleFileStrategy`: analyze root → emit zod once.

@@ -3,9 +3,10 @@ import { parseString } from "../../src/parsers/parseString";
 import { suite } from "../suite";
 
 suite("parseString", (test) => {
-  const run = (output: string, data: unknown) => {
+  const run = (output: string | { expression: string }, data: unknown) => {
     const { z } = createRequire(import.meta.url)("zod");
-    const schema = new Function("z", `return ${output};`)(z);
+    const expression = typeof output === "string" ? output : output.expression;
+    const schema = new Function("z", `return ${expression};`)(z);
     return schema.safeParse(data);
   };
 

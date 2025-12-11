@@ -314,8 +314,13 @@ export const parseString = (
     r += contentMediaType;
     r += withMessage(schema, "contentSchema", ({ value }) => {
       if (value && typeof value === "object") {
+        const parsedContent = parseSchema(value as JsonSchema, refContext);
+        const contentExpr =
+          typeof parsedContent === "string"
+            ? parsedContent
+            : (parsedContent as SchemaRepresentation).expression;
         return {
-          opener: `.pipe(${parseSchema(value as JsonSchema, refContext)}`,
+          opener: `.pipe(${contentExpr}`,
           closer: ")",
           messagePrefix: ", { error: ",
           messageCloser: " })",

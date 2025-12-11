@@ -1,4 +1,4 @@
-import { JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
+import { JsonSchema, JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { parseAnyOf } from "./parseAnyOf.js";
 import { parseOneOf } from "./parseOneOf.js";
 import { its, parseSchema } from "./parseSchema.js";
@@ -12,7 +12,42 @@ export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
   refs: Refs,
 ): SchemaRepresentation {
+  // Optimization: if we have composition keywords (allOf/anyOf/oneOf) but no direct properties,
+  // delegate entirely to the composition parser to avoid generating z.object({}).and(...)
+  const hasDirectProperties = objectSchema.properties && Object.keys(objectSchema.properties).length > 0;
+  const hasAdditionalProperties = objectSchema.additionalProperties !== undefined;
+  const hasPatternProperties = objectSchema.patternProperties !== undefined;
+  const hasNoDirectSchema = !hasDirectProperties && !hasAdditionalProperties && !hasPatternProperties;
+
+  // Helper to add type: "object" to composition members that have properties but no explicit type
+  const addObjectType = (members: JsonSchema[]): JsonSchema[] =>
+    members.map((x) =>
+      typeof x === "object" &&
+        x !== null &&
+        !x.type &&
+        (x.properties || x.additionalProperties || x.patternProperties)
+        ? { ...x, type: "object" as const }
+        : x,
+    );
+
+  // If only allOf, delegate to parseAllOf
+  if (hasNoDirectSchema && its.an.allOf(objectSchema) && !its.an.anyOf(objectSchema) && !its.a.oneOf(objectSchema) && !its.a.conditional(objectSchema)) {
+    return parseAllOf({ ...objectSchema, allOf: addObjectType(objectSchema.allOf!) }, refs);
+  }
+
+  // If only anyOf, delegate to parseAnyOf
+  if (hasNoDirectSchema && its.an.anyOf(objectSchema) && !its.an.allOf(objectSchema) && !its.a.oneOf(objectSchema) && !its.a.conditional(objectSchema)) {
+    return parseAnyOf({ ...objectSchema, anyOf: addObjectType(objectSchema.anyOf!) }, refs);
+  }
+
+  // If only oneOf, delegate to parseOneOf
+  if (hasNoDirectSchema && its.a.oneOf(objectSchema) && !its.an.allOf(objectSchema) && !its.an.anyOf(objectSchema) && !its.a.conditional(objectSchema)) {
+    return parseOneOf({ ...objectSchema, oneOf: addObjectType(objectSchema.oneOf!) }, refs);
+  }
+
   let properties: string | undefined = undefined;
+  // Track property types for building proper object type annotations
+  const propertyTypes: Array<{ key: string; type: string }> = [];
 
   if (objectSchema.properties) {
     if (!Object.keys(objectSchema.properties).length) {
@@ -47,6 +82,9 @@ export function parseObject(
             ? `z.ZodOptional<${parsedProp.type}>`
             : parsedProp.type;
 
+          // Track the property type for building the object type
+          propertyTypes.push({ key, type: valueType });
+
           const useGetter = shouldUseGetter(valueWithOptional, refs);
           let result = useGetter
             // Type annotation on getter is required for recursive type inference in unions
@@ -74,6 +112,10 @@ export function parseObject(
       : undefined;
 
   const unevaluated = objectSchema.unevaluatedProperties;
+  const definedPropertyKeys = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
+  const missingRequiredKeys = Array.isArray(objectSchema.required)
+    ? objectSchema.required.filter((key) => !definedPropertyKeys.includes(key))
+    : [];
 
   let patternProperties: string | undefined = undefined;
 
@@ -224,7 +266,8 @@ export function parseObject(
         // The composition will provide the actual schema via .and()
         : hasCompositionKeywords
           ? "z.object({})"
-          : `z.object({}).catchall(${fallback.expression})`;
+          // No constraints = any object. Use z.record() which is cleaner than z.object({}).catchall()
+          : `z.record(z.string(), ${fallback.expression})`;
 
   if (unevaluated === false && properties && !hasCompositionKeywords) {
     output += ".strict()";
@@ -253,6 +296,9 @@ export function parseObject(
 })`;
   }
 
+  // Track intersection types added via .and() calls
+  const intersectionTypes: string[] = [];
+
   if (its.an.anyOf(objectSchema)) {
     const anyOfResult = parseAnyOf(
       {
@@ -269,6 +315,7 @@ export function parseObject(
       refs,
     );
     output += `.and(${anyOfResult.expression})`;
+    intersectionTypes.push(anyOfResult.type);
   }
 
   if (its.a.oneOf(objectSchema)) {
@@ -286,7 +333,16 @@ export function parseObject(
       },
       refs,
     );
-    output += `.and(${oneOfResult.expression})`;
+    // Check if this is a refinement-only result (required fields validation)
+    // If so, apply superRefine directly instead of creating an intersection
+    const resultWithRefinement = oneOfResult as { isRefinementOnly?: boolean; refinementBody?: string };
+    if (resultWithRefinement.isRefinementOnly && resultWithRefinement.refinementBody) {
+      output += `.superRefine(${resultWithRefinement.refinementBody})`;
+      // No intersection type needed - superRefine doesn't change the type
+    } else {
+      output += `.and(${oneOfResult.expression})`;
+      intersectionTypes.push(oneOfResult.type);
+    }
   }
 
   if (its.an.allOf(objectSchema)) {
@@ -305,6 +361,7 @@ export function parseObject(
       refs,
     );
     output += `.and(${allOfResult.expression})`;
+    intersectionTypes.push(allOfResult.type);
   }
 
   // Handle if/then/else conditionals on object schemas
@@ -314,6 +371,20 @@ export function parseObject(
       refs,
     );
     output += `.and(${conditionalResult.expression})`;
+    intersectionTypes.push(conditionalResult.type);
+  }
+
+  // Only add required validation for missing keys when there are no composition keywords
+  // When allOf/anyOf/oneOf exist, they should define the properties and handle required validation
+  if (missingRequiredKeys.length > 0 && !hasCompositionKeywords) {
+    const checks = missingRequiredKeys
+      .map(
+        (key) =>
+          `if (!Object.prototype.hasOwnProperty.call(value, ${JSON.stringify(key)})) { ctx.addIssue({ code: "custom", path: [${JSON.stringify(key)}], message: "Required property missing" }); }`,
+      )
+      .join(" ");
+
+    output += `.superRefine((value, ctx) => { if (value && typeof value === "object") { ${checks} } })`;
   }
 
   // propertyNames
@@ -394,8 +465,26 @@ export function parseObject(
     }
   }
 
-  // Build the type representation
-  const type = inferTypeFromExpression(output);
+  // Build the type representation from tracked property types
+  let type: string;
+  if (propertyTypes.length > 0) {
+    // Build proper object type with actual property types
+    const typeShape = propertyTypes
+      .map(({ key, type: propType }) => `${JSON.stringify(key)}: ${propType}`)
+      .join("; ");
+    type = `z.ZodObject<{ ${typeShape} }>`;
+  } else if (properties === "z.object({})") {
+    // Empty object
+    type = "z.ZodObject<{}>";
+  } else {
+    // Fallback for complex cases (patternProperties, record, etc.)
+    type = inferTypeFromExpression(output);
+  }
+
+  // Wrap in intersection types if .and() calls were added
+  for (const intersectionType of intersectionTypes) {
+    type = `z.ZodIntersection<${type}, ${intersectionType}>`;
+  }
 
   return {
     expression: output,
