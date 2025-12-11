@@ -307,11 +307,6 @@ export function parseObject(
   // we should NOT default to z.record(z.string(), z.any()) because that would allow any properties.
   // Instead, use z.object({}) and let the .and() call add properties from the composition.
   // This is especially important when unevaluatedProperties: false is set.
-  const shouldPassthroughForUnevaluated = unevaluated === false && hasCompositionKeywords;
-  const passthroughProperties =
-    shouldPassthroughForUnevaluated && properties && !patternProperties
-      ? `${properties}.passthrough()`
-      : properties;
 
   const fallback = anyOrUnknown(refs);
   let output: string;
@@ -321,12 +316,12 @@ export function parseObject(
     } else if (additionalProperties) {
       if (additionalProperties.expression === "z.never()") {
         // Don't use .strict() if there are composition keywords that add properties
-        output = hasCompositionKeywords ? passthroughProperties! : properties + ".strict()";
+        output = hasCompositionKeywords ? properties : properties + ".strict()";
       } else {
         output = properties + `.catchall(${additionalProperties.expression})`;
       }
     } else {
-      output = passthroughProperties!;
+      output = properties;
     }
   } else if (patternProperties) {
     output = patternProperties;
@@ -445,7 +440,7 @@ export function parseObject(
       ? `[${patternRegexps.map((r) => r.toString()).join(", ")}]`
       : "[new RegExp(\"$^\")]";
 
-    output += `.superRefine((value, ctx) => {
+  const guard = `z.any().superRefine((value, ctx) => {
   if (!value || typeof value !== "object") return;
   const knownKeys = ${JSON.stringify(knownKeys)};
   const patternRegexps = ${patternRegexpsLiteral};
@@ -457,6 +452,8 @@ export function parseObject(
     }
   }
 })`;
+    output += `.and(${guard})`;
+    intersectionTypes.push("z.ZodAny");
   }
 
   // Only add required validation for missing keys when there are no composition keywords
