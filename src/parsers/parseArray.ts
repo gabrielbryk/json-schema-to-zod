@@ -1,4 +1,4 @@
-import { JsonSchema, JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
+import { JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";

@@ -9,12 +9,11 @@ export const parseString = (
   const formatError = schema.errorMessage?.format;
   const refContext: Refs = ensureRefs(refs);
 
-  // Map formats to top-level Zod functions and their return types
-  // Note: Most of these return ZodString in Zod v4, allowing further chaining (.min, .regex etc.)
+  // Map formats to Zod string methods
   const topLevelFormatMap: Record<string, { fn: string; zodType: string }> = {
     email: { fn: "z.email", zodType: "z.ZodString" },
-    ipv4: { fn: "z.ipv4", zodType: "z.ZodString" },
-    ipv6: { fn: "z.ipv6", zodType: "z.ZodString" },
+    ipv4: { fn: 'z.ipv4', zodType: "z.ZodString" },
+    ipv6: { fn: 'z.ipv6', zodType: "z.ZodString" },
     uri: { fn: "z.url", zodType: "z.ZodString" },
     uuid: { fn: "z.uuid", zodType: "z.ZodString" },
     cuid: { fn: "z.cuid", zodType: "z.ZodString" },
@@ -35,51 +34,29 @@ export const parseString = (
 
   const formatInfo = schema.format ? topLevelFormatMap[schema.format] : undefined;
   const formatFn = formatInfo?.fn;
-  
+
   let r = "z.string()";
   let zodType = "z.ZodString";
 
-  // Use top-level validator if available
   if (formatFn) {
     const params = formatError !== undefined ? `{ message: ${JSON.stringify(formatError)} }` : "";
-    
-    // Construct the function call
+
     if (schema.format === "date-time") {
-       r = `z.iso.datetime({ offset: true${formatError ? `, message: ${JSON.stringify(formatError)}` : ""} })`;
+      r = `z.iso.datetime({ offset: true${formatError ? `, message: ${JSON.stringify(formatError)}` : ""} })`;
     } else if (schema.format === "ipv4") {
-       r = `z.ipv4(${params})`;
+      r = `z.ipv4(${formatError ? `{ message: ${JSON.stringify(formatError)} }` : ""})`;
     } else if (schema.format === "ipv6") {
-       r = `z.ipv6(${params})`;
-    } else if (schema.format === "email" || schema.format === "idn-email") {
-       r = `z.email(${params})`;
-    } else if (schema.format === "uri") {
-       r = `z.url(${params})`;
-    } else if (schema.format === "uuid") {
-       r = `z.uuid(${params})`;
-    } else if (schema.format === "base64") {
-       r = `z.base64(${params})`;
+      r = `z.ipv6(${formatError ? `{ message: ${JSON.stringify(formatError)} }` : ""})`;
     } else {
-       r = `${formatFn}(${params})`;
+      r = `${formatFn}(${params})`;
     }
-    
-    // Since we started with a specific validator (e.g. z.email()), it returns a ZodString instance
-    // so we can chain other standard string methods on it.
   }
 
   let formatWasHandled = Boolean(formatFn);
 
-  // Manual refinements for formats not covered by top-level functions or needing special logic
   if (!formatWasHandled && schema.format) {
-    switch(schema.format) {
+    switch (schema.format) {
       case "ip":
-        // z.ip() is not standard in Zod v4 core unless using z.string().ip()? 
-        // Docs say z.ip() allows both v4 and v6.
-        // Wait, checked ZODV4 docs, didn't see z.ip() as top level. 
-        // User's viewed file showed "ipv4", "ipv6".
-        // Use z.union? Or check if z.ip exists? 
-        // The original code used `.ip()`, implying it might have been a custom extension or older API.
-        // Zod v4 usually splits ipv4/ipv6.
-        // Let's use validation logic for generic IP.
         r += `.refine((val) => {
           const v4 = z.ipv4().safeParse(val).success;
           const v6 = z.ipv6().safeParse(val).success;
@@ -87,13 +64,12 @@ export const parseString = (
         }${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "binary":
-        // binary typically means file content, often base64 in JSON context
         r = `z.base64(${formatError ? `{ message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "hostname":
       case "idn-hostname":
         r += `.refine((val) => {
@@ -104,13 +80,12 @@ export const parseString = (
         }${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "uri-reference":
       case "iri":
       case "iri-reference":
         r += `.refine((val) => {
           try {
-            // URL constructor requires a base if protocol is missing
             new URL(val, "http://example.com");
             return true;
           } catch {
@@ -119,17 +94,17 @@ export const parseString = (
         }${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "json-pointer":
         r += `.refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val)${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "relative-json-pointer":
         r += `.refine((val) => typeof val === "string" && /^(?:0|[1-9][0-9]*)(?:#|(?:\\/(?:[^/~]|~[01])*))*$/.test(val)${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "uri-template":
         r += `.refine((val) => {
           if (typeof val !== "string") return false;
@@ -139,7 +114,7 @@ export const parseString = (
         }${formatError ? `, { message: ${JSON.stringify(formatError)} }` : ""})`;
         formatWasHandled = true;
         break;
-        
+
       case "regex":
         r += `.refine((val) => {
           try {
@@ -179,18 +154,9 @@ export const parseString = (
     messageCloser: " })",
   }));
 
-  // JSON Schema contentEncoding 'base64'
   if (schema.contentEncoding === "base64" && schema.format !== "base64") {
-     r = `z.base64(${formatError ? `{ message: ${JSON.stringify(formatError)} }` : ""})`;
-     // Note: .base64() returns ZodString, so we can chain if previous r was compatible, 
-     // but usually contentEncoding is the primary type determinant.
-     // However, if we already have z.string(), we can't chain .base64() in Zod v4 (it's top level).
-     // Wait, Zod v4 DOES NOT have .base64() method on ZodString?
-     // Based on ZODV4-API.local.md, z.base64() is top level.
-     // So if r is already "z.string()", we should essentially replace it or use pipe?
-     // Actually, if contentEncoding is present, it usually dictates the structure.
-     // But strictly, it's a constraint.
-     // For now, if contentEncoding is base64, we assume it supercedes generic z.string().
+    const encodingError = schema.errorMessage?.contentEncoding;
+    r = `z.base64(${encodingError ? `{ message: ${JSON.stringify(encodingError)} }` : ""})`;
   }
 
   const contentMediaType = withMessage(schema, "contentMediaType", ({ value }) => {

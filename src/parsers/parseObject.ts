@@ -4,7 +4,7 @@ import { parseOneOf } from "./parseOneOf.js";
 import { parseSchema } from "./parseSchema.js";
 
 import { addJsdocs } from "../utils/jsdocs.js";
-import { containsRecursiveRef } from "../utils/schemaRepresentation.js";
+
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
@@ -45,11 +45,6 @@ export function parseObject(
           valueExpr = addJsdocs(propSchema, valueExpr);
         }
 
-        // Handle recursion with getters
-        if (shouldUseGetter(valueExpr, refs)) {
-          // Type required for getters
-          return `get ${JSON.stringify(key)}(): ${valueType} { return ${valueExpr} }`;
-        }
         return `${JSON.stringify(key)}: ${valueExpr}`;
       })
       .join(", ");
@@ -77,16 +72,10 @@ export function parseObject(
     }
   } else {
     if (additionalProps === false) {
-      if (hasProperties) {
-        baseObjectModified += ".strict()";
-      } else {
-        baseObjectModified = "z.strictObject({})";
-      }
+      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.strictObject(");
     } else if (additionalProps && typeof additionalProps === "object") {
       addPropsSchema = parseSchema(additionalProps, { ...refs, path: [...refs.path, "additionalProperties"] });
       baseObjectModified += `.catchall(${addPropsSchema.expression})`;
-    } else {
-      baseObjectModified += ".passthrough()";
     }
   }
 
@@ -253,34 +242,4 @@ export function parseObject(
   };
 }
 
-const shouldUseGetter = (parsed: string, refs: Refs): boolean => {
-  if (!parsed) return false;
-  if (parsed.includes("z.lazy(")) return true;
-  if (refs.currentSchemaName) {
-    const selfRefPattern = new RegExp(`\\b${refs.currentSchemaName}\\b`);
-    if (selfRefPattern.test(parsed)) return true;
-  }
-  if (refs.currentSchemaName && refs.cycleRefNames && refs.cycleComponentByName) {
-    const cycleRefNames = refs.cycleRefNames;
-    const cycleComponentByName = refs.cycleComponentByName;
-    const refNameArray = Array.from(cycleRefNames) as string[];
 
-    // Check if expression contains a reference to a cycle member in the same component
-    if (containsRecursiveRef(parsed, cycleRefNames)) {
-      const currentComponent = cycleComponentByName.get(refs.currentSchemaName);
-      if (currentComponent !== undefined) {
-        for (let i = 0; i < refNameArray.length; i++) {
-          const refName = refNameArray[i];
-          const pattern = new RegExp(`\\b${refName}\\b`);
-          if (pattern.test(parsed)) {
-            const refComponent = cycleComponentByName.get(refName);
-            if (refComponent === currentComponent) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-  }
-  return false;
-};

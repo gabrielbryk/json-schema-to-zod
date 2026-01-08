@@ -30,7 +30,7 @@ type BundleTarget = {
 export type SplitDefsOptions = {
   /** Include a root schema file in addition to $defs */
   includeRoot?: boolean;
-  /** Override file name for each schema (default: `${def}.schema.ts`) */
+  /** Override file name for each schema (default: `${ def }.schema.ts`) */
   fileName?: (defName: string, ctx: { isRoot: boolean }) => string;
   /** Override exported schema const name (default: PascalCase(def) + "Schema") */
   schemaName?: (defName: string, ctx: { isRoot: boolean }) => string;
@@ -97,18 +97,20 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     }).schema as JsonSchemaObject)
     : (schema as JsonSchemaObject);
 
-  const defs = liftedSchema.$defs || {};
-  const definitions = liftedSchema.definitions || {};
-  const defNames = Object.keys(defs);
+  const allDefs: Record<string, JsonSchema> = {
+    ...(liftedSchema.definitions as Record<string, JsonSchema> | undefined),
+    ...(liftedSchema.$defs as Record<string, JsonSchema> | undefined),
+  };
+  const defNames = Object.keys(allDefs);
 
-  const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, defs, options);
+  const { rootName, rootTypeName, defInfoMap } = buildBundleContext(defNames, allDefs, options);
 
   const files: GeneratedFile[] = [];
 
   const targets = planBundleTargets(
     liftedSchema,
-    defs,
-    definitions,
+    allDefs,
+    {},
     defNames,
     options,
     rootName,
@@ -117,7 +119,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   );
 
   for (const target of targets) {
-    const usedRefs = target.usedRefs;
+    const usedRefs = new Set<string>();
 
     const zodParts: string[] = [];
 
@@ -126,14 +128,12 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
         ...options,
         name: member.schemaName,
         type: member.typeName,
+        documentRoot: liftedSchema,
         parserOverride: createRefHandler(
           member.defName,
           defInfoMap,
           usedRefs,
-          {
-            ...(member.schemaWithDefs.$defs || {}),
-            ...(member.schemaWithDefs.definitions || {}),
-          },
+          allDefs,
           options,
           target.groupId,
         ),
@@ -151,7 +151,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   // Nested types extraction (optional)
   const nestedTypesEnabled = options.nestedTypes?.enable;
   if (nestedTypesEnabled) {
-    const nestedTypes = collectNestedTypes(liftedSchema as JsonSchemaObject, defs, defNames, rootTypeName ?? rootName);
+    const nestedTypes = collectNestedTypes(liftedSchema as JsonSchemaObject, allDefs, defNames, rootTypeName ?? rootName);
     if (nestedTypes.length > 0) {
       const nestedFileName = options.nestedTypes?.fileName ?? "nested-types.ts";
       const nestedContent = generateNestedTypesFile(nestedTypes);
@@ -215,13 +215,22 @@ const buildBundleContext = (
     if (info) info.hasCycle = true;
   }
 
-  const groups = buildSccGroups(defInfoMap);
-  for (const [groupId, members] of groups) {
-    for (const defName of members) {
-      const info = defInfoMap.get(defName);
-      if (info) info.groupId = groupId;
+  /*
+  const useLazyCrossRefs = options.refResolution?.lazyCrossRefs ?? true;
+  // NOTE: SCC grouping is currently disabled to ensure 1-to-1 mapping of $defs to files,
+  // which is expected by the test suite and preferred for clarity.
+  if (!useLazyCrossRefs) {
+    const groups = buildSccGroups(defInfoMap);
+    for (const [groupId, members] of groups) {
+      if (members.length > 1) {
+        for (const defName of members) {
+          const info = defInfoMap.get(defName);
+          if (info) info.groupId = groupId;
+        }
+      }
     }
   }
+  */
 
   const rootName = options.splitDefs?.rootName ?? options.name ?? "RootSchema";
   const rootTypeName =
@@ -229,7 +238,7 @@ const buildBundleContext = (
       ? options.type
       : options.splitDefs?.rootTypeName ?? (typeof options.type === "boolean" && options.type ? rootName : undefined);
 
-  return { defInfoMap, rootName, rootTypeName, groups };
+  return { defInfoMap, rootName, rootTypeName };
 };
 
 const createRefHandler = (
@@ -249,10 +258,8 @@ const createRefHandler = (
 
       if (match) {
         const refName = match[1];
-        // Only intercept top-level def refs (no nested path like a/$defs/x)
-        if (refName.includes("/")) {
-          return undefined;
-        }
+
+        // First check if it's exactly a top-level definition
         const refInfo = defInfoMap.get(refName);
 
         if (refInfo) {
@@ -272,26 +279,25 @@ const createRefHandler = (
 
           if (resolved) return resolved;
 
+          // Self-recursion ALWAYS needs z.lazy if not using getters
+          if (refName === currentDefName) {
+            return `z.lazy(() => ${refInfo.schemaName})`;
+          }
+
           if (isCycle && useLazyCrossRefs) {
-            const inObjectProperty =
-              refs.path.includes("properties") ||
-              refs.path.includes("patternProperties") ||
-              refs.path.includes("additionalProperties");
-            if (inObjectProperty && refName === currentDefName) {
-              // Self-recursion inside object getters can safely reference the schema name
-              return refInfo.schemaName;
-            }
-            return `z.lazy<z.ZodTypeAny>((): z.ZodTypeAny => ${refInfo.schemaName})`;
+            return `z.lazy(() => ${refInfo.schemaName})`;
           }
 
           return refInfo.schemaName;
         }
 
-        // If the ref points to a local/inline $def (not part of top-level defs),
-        // let the default parser resolve it normally.
-        if (allDefs && Object.prototype.hasOwnProperty.call(allDefs, refName)) {
-          return undefined;
-        }
+        // If it's NOT exactly a top-level definition, it could be:
+        // 1. A path into a top-level definition (e.g. #/$defs/alpha/properties/foo)
+        // 2. A local/inline definition NOT in allDefs
+        // 3. A reference to allDefs that we missed? (shouldn't happen)
+
+        // We return undefined to let the standard parser resolve it.
+        return undefined;
       }
 
       const unknown = options.refResolution?.onUnknownRef?.({ ref: refPath, currentDef: currentDefName });
@@ -311,7 +317,7 @@ const buildSchemaFile = (
 ): string => {
   const groupFileById = new Map<string, string>();
   for (const info of defInfoMap.values()) {
-    if (!groupFileById.has(info.groupId)) {
+    if (info.groupId && !groupFileById.has(info.groupId)) {
       groupFileById.set(info.groupId, info.fileName.replace(/\.ts$/, ".js"));
     }
   }
@@ -321,7 +327,7 @@ const buildSchemaFile = (
   for (const refName of [...usedRefs].sort()) {
     const refInfo = defInfoMap.get(refName);
     if (refInfo) {
-      const groupFile = groupFileById.get(refInfo.groupId) ?? refInfo.fileName.replace(/\.ts$/, ".js");
+      const groupFile = (refInfo.groupId ? groupFileById.get(refInfo.groupId) : null) ?? refInfo.fileName.replace(/\.ts$/, ".js");
       const path = `./${groupFile}`;
       const set = importsByFile.get(path) ?? new Set<string>();
       set.add(refInfo.schemaName);
@@ -342,7 +348,7 @@ const buildSchemaFile = (
     .join("\n");
 
   const withImports = imports.length
-    ? body.replace('import { z } from "zod"', `import { z } from "zod"\n${imports.join("\n")}`)
+    ? body.replace(/import \{ z \} from "zod";?/, `import { z } from "zod";\n${imports.join("\n")}`)
     : body;
 
   return withImports;
@@ -534,6 +540,7 @@ const detectCycles = (defInfoMap: Map<string, DefInfo>): Set<string> => {
   return cycleNodes;
 };
 
+/*
 const buildSccGroups = (defInfoMap: Map<string, DefInfo>): Map<string, string[]> => {
   const indexMap = new Map<string, number>();
   const lowLink = new Map<string, number>();
@@ -585,6 +592,7 @@ const buildSccGroups = (defInfoMap: Map<string, DefInfo>): Map<string, string[]>
 
   return groups;
 };
+*/
 
 type NestedTypeInfo = {
   typeName: string;
@@ -614,7 +622,7 @@ const collectNestedTypes = (
   }
 
   const workflowNestedTypes = findNestedTypesInSchema(
-    { properties: rootSchema.properties, required: rootSchema.required },
+    { properties: (rootSchema as JsonSchemaObject).properties, required: (rootSchema as JsonSchemaObject).required },
     rootTypeName,
     defNames,
   );

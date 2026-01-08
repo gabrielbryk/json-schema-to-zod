@@ -65,6 +65,7 @@ export const resolveRef = (
     // External resolver hook
     const extBase = uriBaseFromRef(resolvedUri);
     if (refs.resolveExternalRef && extBase && !isLocalBase(extBase, refs.rootBaseUri ?? "")) {
+        // console.log("ATTEMPTING EXTERNAL RESOLUTION FOR", ref, "AT BASE", extBase);
         const loaded = refs.resolveExternalRef(extBase);
         if (loaded) {
             // If async resolver is used synchronously here, it will be ignored; keep simple sync for now
@@ -97,14 +98,32 @@ export const resolveRef = (
             .filter((segment) => segment.length > 0)
             .map(decodePointerSegment);
 
-        let current: unknown = refs.root;
+        const tryResolve = (rootNode: unknown) => {
+            if (!rootNode) return undefined;
+            let current: any = rootNode;
+            for (const segment of rawSegments) {
+                const record = current as Record<string, unknown> | null;
+                if (!record || typeof record !== "object") {
+                    return undefined;
+                }
+                current = record[segment];
+                if (current === undefined) return undefined;
+            }
+            return current;
+        };
 
-        for (const segment of rawSegments) {
-            if (typeof current !== "object" || current === null) return undefined;
-            current = (current as Record<string, unknown>)[segment as keyof typeof current];
+        let resolved = tryResolve(refs.root);
+        if (resolved === undefined && refs.documentRoot && refs.documentRoot !== refs.root) {
+            resolved = tryResolve(refs.documentRoot);
         }
 
-        return { schema: current as JsonSchema, path: rawSegments, baseUri: base, pointerKey: ref };
+
+
+        if (resolved !== undefined) {
+            return { schema: resolved as JsonSchema, path: rawSegments, baseUri: base, pointerKey: ref };
+        }
+
+        return undefined;
     }
 
     return undefined;

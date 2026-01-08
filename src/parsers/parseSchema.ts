@@ -117,6 +117,7 @@ const parseRef = (
 ): SchemaRepresentation => {
   const refValue = schema.$dynamicRef ?? schema.$ref;
 
+
   if (typeof refValue !== "string") {
     return anyOrUnknown(refs);
   }
@@ -170,9 +171,7 @@ const parseRef = (
   // Check context: are we inside an object property where getters work?
   // IMPORTANT: additionalProperties becomes z.record() (or .catchall()) which does NOT support getters for deferred evaluation
   // Only named properties (properties, patternProperties) can use getters
-  const inNamedProperty =
-    refs.path.includes("properties") ||
-    refs.path.includes("patternProperties");
+
 
   // additionalProperties becomes z.record() value - getters don't work there
   // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
@@ -180,31 +179,21 @@ const parseRef = (
   const inRecordContext = refs.path.includes("additionalProperties");
 
   // For recursive refs, use ZodTypeAny to avoid TypeScript circular inference errors ("implicitly has type 'any'")
-  const isRecursive = isSameCycle || isForwardRef;
+  // User feedback: relying on ZodTypeAny loses type safety. We will try to rely on inference or ZodType<unknown>.
+  // However, TS 4.x/5.x often requires explicit type for recursive inferred types.
+  // Zod documentation recommends: z.ZodType<MyType> = z.lazy(...)
+  // Since we don't have the named type available here easily, we rely on inference by removing the generic.
+  const isRecursive = isSameCycle || isForwardRef || (refName === refs.currentSchemaName);
   const refType = (isRecursive || inRecordContext) ? "z.ZodTypeAny" : `typeof ${refName}`;
 
   // Use deferred/lazy logic if recursive or in a context that requires it (record/catchall)
   if (isRecursive || inRecordContext) {
-    // Self-recursion in named object properties: use direct ref (getter handles deferred eval)
-    const isSelfRecursion = refName === refs.currentSchemaName;
-    if (inNamedProperty && isSelfRecursion && !inRecordContext) {
-      return { expression: refName, type: refType };
-    }
-
-    // Cross-schema refs in named object properties within same cycle: use direct ref
-    // The getter in parseObject.ts will handle deferred evaluation
-    if (inNamedProperty && isSameCycle && !isForwardRef && !inRecordContext) {
-      return { expression: refName, type: refType };
-    }
-
-    // z.record() values with recursive refs MUST use z.lazy() (Colin confirmed in #4881)
-    // Also arrays, unions, and other non-object contexts with forward refs need z.lazy()
-    if (isForwardRef || inRecordContext) {
-      return {
-        expression: `z.lazy<z.ZodTypeAny>((): z.ZodTypeAny => ${refName})`,
-        type: `z.ZodLazy<${refType}>`,
-      };
-    }
+    // We MUST use z.lazy() for ANY recursive reference, even in named properties given that z.object() is eager.
+    // The previous optimization (skipping lazy for named properties) caused TDZ errors because getters on the arg object are evaluated immediately.
+    return {
+      expression: `z.lazy(() => ${refName})`,
+      type: `z.ZodLazy<${refType}>`,
+    };
   }
 
   return { expression: refName, type: refType };
@@ -317,7 +306,11 @@ const buildNameFromPath = (
       .join("")
     : "Ref";
 
-  const sanitized = sanitizeIdentifier(base || "Ref");
+  let finalName = base;
+  if (!finalName.endsWith("Schema")) {
+    finalName += "Schema";
+  }
+  const sanitized = sanitizeIdentifier(finalName);
 
   if (!used || !used.has(sanitized)) return sanitized;
 

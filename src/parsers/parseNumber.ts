@@ -4,32 +4,26 @@ import { withMessage } from "../utils/withMessage.js";
 export const parseNumber = (
   schema: JsonSchemaObject & { type: "number" | "integer" },
 ): SchemaRepresentation => {
+  const formatMessage = schema.errorMessage?.format;
+  const formatParams = formatMessage ? `{ message: ${JSON.stringify(formatMessage)} }` : "";
+
+  const formatMap: Record<string, { expression: string; type: string }> = {
+    int32: { expression: `z.int32(${formatParams})`, type: "z.ZodNumber" },
+    uint32: { expression: `z.uint32(${formatParams})`, type: "z.ZodNumber" },
+    float32: { expression: `z.float32(${formatParams})`, type: "z.ZodNumber" },
+    float64: { expression: `z.float64(${formatParams})`, type: "z.ZodNumber" },
+    safeint: { expression: `z.safeint(${formatParams})`, type: "z.ZodNumber" },
+    int64: { expression: `z.int64(${formatParams})`, type: "z.ZodBigInt" },
+    uint64: { expression: `z.uint64(${formatParams})`, type: "z.ZodBigInt" },
+  };
+
   let r = schema.type === "integer" ? "z.int()" : "z.number()";
   let zodType = schema.type === "integer" ? "z.ZodInt" : "z.ZodNumber";
 
-  // Handle specific numeric formats if needed, though z.int() covers the main case.
-  // Zod v4 has specific types like z.int64(), z.uint32() etc.
-  // If we want to map them:
-  if (schema.format) {
-    switch (schema.format) {
-      case "int64":
-        r = "z.int64()"; // Note: z.int64 returns ZodBigInt in strict mode, but here we might want number? 
-        // Zod v4 'z.int64()' usually returns a BigInt schema or a specific number refinement.
-        // From the viewed schemas.ts: export function int64(...): ZodBigIntFormat. 
-        // So it returns a BigInt. JSON Schema "integer" usually implies generic number unless "bigint" is specified.
-        // If the user wants strict mapping, "int64" -> BigInt.
-        // However, "integer" in JS is number safe integer. "int64" might overflow.
-        // For safety in this library assuming standard JS consumers, we stick to z.int() unless strictly requested.
-        // BUT, let's look at the viewed file again.
-        // schemas.ts: export function int64(params?): ZodBigIntFormat.
-        // It returns ZodBigIntFormat which extends ZodBigInt.
-        // So z.int64() is for BigInts.
-        // If input JSON has regular numbers, z.int64() parse might fail if it expects BigInts (n suffix)? 
-        // Coercion? z.coerce.bigint()?
-        // Let's stick to z.int() for "integer" to be safe and standard.
-        break;
-      // Other formats like "float", "double" map to z.number() which is default.
-    }
+  if (schema.format && formatMap[schema.format]) {
+    const mapped = formatMap[schema.format];
+    r = mapped.expression;
+    zodType = mapped.type;
   }
 
   r += withMessage(schema, "multipleOf", ({ json }) => ({
@@ -39,38 +33,31 @@ export const parseNumber = (
     messageCloser: " })",
   }));
 
-  r += withMessage(schema, "minimum", ({ json }) => ({
-    opener: `.min(${json}`,
-    closer: ")",
-    messagePrefix: ", { message: ",
-    messageCloser: " })",
-  }));
+  const minimum = schema.minimum;
+  const maximum = schema.maximum;
+  const exclusiveMinimum = schema.exclusiveMinimum;
+  const exclusiveMaximum = schema.exclusiveMaximum;
 
-  r += withMessage(schema, "maximum", ({ json }) => ({
-    opener: `.max(${json}`,
-    closer: ")",
-    messagePrefix: ", { message: ",
-    messageCloser: " })",
-  }));
+  const minMessage = schema.errorMessage?.minimum;
+  const maxMessage = schema.errorMessage?.maximum;
+  const exclMinMessage = schema.errorMessage?.exclusiveMinimum;
+  const exclMaxMessage = schema.errorMessage?.exclusiveMaximum;
 
-  r += withMessage(schema, "exclusiveMinimum", ({ json }) => ({
-    opener: `.gt(${json}`,
-    closer: ")",
-    messagePrefix: ", { message: ",
-    messageCloser: " })",
-  }));
+  if (typeof exclusiveMinimum === "number") {
+    r += `.gt(${exclusiveMinimum}${exclMinMessage ? `, { message: ${JSON.stringify(exclMinMessage)} }` : ""})`;
+  } else if (exclusiveMinimum === true && typeof minimum === "number") {
+    r += `.gt(${minimum}${exclMinMessage ? `, { message: ${JSON.stringify(exclMinMessage)} }` : ""})`;
+  } else if (typeof minimum === "number") {
+    r += `.min(${minimum}${minMessage ? `, { message: ${JSON.stringify(minMessage)} }` : ""})`;
+  }
 
-  r += withMessage(schema, "exclusiveMaximum", ({ json }) => ({
-    opener: `.lt(${json}`,
-    closer: ")",
-    messagePrefix: ", { message: ",
-    messageCloser: " })",
-  }));
-
-  // Legacy/Draft-4 support for boolean exclusiveMinimum/Maximum
-  // requires checking if they are booleans and using the min/max values.
-  // We can leave that simple or add it if strictly required. 
-  // Zod v4 fromJSONSchema handles it.
+  if (typeof exclusiveMaximum === "number") {
+    r += `.lt(${exclusiveMaximum}${exclMaxMessage ? `, { message: ${JSON.stringify(exclMaxMessage)} }` : ""})`;
+  } else if (exclusiveMaximum === true && typeof maximum === "number") {
+    r += `.lt(${maximum}${exclMaxMessage ? `, { message: ${JSON.stringify(exclMaxMessage)} }` : ""})`;
+  } else if (typeof maximum === "number") {
+    r += `.max(${maximum}${maxMessage ? `, { message: ${JSON.stringify(maxMessage)} }` : ""})`;
+  }
 
   return {
     expression: r,

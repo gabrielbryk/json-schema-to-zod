@@ -20,6 +20,7 @@ export type AnalysisResult = {
   cycleComponentByName: Map<string, number>;
   refRegistry: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
   rootBaseUri: string;
+  definitions?: Record<string, JsonSchema>;
 };
 
 export const analyzeSchema = (
@@ -50,7 +51,16 @@ export const analyzeSchema = (
 
   const declarations = new Map<string, SchemaRepresentation>();
   const dependencies = new Map<string, Set<string>>();
-  const { registry: refRegistry, rootBaseUri } = buildRefRegistry(schema);
+
+  // Use provided registry or build a new one for this schema
+  let refRegistry = rest.refRegistry;
+  let rootBaseUri = rest.rootBaseUri ?? "root:///";
+
+  if (!refRegistry) {
+    const built = buildRefRegistry(schema, rootBaseUri);
+    refRegistry = built.registry;
+    rootBaseUri = built.rootBaseUri;
+  }
 
   const pass1 = {
     name,
@@ -75,16 +85,35 @@ export const analyzeSchema = (
   const cycleRefNames = detectCycles(names, dependencies);
   const { componentByName } = computeScc(names, dependencies);
 
+  // Pass 2: Re-parse with cycle information if cycles were detected.
+  // This allows parseRef to correctly identify cyclic references and wrap them in z.lazy().
+  if (cycleRefNames.size > 0) {
+    declarations.clear();
+    pass1.seen.clear();
+    pass1.inProgress.clear();
+
+    // We reuse refNameByPointer to ensure stable naming across passes
+    const pass2 = {
+      ...pass1,
+      declarations,
+      cycleRefNames,
+      cycleComponentByName: componentByName,
+    };
+
+    parseSchema(schema, pass2);
+  }
+
   return {
     schema,
     options: normalized,
+    declarations,
+    definitions: {}, // Legacy support
+    dependencies,
     refNameByPointer,
     usedNames,
-    declarations,
-    dependencies,
     cycleRefNames,
     cycleComponentByName: componentByName,
-    refRegistry,
-    rootBaseUri,
+    rootBaseUri: pass1.rootBaseUri,
+    refRegistry: pass1.refRegistry,
   };
 };
