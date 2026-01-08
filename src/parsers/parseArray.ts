@@ -7,15 +7,41 @@ export const parseArray = (
   schema: JsonSchemaObject & { type: "array" },
   refs: Refs,
 ): SchemaRepresentation => {
-  if (Array.isArray(schema.items)) {
+  // JSON Schema 2020-12 uses `prefixItems` for tuples.
+  // Older drafts used `items` as an array.
+  const prefixItems = schema.prefixItems || (Array.isArray(schema.items) ? schema.items : undefined);
+
+  if (prefixItems) {
     // Tuple case
-    const itemResults = schema.items.map((v, i) =>
-      parseSchema(v, { ...refs, path: [...refs.path, "items", i] }),
+    const itemResults = prefixItems.map((v, i) =>
+      parseSchema(v, { ...refs, path: [...refs.path, "prefixItems", i] }),
     );
 
     let tuple = `z.tuple([${itemResults.map(r => r.expression).join(", ")}])`;
-    const tupleTypes = itemResults.map(r => r.type).join(", ");
-    let tupleType = `z.ZodTuple<[${tupleTypes}]>`;
+    // We construct the type manually for the tuple part
+    let tupleTypes = itemResults.map(r => r.type).join(", ");
+    let tupleType = `z.ZodTuple<[${tupleTypes}], null>`; // Default null rest
+
+    // Handle "additionalItems" (older drafts) or "items" (2020-12 when prefixItems is used)
+    // If prefixItems is present, `items` acts as the schema for additional items.
+    // If prefixItems came from `items` (array form), then `additionalItems` controls the rest.
+    const additionalSchema = schema.prefixItems ? schema.items : schema.additionalItems;
+
+    if (additionalSchema === false) {
+      // Closed tuple
+    } else if (additionalSchema) {
+      const restSchema = (additionalSchema === true)
+        ? anyOrUnknown(refs)
+        : parseSchema(additionalSchema as JsonSchemaObject, { ...refs, path: [...refs.path, "items"] });
+
+      tuple += `.rest(${restSchema.expression})`;
+      tupleType = `z.ZodTuple<[${tupleTypes}], ${restSchema.type}>`;
+    } else {
+      // Open by default
+      const anyRes = anyOrUnknown(refs);
+      tuple += `.rest(${anyRes.expression})`;
+      tupleType = `z.ZodTuple<[${tupleTypes}], ${anyRes.type}>`;
+    }
 
     if (schema.contains) {
       const containsResult = parseSchema(schema.contains, {
@@ -34,7 +60,6 @@ export const parseArray = (
     ctx.addIssue({ code: "custom", message: "Array contains too many matching items" });
   }
 })`;
-      // In Zod v4, .superRefine() doesn't change the type
     }
 
     return {
@@ -43,14 +68,16 @@ export const parseArray = (
     };
   }
 
-  // Array case
+  // Regular Array case
+  const itemsSchema = schema.items;
+
   const anyOrUnknownResult = anyOrUnknown(refs);
-  const itemResult = !schema.items
+  const itemResult = (!itemsSchema || itemsSchema === true)
     ? anyOrUnknownResult
-    : parseSchema(schema.items, {
-        ...refs,
-        path: [...refs.path, "items"],
-      });
+    : parseSchema(itemsSchema as JsonSchemaObject, {
+      ...refs,
+      path: [...refs.path, "items"],
+    });
 
   let r = `z.array(${itemResult.expression})`;
   let arrayType = `z.ZodArray<${itemResult.type}>`;
@@ -58,14 +85,14 @@ export const parseArray = (
   r += withMessage(schema, "minItems", ({ json }) => ({
     opener: `.min(${json}`,
     closer: ")",
-    messagePrefix: ", { error: ",
+    messagePrefix: ", { message: ",
     messageCloser: " })",
   }));
 
   r += withMessage(schema, "maxItems", ({ json }) => ({
     opener: `.max(${json}`,
     closer: ")",
-    messagePrefix: ", { error: ",
+    messagePrefix: ", { message: ",
     messageCloser: " })",
   }));
 
@@ -113,8 +140,6 @@ export const parseArray = (
   }
 })`;
   }
-
-  // In Zod v4, .superRefine() doesn't change the type, so no wrapping needed
 
   return {
     expression: r,

@@ -1,5 +1,5 @@
 import { EsmEmitter } from "../src/utils/esmEmitter.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 suite("esmEmitter", (test) => {
   test("renders imports, consts, and default export", (assert) => {

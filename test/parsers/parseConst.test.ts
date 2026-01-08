@@ -1,5 +1,5 @@
-import { parseConst } from "../../src/parsers/parseConst";
-import { suite } from "../suite";
+import { parseConst } from "../../src/parsers/parseConst.js";
+import { suite } from "../suite.js";
 
 suite("parseConst", (test) => {
   test("should handle falsy constants", (assert) => {

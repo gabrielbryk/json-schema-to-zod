@@ -43,10 +43,10 @@ const parseObjectShape = (
     const optional = !hasDefault && !required;
 
     const valueExpr = optional
-      ? `${parsedProp.expression}.optional()`
+      ? `${parsedProp.expression}.exactOptional()`
       : parsedProp.expression;
     const valueType = optional
-      ? `z.ZodOptional<${parsedProp.type}>`
+      ? `z.ZodExactOptional<${parsedProp.type}>`
       : parsedProp.type;
 
     shapeEntries.push(`${JSON.stringify(key)}: ${valueExpr}`);
@@ -90,7 +90,7 @@ const trySpreadPattern = (
   if (shapeEntries.length === 0) return undefined;
 
   return {
-    expression: `z.object({ ${shapeEntries.join(", ")} })`,
+    expression: `z.looseObject({ ${shapeEntries.join(", ")} })`,
     type: `z.ZodObject<{ ${shapeTypes.join(", ")} }>`,
   };
 };
@@ -127,16 +127,20 @@ export function parseAllOf(
   } else if (schema.allOf.length === 1) {
     const item = schema.allOf[0];
 
-    return parseSchema(item, {
+    const parsed = parseSchema(item, {
       ...refs,
       path: [
         ...refs.path,
         "allOf",
         (item as JsonSchemaObject & { [originalIndexKey]?: number })[
-          originalIndexKey
+        originalIndexKey
         ] ?? 0,
       ],
     });
+
+
+
+    return parsed;
   } else {
     // Try spread pattern first (more efficient than intersection)
     // This works when all members are either $refs to object schemas or inline objects

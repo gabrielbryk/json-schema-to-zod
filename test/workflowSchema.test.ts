@@ -3,7 +3,7 @@ import { spawnSync } from "child_process";
 import { join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 suite("workflow.yaml", (test) => {
   test("converts workflow schema fixture", (assert) => {

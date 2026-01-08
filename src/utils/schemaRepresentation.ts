@@ -263,7 +263,7 @@ export const zodStrictObject = (
 ): SchemaRepresentation => {
   const base = zodObject(shape);
   return {
-    expression: `${base.expression}.strict()`,
+    expression: base.expression.replace(/^z\.object\(/, "z.strictObject("),
     type: base.type, // strict() doesn't change the type signature
   };
 };
@@ -356,6 +356,18 @@ export const fromExpression = (expression: string): SchemaRepresentation => ({
  * This is used for backward compatibility during migration.
  */
 export const inferTypeFromExpression = (expr: string): string => {
+  const applyOptionality = (type: string, methods: string): string => {
+    if (methods.includes(".exactOptional()")) {
+      type = `z.ZodExactOptional<${type}>`;
+    } else if (methods.includes(".optional()")) {
+      type = `z.ZodOptional<${type}>`;
+    }
+    if (methods.includes(".nullable()")) {
+      type = `z.ZodNullable<${type}>`;
+    }
+    return type;
+  };
+
   // Handle z.lazy with explicit type (possibly with method chains like .optional())
   const lazyTypedMatch = expr.match(
     /^z\.lazy<([^>]+)>\(\s*\(\)\s*=>\s*([A-Za-z0-9_.$]+)\s*\)(\.[a-z]+\(\))*$/
@@ -363,13 +375,7 @@ export const inferTypeFromExpression = (expr: string): string => {
   if (lazyTypedMatch) {
     let type = `z.ZodLazy<${lazyTypedMatch[1]}>`;
     const methods = lazyTypedMatch[3] || "";
-    if (methods.includes(".optional()")) {
-      type = `z.ZodOptional<${type}>`;
-    }
-    if (methods.includes(".nullable()")) {
-      type = `z.ZodNullable<${type}>`;
-    }
-    return type;
+    return applyOptionality(type, methods);
   }
 
   // Handle z.lazy without explicit type (possibly with method chains like .optional())
@@ -379,13 +385,7 @@ export const inferTypeFromExpression = (expr: string): string => {
   if (lazyMatch) {
     let type = `z.ZodLazy<typeof ${lazyMatch[1]}>`;
     const methods = lazyMatch[2] || "";
-    if (methods.includes(".optional()")) {
-      type = `z.ZodOptional<${type}>`;
-    }
-    if (methods.includes(".nullable()")) {
-      type = `z.ZodNullable<${type}>`;
-    }
-    return type;
+    return applyOptionality(type, methods);
   }
 
   // Handle .and() method chains - this creates an intersection type
@@ -405,13 +405,7 @@ export const inferTypeFromExpression = (expr: string): string => {
       let type = `z.ZodIntersection<${baseType}, ${andType}>`;
 
       // Handle trailing methods
-      if (remainder.includes(".optional()")) {
-        type = `z.ZodOptional<${type}>`;
-      }
-      if (remainder.includes(".nullable()")) {
-        type = `z.ZodNullable<${type}>`;
-      }
-      return type;
+      return applyOptionality(type, remainder);
     }
   }
 
@@ -433,10 +427,12 @@ export const inferTypeFromExpression = (expr: string): string => {
     }
   }
 
-  // Handle z.object({...}) - for objects with getters or complex shapes
-  if (expr.startsWith("z.object(")) {
+  // Handle z.object({...})/z.strictObject({...})/z.looseObject({...})
+  const objectPrefixes = ["z.object(", "z.strictObject(", "z.looseObject("];
+  const objectPrefix = objectPrefixes.find((prefix) => expr.startsWith(prefix));
+  if (objectPrefix) {
     // Find the end of z.object({...})
-    const argsStart = 9; // length of "z.object("
+    const argsStart = objectPrefix.length; // length of prefix
     const argsEnd = findMatchingParen(expr, argsStart - 1);
     if (argsEnd !== -1) {
       const remainder = expr.substring(argsEnd + 1);
@@ -444,16 +440,7 @@ export const inferTypeFromExpression = (expr: string): string => {
       let type = "z.ZodObject<Record<string, z.ZodTypeAny>>";
 
       // Handle method chains after z.object({...})
-      if (remainder.includes(".strict()")) {
-        // .strict() doesn't change the type
-      }
-      if (remainder.includes(".optional()")) {
-        type = `z.ZodOptional<${type}>`;
-      }
-      if (remainder.includes(".nullable()")) {
-        type = `z.ZodNullable<${type}>`;
-      }
-      return type;
+      return applyOptionality(type, remainder);
     }
   }
 
@@ -493,15 +480,7 @@ export const inferTypeFromExpression = (expr: string): string => {
     const methods = refMatch[2] || "";
 
     let type = `typeof ${baseName}`;
-
-    if (methods.includes(".optional()")) {
-      type = `z.ZodOptional<${type}>`;
-    }
-    if (methods.includes(".nullable()")) {
-      type = `z.ZodNullable<${type}>`;
-    }
-
-    return type;
+    return applyOptionality(type, methods);
   }
 
   // Handle z.array(X)
@@ -511,14 +490,7 @@ export const inferTypeFromExpression = (expr: string): string => {
     let type = `z.ZodArray<${innerType}>`;
 
     const methods = arrayMatch[2] || "";
-    if (methods.includes(".optional()")) {
-      type = `z.ZodOptional<${type}>`;
-    }
-    if (methods.includes(".nullable()")) {
-      type = `z.ZodNullable<${type}>`;
-    }
-
-    return type;
+    return applyOptionality(type, methods);
   }
 
   // Handle z.nullable(X)
@@ -540,13 +512,7 @@ export const inferTypeFromExpression = (expr: string): string => {
       let baseType = `z.ZodUnion<readonly [${types.join(", ")}]>`;
 
       const remainder = expr.substring(bracketEnd + 2); // skip ] and )
-      if (remainder.includes(".optional()")) {
-        baseType = `z.ZodOptional<${baseType}>`;
-      }
-      if (remainder.includes(".nullable()")) {
-        baseType = `z.ZodNullable<${baseType}>`;
-      }
-      return baseType;
+      return applyOptionality(baseType, remainder);
     }
   }
 

@@ -1,5 +1,6 @@
-import { parseSchema } from "../../src/parsers/parseSchema";
-import { suite } from "../suite";
+import { parseSchema } from "../../src/parsers/parseSchema.js";
+
+import { suite } from "../suite.js";
 
 suite("parseMultipleType", (test) => {
   test("should handle object with multitype properties with default", (assert) => {
@@ -14,7 +15,7 @@ suite("parseMultipleType", (test) => {
     };
     assert(
       parseSchema(schema, { path: [], seen: new Map() }),
-      `z.object({ "prop": z.union([z.string(), z.null()]).default(null) })`,
+      `z.looseObject({ "prop": z.union([z.string(), z.null()]).default(null) })`,
     );
   });
 });

@@ -1,5 +1,5 @@
-import { omit } from "../../src/utils/omit";
-import { suite } from "../suite";
+import { omit } from "../../src/utils/omit.js";
+import { suite } from "../suite.js";
 
 suite("omit", (test) => {
   test("omit", (assert) => {

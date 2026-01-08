@@ -238,6 +238,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
       const hintedType = typeof rep === "object" && rep && "type" in rep && typeof (rep as { type?: string }).type === "string"
         ? (rep as { type?: string }).type
         : undefined;
+      const effectiveHint = hintedType === "z.ZodTypeAny" ? undefined : hintedType;
 
       const hasLazy = expression.includes("z.lazy(");
       const hasGetter = expression.includes("get ");
@@ -254,7 +255,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
       // 1. z.lazy() without getters
       // 2. Any schema that references recursive schemas (to prevent TS7056)
       const needsTypeAnnotation = (hasLazy && !hasGetter) || referencesRecursiveSchema;
-      const storedType = needsTypeAnnotation ? (hintedType ?? inferTypeFromExpression(expression)) : undefined;
+      const storedType = needsTypeAnnotation ? (effectiveHint ?? inferTypeFromExpression(expression)) : undefined;
 
       // Rule 2 from Zod v4: Don't chain methods on recursive types
       // If the schema has getters (recursive), we need to split it:
@@ -278,6 +279,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
             name: refName,
             expression: `${baseName}${methodChain}`,
             exported: exportRefs,
+            typeAnnotation: storedType !== "z.ZodTypeAny" ? storedType : undefined,
           });
 
           // Export type for this declaration if typeExports is enabled

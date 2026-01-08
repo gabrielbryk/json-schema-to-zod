@@ -1,5 +1,5 @@
-import { parseNumber } from "../../src/parsers/parseNumber";
-import { suite } from "../suite";
+import { parseNumber } from "../../src/parsers/parseNumber.js";
+import { suite } from "../suite.js";
 
 suite("parseNumber", (test) => {
   test("should handle integer", (assert) => {
@@ -7,7 +7,7 @@ suite("parseNumber", (test) => {
       parseNumber({
         type: "integer",
       }),
-      `z.number().int()`
+      `z.int()`
     );
 
     assert(
@@ -15,7 +15,7 @@ suite("parseNumber", (test) => {
         type: "integer",
         multipleOf: 1
       }),
-      `z.number().int()`
+      `z.int().multipleOf(1)`
     );
 
     assert(
@@ -23,7 +23,7 @@ suite("parseNumber", (test) => {
         type: "number",
         multipleOf: 1
       }),
-      `z.number().int()`
+      `z.number().multipleOf(1)`
     );
   });
 
@@ -44,7 +44,7 @@ suite("parseNumber", (test) => {
         type: "number",
         minimum: 2,
       }),
-      `z.number().gte(2)`
+      `z.number().min(2)`
     );
   });
 
@@ -92,7 +92,7 @@ suite("parseNumber", (test) => {
 
     assert(
       parseNumber({ type: "number", format: "safeint", errorMessage: { format: "err" } }),
-      'z.safeint({ error: "err" })',
+      'z.safeint({ message: "err" })',
     );
   });
 
@@ -112,7 +112,7 @@ suite("parseNumber", (test) => {
         },
       }),
 
-      'z.int64({ error: "ayy" }).multipleOf(2, { error: "lmao" }).gt(0, { error: "deez" }).lte(2, { error: "nuts" })',
+      'z.int64({ message: "ayy" }).multipleOf(2, { message: "lmao" }).gt(0, { message: "deez" }).max(2, { message: "nuts" })',
     );
   });
 

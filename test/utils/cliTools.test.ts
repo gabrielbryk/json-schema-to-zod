@@ -1,5 +1,5 @@
-import { parseArgs, printParams } from "../../src/utils/cliTools";
-import { suite } from "../suite";
+import { parseArgs, printParams } from "../../src/utils/cliTools.js";
+import { suite } from "../suite.js";
 
 suite("cliTools", (test) => {
   test("parseArgs should handle param as optional whether false or undefined is passed", (assert) => {
@@ -34,7 +34,7 @@ suite("cliTools", (test) => {
       logged = true;
     };
 
-    printParams({ test: { } });
+    printParams({ test: {} });
     assert(logged);
     console.log = log;
   });
@@ -53,9 +53,9 @@ suite("cliTools", (test) => {
     console.log = () => {
       logged = true;
     };
-    parseArgs({ }, ['-h'], true);
-    parseArgs({ }, ['--help'], true);
-    parseArgs({ }, ['--help'], "some help string");
+    parseArgs({}, ['-h'], true);
+    parseArgs({}, ['--help'], true);
+    parseArgs({}, ['--help'], "some help string");
     assert(ran);
     assert(logged);
     process.exit = exit;

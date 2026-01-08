@@ -1,7 +1,7 @@
 import { parseSimpleDiscriminatedOneOf } from "../../src/parsers/parseSimpleDiscriminatedOneOf.js";
 import { its } from "../../src/parsers/parseSchema.js";
 import { JsonSchemaObject } from "../../src/Types.js";
-import { suite } from "../suite";
+import { suite } from "../suite.js";
 
 suite("parseSimpleDiscriminatedOneOf", (test) => {
   test("should create a discriminated union from two or more object schemas", (assert) => {
@@ -30,7 +30,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.discriminatedUnion("objectType", [z.object({ "objectType": z.literal("typeA") }), z.object({ "objectType": z.literal("typeB") })])',
+      'z.discriminatedUnion("objectType", [z.looseObject({ "objectType": z.literal("typeA") }), z.looseObject({ "objectType": z.literal("typeB") })])',
     );
   });
 
@@ -53,7 +53,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.object({ "objectType": z.literal("typeA") })',
+      'z.looseObject({ "objectType": z.literal("typeA") })',
     );
   });
 
@@ -97,7 +97,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.discriminatedUnion("kind", [z.object({ "kind": z.literal("person"), "name": z.string() }), z.object({ "kind": z.literal("company"), "companyName": z.string() })])',
+      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("person"), "name": z.string() }), z.looseObject({ "kind": z.literal("company"), "companyName": z.string() })])',
     );
   });
 
@@ -114,7 +114,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           required: ["type", "value"]
         },
         {
-          type: "object" as const, 
+          type: "object" as const,
           properties: {
             type: { type: "string" as const, const: "B" },
             count: { type: "number" as const }

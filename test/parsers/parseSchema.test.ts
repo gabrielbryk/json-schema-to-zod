@@ -1,5 +1,5 @@
 import { parseSchema } from "../../src/parsers/parseSchema.js";
-import { suite } from "../suite";
+import { suite } from "../suite.js";
 
 suite("parseSchema", (test) => {
   test("should be usable without providing refs", (assert) => {
@@ -53,9 +53,11 @@ suite("parseSchema", (test) => {
 
   test("should handle multiple type", (assert) => {
     assert(
-      parseSchema({ type: [
-        "string", "number"
-      ] }),
+      parseSchema({
+        type: [
+          "string", "number"
+        ]
+      }),
       `z.union([z.string(), z.number()])`,
     );
   });
@@ -63,9 +65,9 @@ suite("parseSchema", (test) => {
   test("should handle if-then-else type", (assert) => {
     assert(
       parseSchema({
-        if: {type: 'string'},
-        then: {type: 'number'},
-        else: {type: 'boolean'}
+        if: { type: 'string' },
+        then: { type: 'number' },
+        else: { type: 'boolean' }
       }),
       `z.union([z.number(), z.boolean()]).superRefine((value,ctx) => {
   const result = z.string().safeParse(value).success
@@ -81,25 +83,29 @@ suite("parseSchema", (test) => {
 
   test("should handle anyOf", (assert) => {
     assert(
-      parseSchema({ anyOf: [
-        {
-          type: "string",
-        },
-        { type: "number" },
-      ] }),
+      parseSchema({
+        anyOf: [
+          {
+            type: "string",
+          },
+          { type: "number" },
+        ]
+      }),
       "z.union([z.string(), z.number()])",
     );
   });
 
   test("should handle oneOf with simple union by default", (assert) => {
     assert(
-      parseSchema({ oneOf: [
-        {
-          type: "string",
-        },
-        { type: "number" },
-      ] }),
-      `z.union([z.string(), z.number()])`,
+      parseSchema({
+        oneOf: [
+          {
+            type: "string",
+          },
+          { type: "number" },
+        ]
+      }),
+      "z.xor([z.string(), z.number()])",
     );
   });
 });

@@ -1,7 +1,6 @@
 import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
-import { extractInlineObject } from "../utils/extractInlineObject.js";
 import { resolveRef } from "../utils/resolveRef.js";
 
 /**
@@ -35,9 +34,6 @@ const isRequiredOnlySchema = (schema: JsonSchema): schema is JsonSchemaObject & 
 /**
  * Generate a superRefine expression that validates required field combinations.
  * This handles the JSON Schema pattern where oneOf is used purely for validation.
- *
- * When isRefinementOnly is true, the expression is just the refinement function body
- * that should be appended with .superRefine() directly to the parent schema.
  */
 const generateRequiredFieldsRefinement = (
   requiredCombinations: string[][],
@@ -145,20 +141,20 @@ const setsEqual = (a: Set<string>, b: Set<string>): boolean => {
 };
 
 /**
- * Extract the constant value from a property schema.
- * Returns the string value if it's a const or single-element enum, undefined otherwise.
+ * Extract discriminator values from a property schema.
+ * Returns string values if it's a const or enum, undefined otherwise.
  */
-const getConstValue = (prop: JsonSchemaObject): string | undefined => {
+const getDiscriminatorValues = (prop: JsonSchemaObject): string[] | undefined => {
   if (prop.const !== undefined && typeof prop.const === 'string') {
-    return prop.const;
+    return [prop.const];
   }
   if (
     prop.enum &&
     Array.isArray(prop.enum) &&
-    prop.enum.length === 1 &&
-    typeof prop.enum[0] === 'string'
+    prop.enum.length > 0 &&
+    prop.enum.every((value) => typeof value === 'string')
   ) {
-    return prop.enum[0];
+    return prop.enum as string[];
   }
   return undefined;
 };
@@ -182,12 +178,6 @@ const getNegatedEnumValues = (prop: JsonSchemaObject): string[] | undefined => {
 
 /**
  * Attempts to find a discriminator property common to all options.
- * A discriminator must:
- * 1. Be present in 'properties' of all options (resolving $refs and allOf if needed)
- * 2. Be required in all options (checking both direct required and allOf required)
- * 3. Have a constant string value (const or enum: [val]) in all options, OR
- *    have constant values in all but one option which has not:{enum:[those values]}
- * 4. Have unique values across all options (for const values)
  */
 const findImplicitDiscriminator = (
   options: JsonSchema[],
@@ -237,6 +227,7 @@ const findImplicitDiscriminator = (
     let defaultIndex: number | undefined;
     let defaultEnumValues: string[] | undefined;
     let isValidDiscriminator = true;
+    let optionsWithDiscriminator = 0;
 
     for (let i = 0; i < resolvedOptions.length; i++) {
       const opt = resolvedOptions[i];
@@ -268,14 +259,20 @@ const findImplicitDiscriminator = (
       }
 
       // Check for constant value
-      const constValue = getConstValue(prop);
+      const constValue = getDiscriminatorValues(prop);
       if (constValue !== undefined) {
-        if (constValuesSet.has(constValue)) {
-          isValidDiscriminator = false; // Duplicate value found
+        optionsWithDiscriminator += 1;
+        for (const value of constValue) {
+          if (constValuesSet.has(value)) {
+            isValidDiscriminator = false; // Duplicate value found
+            break;
+          }
+          constValuesSet.add(value);
+          constValues.push(value);
+        }
+        if (!isValidDiscriminator) {
           break;
         }
-        constValuesSet.add(constValue);
-        constValues.push(constValue);
         continue;
       }
 
@@ -302,7 +299,7 @@ const findImplicitDiscriminator = (
     }
 
     // Check if all options have const values (full discriminated union)
-    if (constValues.length === resolvedOptions.length) {
+    if (optionsWithDiscriminator === resolvedOptions.length) {
       return { type: 'full', key };
     }
 
@@ -310,7 +307,7 @@ const findImplicitDiscriminator = (
     if (
       defaultIndex !== undefined &&
       defaultEnumValues !== undefined &&
-      constValues.length === resolvedOptions.length - 1
+      optionsWithDiscriminator === resolvedOptions.length - 1
     ) {
       // Verify the negated enum exactly matches the const values
       const enumSet = new Set(defaultEnumValues);
@@ -367,96 +364,40 @@ export const parseOneOf = (
     };
   }
 
-  // Note: 'withDefault' case (discriminated union with catch-all) cannot be optimized
-  // in Zod v4 because ZodDiscriminatedUnion cannot be nested inside ZodUnion at the type level.
-  // The runtime would work, but the types wouldn't match, causing compile errors.
-  // So we fall through to the regular union handling below.
+  // Fallback: Use z.xor for exclusive unions
+  // z.xor takes exactly two arguments. 
+  // If more than 2, we must nest them: z.xor(A, z.xor(B, C)) ?
+  // Or usage says: export function xor<const T extends readonly core.SomeType[]>(options: T, ...): ZodXor<T>
+  // Wait, let's check `schemas.ts` again.
+  // export function xor<const T extends readonly core.SomeType[]>(options: T, params?: ...): ZodXor<T>
+  // It takes an array of options! 
+  // Wait, in `from-json-schema.ts` (Zod repo), how is it used?
+  // It uses `z.xor`.
+  // Let's verify `schemas.ts` content I viewed earlier.
+  // Line 1368: export function xor<const T extends readonly core.SomeType[]>(options: T, params?: ...): ZodXor<T>
+  // Yes, it takes an array `options`. 
+  // It says "Unlike regular unions that succeed when any option matches, xor fails if zero or more than one option matches the input."
+  // Perfect.
 
-  // If the parent object has its own shape (properties/patternProperties/additionalProperties)
-  // or explicitly forbids unevaluated properties, we shouldn't make the oneOf branches strict.
-  // Otherwise, the intersection with the parent schema would reject the parent's properties
-  // before the union gets a chance to validate.
-  const parentHasDirectObjectShape = Boolean(
-    schema.properties ||
-    schema.patternProperties ||
-    schema.additionalProperties,
-  );
-  const parentForbidsUnevaluated = schema.unevaluatedProperties === false;
-
-  // Fallback: Standard z.union
-  const parsedSchemas: SchemaRepresentation[] = schema.oneOf.map((s, i) => {
-    const extracted = extractInlineObject(s, refs, [...refs.path, "oneOf", i]);
-    if (extracted) {
-      // extractInlineObject returns a refName string
-      return { expression: extracted, type: `typeof ${extracted}` };
-    }
-
-    let parsed = parseSchema(s, {
+  const parsedSchemas = schema.oneOf.map((s, i) => {
+    const parsed = parseSchema(s, {
       ...refs,
       path: [...refs.path, "oneOf", i],
     });
 
-    // Make regular unions stricter: if it's an object, it shouldn't match emptiness.
-    // Ensure we only apply .strict() to actual z.object() calls.
-    if (
-      typeof s === "object" &&
-      s !== null &&
-      (s.type === "object" || s.properties) &&
-      !s.$ref &&
-      parsed.expression.startsWith("z.object(") && // Critical check: Must be a Zod object
-      !parsed.expression.includes(".and(") &&
-      !parsed.expression.includes(".intersection(") &&
-      !parentHasDirectObjectShape &&
-      !parentForbidsUnevaluated &&
-      !parsed.expression.includes(".strict()") &&
-      !parsed.expression.includes(".catchall") &&
-      !parsed.expression.includes(".passthrough")
-    ) {
-      parsed = {
-        expression: parsed.expression + ".strict()",
-        type: parsed.type, // .strict() doesn't change the Zod type
-      };
-    }
+
 
     return parsed;
   });
 
-  // Build the union types for the SchemaRepresentation
-  const unionTypes = parsedSchemas.map(r => r.type).join(", ");
-  const unionExpression = `z.union([${parsedSchemas.map(r => r.expression).join(", ")}])`;
+  const expressions = parsedSchemas.map(r => r.expression).join(", ");
+  const types = parsedSchemas.map(r => r.type).join(", ");
 
-  if (refs.strictOneOf) {
-    const schemasExpressions = parsedSchemas.map(r => r.expression).join(", ");
-    const expression = `${unionExpression}.superRefine((x, ctx) => {
-    const schemas = [${schemasExpressions}];
-    const errors = schemas.reduce<z.ZodError[]>(
-      (errors, schema) =>
-        ((result) =>
-          result.error ? [...errors, result.error] : errors)(
-          schema.safeParse(x),
-        ),
-      [],
-    );
-    if (schemas.length - errors.length !== 1) {
-      ctx.addIssue({
-        path: [],
-        code: "invalid_union",
-        errors: errors.map(e => e.issues),
-        message: "Invalid input: Should pass single schema",
-      });
-    }
-  })`;
-
-    return {
-      expression,
-      // In Zod v4, .superRefine() doesn't change the type
-      type: `z.ZodUnion<readonly [${unionTypes}]>`,
-    };
-  }
+  const expression = `z.xor([${expressions}])`;
+  const type = `z.ZodXor<readonly [${types}]>`;
 
   return {
-    expression: unionExpression,
-    // Use readonly tuple for union type annotations (required for recursive type inference)
-    type: `z.ZodUnion<readonly [${unionTypes}]>`,
+    expression,
+    type,
   };
 };

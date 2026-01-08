@@ -32,9 +32,10 @@ export type JsonSchemaObject = {
   definitions?: Record<string, JsonSchema>;
   title?: string;
   description?: string;
-  examples?: Serializable[];
+  examples?: Serializable | Serializable[];
   deprecated?: boolean;
   dependentSchemas?: Record<string, JsonSchema>;
+  dependentRequired?: Record<string, string[]>;
   contains?: JsonSchema;
   minContains?: number;
   maxContains?: number;
@@ -51,6 +52,7 @@ export type JsonSchemaObject = {
 
   // array
   items?: JsonSchema | JsonSchema[];
+  prefixItems?: JsonSchema[];
   additionalItems?: JsonSchema;
   minItems?: number;
   maxItems?: number;
@@ -139,6 +141,14 @@ export type Options = {
    */
   strictOneOf?: boolean;
   /**
+   * Root schema instance for JSON Pointer resolution (#/...).
+   */
+  root?: JsonSchema;
+  /**
+   * Full document root schema instance for cross-reference resolution.
+   */
+  documentRoot?: JsonSchema;
+  /**
    * Called when a string format is encountered that has no built-in mapping.
    * Can be used to log or throw on unknown formats.
    */
@@ -153,6 +163,10 @@ export type Options = {
    * Return a JsonSchema to register, or undefined if not found.
    */
   resolveExternalRef?: (uri: string) => JsonSchema | Promise<JsonSchema> | undefined;
+  /** Root/base URI for the document */
+  rootBaseUri?: string;
+  /** Prebuilt registry of resolved URIs/anchors */
+  refRegistry?: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
   /**
    * Lift inline object schemas into top-level defs to improve reusability.
    * Default is ON; set enable: false to opt out.
@@ -188,6 +202,7 @@ export type Refs = Options & {
   rootBaseUri?: string;
   /** Prebuilt registry of resolved URIs/anchors */
   refRegistry?: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
+  definitions?: Record<string, JsonSchema>;
   /** Stack of active dynamic anchors (nearest last) */
   dynamicAnchors?: { name: string; uri: string; path: (string | number)[] }[];
 };

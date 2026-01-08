@@ -1,5 +1,5 @@
-import { parseAnyOf } from "../../src/parsers/parseAnyOf";
-import { suite } from "../suite";
+import { parseAnyOf } from "../../src/parsers/parseAnyOf.js";
+import { suite } from "../suite.js";
 
 suite("parseAnyOf", (test) => {
   test("should create a union from two or more schemas", (assert) => {

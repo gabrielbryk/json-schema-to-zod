@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { writeFileSync, unlinkSync } from "fs";
 import { jsonSchemaToZod } from "../src/jsonSchemaToZod.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 suite("eval", (test) => {
   test("generated ESM schema is importable and validates correctly", (assert) => {

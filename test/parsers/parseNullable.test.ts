@@ -1,5 +1,7 @@
-import { parseSchema } from "../../src";
-import { suite } from "../suite";
+
+import { parseSchema } from "../../src/index.js";
+
+import { suite } from "../suite.js";
 
 suite("parseNullable", (test) => {
   test("parseSchema should not add default twice", (assert) => {

@@ -1,0 +1,67 @@
+
+> @gabrielbryk/json-schema-to-zod@2.12.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest test/jsonSchemaToZod.test.ts
+
+  console.log
+    import { z } from "zod";
+    const _Node = z.object({ "value": z.string(), get "next"(): z.ZodOptional<typeof Node> { return Node.optional(); } });
+    export const Node = _Node.passthrough();
+    export default Node;
+
+      at test/jsonSchemaToZod.test.ts:341:13
+
+(node:175) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/jsonSchemaToZod.test.ts
+  jsonSchemaToZod
+    ✓ should accept json schema 7 and 4 (6 ms)
+    ✓ should produce a string of JS code creating a Zod schema from a simple JSON schema (1 ms)
+    ✓ should be possible to skip the import line
+    ✓ should be possible to add types (1 ms)
+    ✓ should be possible to add types with a custom name template
+    ✓ should throw when given type but no name
+    ✓ should include defaults
+    ✓ should include falsy defaults
+    ✓ should include falsy defaults (1 ms)
+    ✓ can exclude defaults
+    ✓ should include describes (1 ms)
+    ✓ can exclude describes
+    ✓ can include jsdocs (2 ms)
+    ✓ will remove optionality if default is present (1 ms)
+    ✓ will handle falsy defaults
+    ✓ will ignore undefined as default
+    ✓ should be possible to define a custom parser (1 ms)
+    ✓ can output with name
+    ✓ can output without name
+    ✕ declares $refs as named schemas and uses getters for recursion (10 ms)
+    ✓ uses upgraded discriminatedUnion map syntax (1 ms)
+    ✓ supports propertyNames validation (1 ms)
+    ✓ supports dependentSchemas (1 ms)
+    ✓ supports contains with min/max contains (1 ms)
+    ✓ supports contains on tuples (1 ms)
+    ✓ can export reference declarations when requested
+
+  ● jsonSchemaToZod › declares $refs as named schemas and uses getters for recursion
+
+    expect(received).toStrictEqual(expected) // deep equality
+
+    Expected: true
+    Received: false
+
+      71 |           }
+      72 |
+    > 73 |           expect(result).toStrictEqual(expected);
+         |                          ^
+      74 |         });
+      75 |       });
+      76 |     });
+
+      at test/suite.ts:73:26
+      at test/jsonSchemaToZod.test.ts:344:5
+      at Object.<anonymous> (test/suite.ts:19:9)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 25 passed, 26 total
+Snapshots:   0 total
+Time:        0.363 s, estimated 1 s
+Ran all test suites matching /test\/jsonSchemaToZod.test.ts/i.

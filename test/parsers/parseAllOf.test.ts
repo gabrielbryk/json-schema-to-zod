@@ -1,5 +1,5 @@
-import { parseAllOf } from "../../src/parsers/parseAllOf";
-import { suite } from "../suite";
+import { parseAllOf } from "../../src/parsers/parseAllOf.js";
+import { suite } from "../suite.js";
 
 suite("parseAllOf", (test) => {
   test("should create never if empty", (assert) => {
@@ -18,7 +18,7 @@ suite("parseAllOf", (test) => {
     assert(
       parseAllOf(
         {
-          allOf: [{type: "string"}, true],
+          allOf: [{ type: "string" }, true],
         },
         { path: [], seen: new Map() },
       ),
@@ -30,7 +30,7 @@ suite("parseAllOf", (test) => {
     assert(
       parseAllOf(
         {
-          allOf: [{type: "string"}, false],
+          allOf: [{ type: "string" }, false],
         },
         { path: [], seen: new Map() },
       ),
