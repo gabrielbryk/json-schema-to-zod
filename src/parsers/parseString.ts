@@ -4,7 +4,7 @@ import { parseSchema } from "./parseSchema.js";
 
 export const parseString = (
   schema: JsonSchemaObject & { type: "string" },
-  refs?: Refs,
+  refs?: Refs
 ): SchemaRepresentation => {
   const formatError = schema.errorMessage?.format;
   const refContext: Refs = ensureRefs(refs);
@@ -12,8 +12,8 @@ export const parseString = (
   // Map formats to Zod string methods
   const topLevelFormatMap: Record<string, { fn: string; zodType: string }> = {
     email: { fn: "z.email", zodType: "z.ZodString" },
-    ipv4: { fn: 'z.ipv4', zodType: "z.ZodString" },
-    ipv6: { fn: 'z.ipv6', zodType: "z.ZodString" },
+    ipv4: { fn: "z.ipv4", zodType: "z.ZodString" },
+    ipv6: { fn: "z.ipv6", zodType: "z.ZodString" },
     uri: { fn: "z.url", zodType: "z.ZodString" },
     uuid: { fn: "z.uuid", zodType: "z.ZodString" },
     cuid: { fn: "z.cuid", zodType: "z.ZodString" },

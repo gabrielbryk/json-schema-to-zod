@@ -5,21 +5,22 @@ import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseArray = (
   schema: JsonSchemaObject & { type: "array" },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   // JSON Schema 2020-12 uses `prefixItems` for tuples.
   // Older drafts used `items` as an array.
-  const prefixItems = schema.prefixItems || (Array.isArray(schema.items) ? schema.items : undefined);
+  const prefixItems =
+    schema.prefixItems || (Array.isArray(schema.items) ? schema.items : undefined);
 
   if (prefixItems) {
     // Tuple case
     const itemResults = prefixItems.map((v, i) =>
-      parseSchema(v, { ...refs, path: [...refs.path, "prefixItems", i] }),
+      parseSchema(v, { ...refs, path: [...refs.path, "prefixItems", i] })
     );
 
-    let tuple = `z.tuple([${itemResults.map(r => r.expression).join(", ")}])`;
+    let tuple = `z.tuple([${itemResults.map((r) => r.expression).join(", ")}])`;
     // We construct the type manually for the tuple part
-    let tupleTypes = itemResults.map(r => r.type).join(", ");
+    let tupleTypes = itemResults.map((r) => r.type).join(", ");
     let tupleType = `z.ZodTuple<[${tupleTypes}], null>`; // Default null rest
 
     // Handle "additionalItems" (older drafts) or "items" (2020-12 when prefixItems is used)
@@ -30,9 +31,13 @@ export const parseArray = (
     if (additionalSchema === false) {
       // Closed tuple
     } else if (additionalSchema) {
-      const restSchema = (additionalSchema === true)
-        ? anyOrUnknown(refs)
-        : parseSchema(additionalSchema as JsonSchemaObject, { ...refs, path: [...refs.path, "items"] });
+      const restSchema =
+        additionalSchema === true
+          ? anyOrUnknown(refs)
+          : parseSchema(additionalSchema as JsonSchemaObject, {
+              ...refs,
+              path: [...refs.path, "items"],
+            });
 
       tuple += `.rest(${restSchema.expression})`;
       tupleType = `z.ZodTuple<[${tupleTypes}], ${restSchema.type}>`;
@@ -72,12 +77,13 @@ export const parseArray = (
   const itemsSchema = schema.items;
 
   const anyOrUnknownResult = anyOrUnknown(refs);
-  const itemResult = (!itemsSchema || itemsSchema === true)
-    ? anyOrUnknownResult
-    : parseSchema(itemsSchema as JsonSchemaObject, {
-      ...refs,
-      path: [...refs.path, "items"],
-    });
+  const itemResult =
+    !itemsSchema || itemsSchema === true
+      ? anyOrUnknownResult
+      : parseSchema(itemsSchema as JsonSchemaObject, {
+          ...refs,
+          path: [...refs.path, "items"],
+        });
 
   let r = `z.array(${itemResult.expression})`;
   let arrayType = `z.ZodArray<${itemResult.type}>`;

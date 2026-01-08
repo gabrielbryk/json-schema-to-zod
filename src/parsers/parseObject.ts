@@ -5,10 +5,9 @@ import { parseSchema } from "./parseSchema.js";
 
 import { addJsdocs } from "../utils/jsdocs.js";
 
-
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation {
   const explicitProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
   const requiredProps = Array.isArray(objectSchema.required) ? objectSchema.required : [];
@@ -31,7 +30,7 @@ export function parseObject(
         // Check "required" array from parent
         const isRequired = Array.isArray(objectSchema.required)
           ? objectSchema.required.includes(key)
-          : (typeof propSchema === "object" && propSchema.required === true);
+          : typeof propSchema === "object" && propSchema.required === true;
 
         const isOptional = !hasDefault && !isRequired;
 
@@ -63,7 +62,8 @@ export function parseObject(
   // Logic to determine if we need manual handling of additionalProperties
   // This is required if we have patternProperties AND additionalProperties is restrictive (false or schema)
   // because Zod's .catchall() or .strict() would incorrectly rejeect/validate pattern-matched keys.
-  const isAdPropsRestrictive = additionalProps === false || (additionalProps && typeof additionalProps === "object");
+  const isAdPropsRestrictive =
+    additionalProps === false || (additionalProps && typeof additionalProps === "object");
   const manualAdditionalProps = hasPattern && isAdPropsRestrictive;
 
   let addPropsSchema: SchemaRepresentation | undefined;
@@ -71,13 +71,19 @@ export function parseObject(
   if (manualAdditionalProps) {
     baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
     if (typeof additionalProps === "object") {
-      addPropsSchema = parseSchema(additionalProps, { ...refs, path: [...refs.path, "additionalProperties"] });
+      addPropsSchema = parseSchema(additionalProps, {
+        ...refs,
+        path: [...refs.path, "additionalProperties"],
+      });
     }
   } else {
     if (additionalProps === false) {
       baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.strictObject(");
     } else if (additionalProps && typeof additionalProps === "object") {
-      addPropsSchema = parseSchema(additionalProps, { ...refs, path: [...refs.path, "additionalProperties"] });
+      addPropsSchema = parseSchema(additionalProps, {
+        ...refs,
+        path: [...refs.path, "additionalProperties"],
+      });
       baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
       baseObjectModified += `.catchall(${addPropsSchema.expression})`;
     } else {
@@ -91,7 +97,10 @@ export function parseObject(
 
   if (hasPattern) {
     for (const [pattern, schema] of Object.entries(patternProps)) {
-      const validSchema = parseSchema(schema, { ...refs, path: [...refs.path, "patternProperties", pattern] });
+      const validSchema = parseSchema(schema, {
+        ...refs,
+        path: [...refs.path, "patternProperties", pattern],
+      });
       const keySchema = `z.string().regex(new RegExp(${JSON.stringify(pattern)}))`;
       const recordExpr = `z.looseRecord(${keySchema}, ${validSchema.expression})`;
 
@@ -108,16 +117,17 @@ export function parseObject(
   for (const key in value) {
     if (${JSON.stringify(definedProps)}.includes(key)) continue;
     let matched = false;
-    ${patterns.map(p => `if (new RegExp(${JSON.stringify(p)}).test(key)) matched = true;`).join("\n    ")}
+    ${patterns.map((p) => `if (new RegExp(${JSON.stringify(p)}).test(key)) matched = true;`).join("\n    ")}
     if (matched) continue;
     
-    ${additionalProps === false
+    ${
+      additionalProps === false
         ? `ctx.addIssue({ code: "custom", message: "Invalid key/Strict", path: [...ctx.path, key] });`
         : `const result = ${addPropsSchema!.expression}.safeParse(value[key]);
     if (!result.success) {
         ctx.addIssue({ path: [...ctx.path, key], code: "custom", message: "Invalid additional property", params: { issues: result.error.issues } });
     }`
-      }
+    }
   }
 })`;
   }
@@ -128,7 +138,7 @@ export function parseObject(
     // Cast because we checked it exists
     const schemaWithAllOf = objectSchema as JsonSchemaObject & { allOf: JsonSchema[] };
     // Note: parseAllOf usually handles the whole schema logic, filtering properties.
-    // But typically allOf implies intersection. 
+    // But typically allOf implies intersection.
     // If we just use simple intersection:
     schemaWithAllOf.allOf.forEach((s, i) => {
       const res = parseSchema(s, { ...refs, path: [...refs.path, "allOf", i] });
@@ -156,9 +166,9 @@ export function parseObject(
   if (objectSchema.propertyNames) {
     const normalizedPropNames =
       typeof objectSchema.propertyNames === "object" &&
-        objectSchema.propertyNames !== null &&
-        !objectSchema.propertyNames.type &&
-        (objectSchema.propertyNames as JsonSchemaObject).pattern
+      objectSchema.propertyNames !== null &&
+      !objectSchema.propertyNames.type &&
+      (objectSchema.propertyNames as JsonSchemaObject).pattern
         ? { ...(objectSchema.propertyNames as JsonSchemaObject), type: "string" }
         : objectSchema.propertyNames;
 
@@ -188,16 +198,19 @@ export function parseObject(
     if (entries.length) {
       finalExpr += `.superRefine((obj, ctx) => {
   ${entries
-          .map(([key, schema]) => {
-            const parsed = parseSchema(schema, { ...refs, path: [...refs.path, "dependentSchemas", key] });
-            return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(key)})) {
+    .map(([key, schema]) => {
+      const parsed = parseSchema(schema, {
+        ...refs,
+        path: [...refs.path, "dependentSchemas", key],
+      });
+      return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(key)})) {
     const result = ${parsed.expression}.safeParse(obj);
     if (!result.success) {
       ctx.addIssue({ code: "custom", message: ${(objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentSchemas ?? JSON.stringify("Dependent schema failed")}, path: [], params: { issues: result.error.issues } });
     }
   }`;
-          })
-          .join("\n  ")}
+    })
+    .join("\n  ")}
 })`;
     }
   }
@@ -207,25 +220,25 @@ export function parseObject(
     const entries = Object.entries(objectSchema.dependentRequired);
     if (entries.length) {
       const depRequiredMessage =
-        (objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentRequired ??
-        "Dependent required properties missing";
+        (objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage
+          ?.dependentRequired ?? "Dependent required properties missing";
       finalExpr += `.superRefine((obj, ctx) => {
   ${entries
-          .map(([prop, deps]) => {
-            const arr = Array.isArray(deps) ? deps : [];
-            if (!arr.length) return "";
-            const jsonDeps = JSON.stringify(arr);
-            return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(prop)})) {
+    .map(([prop, deps]) => {
+      const arr = Array.isArray(deps) ? deps : [];
+      if (!arr.length) return "";
+      const jsonDeps = JSON.stringify(arr);
+      return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(prop)})) {
     const missing = ${jsonDeps}.filter((d) => !Object.prototype.hasOwnProperty.call(obj, d));
     if (missing.length) {
       ctx.addIssue({ code: "custom", message: ${JSON.stringify(
-              depRequiredMessage,
-            )}, path: [], params: { missing } });
+        depRequiredMessage
+      )}, path: [], params: { missing } });
     }
   }`;
-          })
-          .filter(Boolean)
-          .join("\n  ")}
+    })
+    .filter(Boolean)
+    .join("\n  ")}
 })`;
     }
   }
@@ -233,17 +246,17 @@ export function parseObject(
   // Calculate Type
   let type = "z.ZodObject<any>";
   if (propertyTypes.length) {
-    const shape = propertyTypes.map(p => `${JSON.stringify(p.key)}: ${p.type}`).join("; ");
+    const shape = propertyTypes.map((p) => `${JSON.stringify(p.key)}: ${p.type}`).join("; ");
     type = `z.ZodObject<{${shape}}>`;
   }
 
   // If intersections
-  intersectionTypes.forEach(t => {
+  intersectionTypes.forEach((t) => {
     type = `z.ZodIntersection<${type}, ${t}>`;
   });
 
   return {
     expression: finalExpr,
-    type
+    type,
   };
 }

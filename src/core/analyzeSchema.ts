@@ -18,15 +18,21 @@ export type AnalysisResult = {
   dependencies: Map<string, Set<string>>;
   cycleRefNames: Set<string>;
   cycleComponentByName: Map<string, number>;
-  refRegistry: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
+  refRegistry: Map<
+    string,
+    {
+      schema: JsonSchema;
+      path: (string | number)[];
+      baseUri: string;
+      dynamic?: boolean;
+      anchor?: string;
+    }
+  >;
   rootBaseUri: string;
   definitions?: Record<string, JsonSchema>;
 };
 
-export const analyzeSchema = (
-  schema: JsonSchema,
-  options: Options = {},
-): AnalysisResult => {
+export const analyzeSchema = (schema: JsonSchema, options: Options = {}): AnalysisResult => {
   const { name, type, ...rest } = options;
 
   if (type && !name) {

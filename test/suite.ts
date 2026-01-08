@@ -33,7 +33,7 @@ export function suite(suiteName: string, suiteContext: SuiteContext): void {
                 "fileName" in item &&
                 typeof (item as { fileName: unknown }).fileName === "string" &&
                 "contents" in item &&
-                typeof (item as { contents: unknown }).contents === "string",
+                typeof (item as { contents: unknown }).contents === "string"
             ) &&
             expected.every(
               (item) =>
@@ -42,7 +42,7 @@ export function suite(suiteName: string, suiteContext: SuiteContext): void {
                 "fileName" in item &&
                 typeof (item as { fileName: unknown }).fileName === "string" &&
                 "contents" in item &&
-                typeof (item as { contents: unknown }).contents === "string",
+                typeof (item as { contents: unknown }).contents === "string"
             )
           ) {
             const normalizeFiles = (arr: { fileName: string; contents: string }[]) =>
@@ -61,7 +61,7 @@ export function suite(suiteName: string, suiteContext: SuiteContext): void {
             typeof (result as Record<string, unknown>).expression === "string"
           ) {
             expect(normalizeString((result as { expression: string }).expression)).toBe(
-              normalizeString(expected),
+              normalizeString(expected)
             );
             return;
           }

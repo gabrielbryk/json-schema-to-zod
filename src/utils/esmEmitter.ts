@@ -38,11 +38,22 @@ const normalizeJsdoc = (jsdoc?: string): string | undefined => {
 const attachJsdoc = <T extends ts.Node>(node: T, jsdoc?: string): T => {
   const normalized = normalizeJsdoc(jsdoc);
   if (!normalized) return node;
-  return ts.addSyntheticLeadingComment(node, ts.SyntaxKind.MultiLineCommentTrivia, normalized, true);
+  return ts.addSyntheticLeadingComment(
+    node,
+    ts.SyntaxKind.MultiLineCommentTrivia,
+    normalized,
+    true
+  );
 };
 
 const parseExpression = (expression: string): ts.Expression => {
-  const sf = ts.createSourceFile("expr.ts", `${expression};`, ts.ScriptTarget.ES2020, false, ts.ScriptKind.TS);
+  const sf = ts.createSourceFile(
+    "expr.ts",
+    `${expression};`,
+    ts.ScriptTarget.ES2020,
+    false,
+    ts.ScriptKind.TS
+  );
   const stmt = sf.statements[0];
   if (stmt && ts.isExpressionStatement(stmt)) {
     return stmt.expression;
@@ -51,7 +62,13 @@ const parseExpression = (expression: string): ts.Expression => {
 };
 
 const parseType = (type: string): ts.TypeNode => {
-  const sf = ts.createSourceFile("type.ts", `type __T = ${type};`, ts.ScriptTarget.ES2020, false, ts.ScriptKind.TS);
+  const sf = ts.createSourceFile(
+    "type.ts",
+    `type __T = ${type};`,
+    ts.ScriptTarget.ES2020,
+    false,
+    ts.ScriptKind.TS
+  );
   const stmt = sf.statements[0];
   if (stmt && ts.isTypeAliasDeclaration(stmt)) {
     return stmt.type;
@@ -72,9 +89,19 @@ export class EsmEmitter {
   addConst(statement: ConstStatement): void {
     const initializer = parseExpression(statement.expression);
     const typeNode = statement.typeAnnotation ? parseType(statement.typeAnnotation) : undefined;
-    const decl = ts.factory.createVariableDeclaration(statement.name, undefined, typeNode, initializer);
-    const modifiers = statement.exported ? [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)] : undefined;
-    const varStmt = ts.factory.createVariableStatement(modifiers, ts.factory.createVariableDeclarationList([decl], ts.NodeFlags.Const));
+    const decl = ts.factory.createVariableDeclaration(
+      statement.name,
+      undefined,
+      typeNode,
+      initializer
+    );
+    const modifiers = statement.exported
+      ? [ts.factory.createModifier(ts.SyntaxKind.ExportKeyword)]
+      : undefined;
+    const varStmt = ts.factory.createVariableStatement(
+      modifiers,
+      ts.factory.createVariableDeclarationList([decl], ts.NodeFlags.Const)
+    );
     this.#statements.push({ node: attachJsdoc(varStmt, statement.jsdoc) });
   }
 
@@ -82,7 +109,7 @@ export class EsmEmitter {
     const assignment = ts.factory.createExportAssignment(
       undefined,
       false,
-      parseExpression(statement.expression),
+      parseExpression(statement.expression)
     );
     this.#statements.push({ node: attachJsdoc(assignment, statement.jsdoc) });
   }
@@ -93,7 +120,7 @@ export class EsmEmitter {
       modifiers,
       statement.name,
       undefined,
-      parseType(statement.type),
+      parseType(statement.type)
     );
     this.#statements.push({ node: attachJsdoc(typeAlias, statement.jsdoc), compact: true });
   }
@@ -113,13 +140,19 @@ export class EsmEmitter {
             false,
             undefined,
             ts.factory.createNamedImports(
-              [...names].sort().map((name) =>
-                ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name)),
-              ),
-            ),
+              [...names]
+                .sort()
+                .map((name) =>
+                  ts.factory.createImportSpecifier(
+                    false,
+                    undefined,
+                    ts.factory.createIdentifier(name)
+                  )
+                )
+            )
           ),
-          ts.factory.createStringLiteral(source),
-        ),
+          ts.factory.createStringLiteral(source)
+        )
       );
 
     const allStatements: Array<{ node: ts.Statement; compact?: boolean }> = [
@@ -128,7 +161,10 @@ export class EsmEmitter {
     ];
     if (allStatements.length === 0) return "";
 
-    const file = ts.factory.updateSourceFile(sf, ts.factory.createNodeArray(allStatements.map((s) => s.node)));
+    const file = ts.factory.updateSourceFile(
+      sf,
+      ts.factory.createNodeArray(allStatements.map((s) => s.node))
+    );
     const printed = printer.printFile(file);
 
     return printed.endsWith("\n") ? printed : `${printed}\n`;

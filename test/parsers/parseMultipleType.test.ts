@@ -15,7 +15,7 @@ suite("parseMultipleType", (test) => {
     };
     assert(
       parseSchema(schema, { path: [], seen: new Map() }),
-      `z.looseObject({ "prop": z.union([z.string(), z.null()]).default(null) })`,
+      `z.looseObject({ "prop": z.union([z.string(), z.null()]).default(null) })`
     );
   });
 });

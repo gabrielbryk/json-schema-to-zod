@@ -1,7 +1,7 @@
 import { JsonSchemaObject, SchemaRepresentation, Serializable } from "../Types.js";
 
 export const parseEnum = (
-  schema: JsonSchemaObject & { enum: Serializable[] },
+  schema: JsonSchemaObject & { enum: Serializable[] }
 ): SchemaRepresentation => {
   if (schema.enum.length === 0) {
     return {

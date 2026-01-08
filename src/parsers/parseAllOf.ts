@@ -7,7 +7,9 @@ const originalIndexKey = "__originalIndex";
 /**
  * Check if a schema defines object properties (inline object shape) without any refs.
  */
-const isInlineObjectOnly = (schema: JsonSchema): schema is JsonSchemaObject & { properties: Record<string, JsonSchema> } => {
+const isInlineObjectOnly = (
+  schema: JsonSchema
+): schema is JsonSchemaObject & { properties: Record<string, JsonSchema> } => {
   if (typeof schema !== "object" || schema === null) return false;
   const obj = schema as JsonSchemaObject;
   // Must have properties
@@ -42,12 +44,8 @@ const parseObjectShape = (
       : typeof propSchema === "object" && propSchema.required === true;
     const optional = !hasDefault && !required;
 
-    const valueExpr = optional
-      ? `${parsedProp.expression}.exactOptional()`
-      : parsedProp.expression;
-    const valueType = optional
-      ? `z.ZodExactOptional<${parsedProp.type}>`
-      : parsedProp.type;
+    const valueExpr = optional ? `${parsedProp.expression}.exactOptional()` : parsedProp.expression;
+    const valueType = optional ? `z.ZodExactOptional<${parsedProp.type}>` : parsedProp.type;
 
     shapeEntries.push(`${JSON.stringify(key)}: ${valueExpr}`);
     shapeTypes.push(`${JSON.stringify(key)}: ${valueType}`);
@@ -70,7 +68,8 @@ const trySpreadPattern = (
 
   for (let i = 0; i < allOfMembers.length; i++) {
     const member = allOfMembers[i];
-    const idx = (member as JsonSchemaObject & { [originalIndexKey]?: number })[originalIndexKey] ?? i;
+    const idx =
+      (member as JsonSchemaObject & { [originalIndexKey]?: number })[originalIndexKey] ?? i;
 
     // Only handle pure inline objects - no refs allowed
     if (!isInlineObjectOnly(member)) {
@@ -78,11 +77,11 @@ const trySpreadPattern = (
     }
 
     // Extract shape entries from inline object
-    const { shapeEntries: entries, shapeTypes: types } = parseObjectShape(
-      member,
-      refs,
-      [...refs.path, "allOf", idx]
-    );
+    const { shapeEntries: entries, shapeTypes: types } = parseObjectShape(member, refs, [
+      ...refs.path,
+      "allOf",
+      idx,
+    ]);
     shapeEntries.push(...entries);
     shapeTypes.push(...types);
   }
@@ -101,14 +100,8 @@ const ensureOriginalIndex = (arr: JsonSchema[]) => {
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (typeof item === "boolean") {
-      newArr.push(
-        item ? { [originalIndexKey]: i } : { [originalIndexKey]: i, not: {} },
-      );
-    } else if (
-      typeof item === "object" &&
-      item !== null &&
-      originalIndexKey in item
-    ) {
+      newArr.push(item ? { [originalIndexKey]: i } : { [originalIndexKey]: i, not: {} });
+    } else if (typeof item === "object" && item !== null && originalIndexKey in item) {
       return arr as (JsonSchemaObject & { [originalIndexKey]: number })[];
     } else {
       newArr.push({ ...(item as JsonSchemaObject), [originalIndexKey]: i });
@@ -120,7 +113,7 @@ const ensureOriginalIndex = (arr: JsonSchema[]) => {
 
 export function parseAllOf(
   schema: JsonSchemaObject & { allOf: JsonSchema[] },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation {
   if (schema.allOf.length === 0) {
     return { expression: "z.never()", type: "z.ZodNever" };
@@ -132,13 +125,9 @@ export function parseAllOf(
       path: [
         ...refs.path,
         "allOf",
-        (item as JsonSchemaObject & { [originalIndexKey]?: number })[
-        originalIndexKey
-        ] ?? 0,
+        (item as JsonSchemaObject & { [originalIndexKey]?: number })[originalIndexKey] ?? 0,
       ],
     });
-
-
 
     return parsed;
   } else {

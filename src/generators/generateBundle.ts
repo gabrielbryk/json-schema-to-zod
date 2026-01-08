@@ -59,7 +59,10 @@ export type RefResolutionOptions = {
    */
   lazyCrossRefs?: boolean;
   /** Called for unknown $refs (outside of $defs/definitions) */
-  onUnknownRef?: (ctx: { ref: string; currentDef: string | null }) => RefResolutionResult | undefined;
+  onUnknownRef?: (ctx: {
+    ref: string;
+    currentDef: string | null;
+  }) => RefResolutionResult | undefined;
 };
 
 export type NestedTypesOptions = {
@@ -80,7 +83,10 @@ export type SchemaBundleResult = {
   defNames: string[];
 };
 
-export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundleOptions = {}): SchemaBundleResult => {
+export const generateSchemaBundle = (
+  schema: JsonSchema,
+  options: GenerateBundleOptions = {}
+): SchemaBundleResult => {
   if (!schema || typeof schema !== "object") {
     throw new Error("generateSchemaBundle requires an object schema");
   }
@@ -89,12 +95,15 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   const useLift = liftOpts.enable !== false;
   const liftedSchema = useLift
     ? (liftInlineObjects(schema, {
-      enable: true,
-      nameForPath: liftOpts.nameForPath,
-      parentName: options.splitDefs?.rootTypeName ?? options.splitDefs?.rootName ?? (schema as JsonSchemaObject).title,
-      dedup: liftOpts.dedup === true,
-      allowInDefs: liftOpts.allowInDefs,
-    }).schema as JsonSchemaObject)
+        enable: true,
+        nameForPath: liftOpts.nameForPath,
+        parentName:
+          options.splitDefs?.rootTypeName ??
+          options.splitDefs?.rootName ??
+          (schema as JsonSchemaObject).title,
+        dedup: liftOpts.dedup === true,
+        allowInDefs: liftOpts.allowInDefs,
+      }).schema as JsonSchemaObject)
     : (schema as JsonSchemaObject);
 
   const allDefs: Record<string, JsonSchema> = {
@@ -115,7 +124,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
     options,
     rootName,
     defInfoMap,
-    rootTypeName,
+    rootTypeName
   );
 
   for (const target of targets) {
@@ -135,7 +144,7 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
           usedRefs,
           allDefs,
           options,
-          target.groupId,
+          target.groupId
         ),
       });
 
@@ -151,7 +160,12 @@ export const generateSchemaBundle = (schema: JsonSchema, options: GenerateBundle
   // Nested types extraction (optional)
   const nestedTypesEnabled = options.nestedTypes?.enable;
   if (nestedTypesEnabled) {
-    const nestedTypes = collectNestedTypes(liftedSchema as JsonSchemaObject, allDefs, defNames, rootTypeName ?? rootName);
+    const nestedTypes = collectNestedTypes(
+      liftedSchema as JsonSchemaObject,
+      allDefs,
+      defNames,
+      rootTypeName ?? rootName
+    );
     if (nestedTypes.length > 0) {
       const nestedFileName = options.nestedTypes?.fileName ?? "nested-types.ts";
       const nestedContent = generateNestedTypesFile(nestedTypes);
@@ -175,7 +189,7 @@ const toPascalCase = (str: string): string =>
 const buildDefInfoMap = (
   defNames: string[],
   defs: Record<string, JsonSchema>,
-  options: GenerateBundleOptions,
+  options: GenerateBundleOptions
 ): Map<string, DefInfo> => {
   const map = new Map<string, DefInfo>();
 
@@ -183,9 +197,11 @@ const buildDefInfoMap = (
     const dependencies = findRefDependencies(defs[defName], defNames);
     const pascalName = toPascalCase(defName);
 
-    const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
+    const schemaName =
+      options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
     const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
-    const fileName = options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
+    const fileName =
+      options.splitDefs?.fileName?.(defName, { isRoot: false }) ?? `${defName}.schema.ts`;
 
     map.set(defName, {
       name: defName,
@@ -205,7 +221,7 @@ const buildDefInfoMap = (
 const buildBundleContext = (
   defNames: string[],
   defs: Record<string, JsonSchema>,
-  options: GenerateBundleOptions,
+  options: GenerateBundleOptions
 ) => {
   const defInfoMap = buildDefInfoMap(defNames, defs, options);
   const cycles = detectCycles(defInfoMap);
@@ -236,7 +252,8 @@ const buildBundleContext = (
   const rootTypeName =
     typeof options.type === "string"
       ? options.type
-      : options.splitDefs?.rootTypeName ?? (typeof options.type === "boolean" && options.type ? rootName : undefined);
+      : (options.splitDefs?.rootTypeName ??
+        (typeof options.type === "boolean" && options.type ? rootName : undefined));
 
   return { defInfoMap, rootName, rootTypeName };
 };
@@ -247,7 +264,7 @@ const createRefHandler = (
   usedRefs: Set<string>,
   allDefs: Record<string, JsonSchema>,
   options: GenerateBundleOptions,
-  currentGroupId?: string,
+  currentGroupId?: string
 ) => {
   const useLazyCrossRefs = options.refResolution?.lazyCrossRefs ?? true;
 
@@ -300,7 +317,10 @@ const createRefHandler = (
         return undefined;
       }
 
-      const unknown = options.refResolution?.onUnknownRef?.({ ref: refPath, currentDef: currentDefName });
+      const unknown = options.refResolution?.onUnknownRef?.({
+        ref: refPath,
+        currentDef: currentDefName,
+      });
       if (unknown) return unknown;
 
       return options.useUnknown ? "z.unknown()" : "z.any()";
@@ -313,7 +333,7 @@ const createRefHandler = (
 const buildSchemaFile = (
   zodCodeParts: string[],
   usedRefs: Set<string>,
-  defInfoMap: Map<string, DefInfo>,
+  defInfoMap: Map<string, DefInfo>
 ): string => {
   const groupFileById = new Map<string, string>();
   for (const info of defInfoMap.values()) {
@@ -327,7 +347,9 @@ const buildSchemaFile = (
   for (const refName of [...usedRefs].sort()) {
     const refInfo = defInfoMap.get(refName);
     if (refInfo) {
-      const groupFile = (refInfo.groupId ? groupFileById.get(refInfo.groupId) : null) ?? refInfo.fileName.replace(/\.ts$/, ".js");
+      const groupFile =
+        (refInfo.groupId ? groupFileById.get(refInfo.groupId) : null) ??
+        refInfo.fileName.replace(/\.ts$/, ".js");
       const path = `./${groupFile}`;
       const set = importsByFile.get(path) ?? new Set<string>();
       set.add(refInfo.schemaName);
@@ -362,7 +384,7 @@ const planBundleTargets = (
   options: GenerateBundleOptions,
   rootName: string,
   defInfoMap: Map<string, DefInfo>,
-  rootTypeName?: string,
+  rootTypeName?: string
 ): BundleTarget[] => {
   const targets: BundleTarget[] = [];
 
@@ -381,15 +403,21 @@ const planBundleTargets = (
       const defSchema = defs[defName] as JsonSchemaObject;
       const defSchemaWithDefs: JsonSchemaObject = {
         ...defSchema,
-        $defs: { ...(defs as Record<string, JsonSchema>), ...(defSchema?.$defs as Record<string, JsonSchema> | undefined) },
+        $defs: {
+          ...(defs as Record<string, JsonSchema>),
+          ...(defSchema?.$defs as Record<string, JsonSchema> | undefined),
+        },
         definitions: {
-          ...((defSchema as JsonSchemaObject).definitions as Record<string, JsonSchema> | undefined),
+          ...((defSchema as JsonSchemaObject).definitions as
+            | Record<string, JsonSchema>
+            | undefined),
           ...(definitions as Record<string, JsonSchema>),
         },
       };
 
       const pascalName = toPascalCase(defName);
-      const schemaName = options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
+      const schemaName =
+        options.splitDefs?.schemaName?.(defName, { isRoot: false }) ?? `${pascalName}Schema`;
       const typeName = options.splitDefs?.typeName?.(defName, { isRoot: false }) ?? pascalName;
 
       return { defName, schemaWithDefs: defSchemaWithDefs, schemaName, typeName };
@@ -407,7 +435,8 @@ const planBundleTargets = (
   }
 
   if (options.splitDefs?.includeRoot ?? true) {
-    const rootFile = options.splitDefs?.fileName?.("root", { isRoot: true }) ?? "workflow.schema.ts";
+    const rootFile =
+      options.splitDefs?.fileName?.("root", { isRoot: true }) ?? "workflow.schema.ts";
 
     targets.push({
       groupId: "root",
@@ -434,7 +463,10 @@ const planBundleTargets = (
   return targets;
 };
 
-const findRefDependencies = (schema: JsonSchema | undefined, validDefNames: string[]): Set<string> => {
+const findRefDependencies = (
+  schema: JsonSchema | undefined,
+  validDefNames: string[]
+): Set<string> => {
   const deps = new Set<string>();
 
   const seen = new WeakSet<object>();
@@ -605,7 +637,7 @@ const collectNestedTypes = (
   rootSchema: JsonSchemaObject,
   defs: Record<string, JsonSchema>,
   defNames: string[],
-  rootTypeName: string,
+  rootTypeName: string
 ): NestedTypeInfo[] => {
   const allNestedTypes: NestedTypeInfo[] = [];
 
@@ -622,9 +654,12 @@ const collectNestedTypes = (
   }
 
   const workflowNestedTypes = findNestedTypesInSchema(
-    { properties: (rootSchema as JsonSchemaObject).properties, required: (rootSchema as JsonSchemaObject).required },
+    {
+      properties: (rootSchema as JsonSchemaObject).properties,
+      required: (rootSchema as JsonSchemaObject).required,
+    },
     rootTypeName,
-    defNames,
+    defNames
   );
 
   for (const nested of workflowNestedTypes) {
@@ -647,7 +682,7 @@ const findNestedTypesInSchema = (
   schema: unknown,
   parentTypeName: string,
   defNames: string[],
-  currentPath: string[] = [],
+  currentPath: string[] = []
 ): NestedTypeInfo[] => {
   const nestedTypes: NestedTypeInfo[] = [];
 
@@ -670,13 +705,19 @@ const findNestedTypesInSchema = (
   // inline $defs
   if (record.$defs && typeof record.$defs === "object") {
     for (const [, defSchema] of Object.entries(record.$defs as Record<string, unknown>)) {
-      nestedTypes.push(...findNestedTypesInSchema(defSchema, parentTypeName, defNames, currentPath));
+      nestedTypes.push(
+        ...findNestedTypesInSchema(defSchema, parentTypeName, defNames, currentPath)
+      );
     }
   }
 
   if (record.properties && typeof record.properties === "object") {
-    for (const [propName, propSchema] of Object.entries(record.properties as Record<string, unknown>)) {
-      nestedTypes.push(...findNestedTypesInSchema(propSchema, parentTypeName, defNames, [...currentPath, propName]));
+    for (const [propName, propSchema] of Object.entries(
+      record.properties as Record<string, unknown>
+    )) {
+      nestedTypes.push(
+        ...findNestedTypesInSchema(propSchema, parentTypeName, defNames, [...currentPath, propName])
+      );
     }
   }
 
@@ -687,12 +728,17 @@ const findNestedTypesInSchema = (
   }
 
   if (record.items) {
-    nestedTypes.push(...findNestedTypesInSchema(record.items, parentTypeName, defNames, [...currentPath, "items"]));
+    nestedTypes.push(
+      ...findNestedTypesInSchema(record.items, parentTypeName, defNames, [...currentPath, "items"])
+    );
   }
 
   if (record.additionalProperties && typeof record.additionalProperties === "object") {
     nestedTypes.push(
-      ...findNestedTypesInSchema(record.additionalProperties, parentTypeName, defNames, [...currentPath, "additionalProperties"]),
+      ...findNestedTypesInSchema(record.additionalProperties, parentTypeName, defNames, [
+        ...currentPath,
+        "additionalProperties",
+      ])
     );
   }
 
@@ -712,9 +758,9 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
     "  P extends []",
     "    ? NonNullable<T>",
     "    : P extends readonly [infer H, ...infer R]",
-    "      ? H extends \"items\"",
+    '      ? H extends "items"',
     "        ? Access<NonNullable<T> extends Array<infer U> ? U : unknown, Extract<R, (string | number)[]>>",
-    "        : H extends \"additionalProperties\"",
+    '        : H extends "additionalProperties"',
     "          ? Access<NonNullable<T> extends Record<string, infer V> ? V : unknown, Extract<R, (string | number)[]>>",
     "          : H extends number",
     "            ? Access<NonNullable<T> extends Array<infer U> ? U : unknown, Extract<R, (string | number)[]>>",
@@ -752,15 +798,17 @@ const generateNestedTypesFile = (nestedTypes: NestedTypeInfo[]): string => {
   lines.push("");
 
   const buildAccessExpr = (parentType: string, propertyPath: (string | number)[]): string => {
-    const path = propertyPath.map((prop) => (typeof prop === "number" ? prop : JSON.stringify(prop))).join(", ");
+    const path = propertyPath
+      .map((prop) => (typeof prop === "number" ? prop : JSON.stringify(prop)))
+      .join(", ");
     return `Access<${parentType}, [${path}]>`;
   };
 
   for (const [parentType, types] of [...byParent.entries()].sort()) {
     lines.push(`// From ${parentType}`);
 
-    for (const info of types.sort(
-      (a: NestedTypeInfo, b: NestedTypeInfo) => a.typeName.localeCompare(b.typeName),
+    for (const info of types.sort((a: NestedTypeInfo, b: NestedTypeInfo) =>
+      a.typeName.localeCompare(b.typeName)
     )) {
       if (info.propertyPath.length > 0) {
         const accessExpr = buildAccessExpr(parentType, info.propertyPath);

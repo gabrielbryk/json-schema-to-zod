@@ -10,7 +10,7 @@ suite("half", (test) => {
       a[0].endsWith("");
     }
 
-    assert(a, ["A", "B"])
-    assert(b, ["C", "D", "E"])
+    assert(a, ["A", "B"]);
+    assert(b, ["C", "D", "E"]);
   });
 });

@@ -94,7 +94,7 @@ const hasTopLevelGetter = (objectLiteral: string): boolean => {
 
 const orderDeclarations = (
   entries: Array<[string, SchemaRepresentation]>,
-  dependencies: Map<string, Set<string>>,
+  dependencies: Map<string, Set<string>>
 ): Array<[string, SchemaRepresentation]> => {
   const repByName = new Map<string, SchemaRepresentation>(entries);
   const depGraph = new Map<string, Set<string>>();
@@ -168,23 +168,9 @@ const orderDeclarations = (
 };
 
 export const emitZod = (analysis: AnalysisResult): string => {
-  const {
-    schema,
-    options,
-    refNameByPointer,
-    cycleRefNames,
-    cycleComponentByName,
-  } = analysis;
+  const { schema, options, refNameByPointer, cycleRefNames, cycleComponentByName } = analysis;
 
-  const {
-    name,
-    type,
-    noImport,
-    exportRefs,
-    typeExports,
-    withMeta,
-    ...rest
-  } = options;
+  const { name, type, noImport, exportRefs, typeExports, withMeta, ...rest } = options;
 
   const declarations = new Map<string, SchemaRepresentation>();
   const dependencies = new Map<string, Set<string>>();
@@ -217,10 +203,10 @@ export const emitZod = (analysis: AnalysisResult): string => {
   const jsdocs =
     rest.withJsdocs && typeof schema === "object" && schema !== null && "description" in schema
       ? expandJsdocs(
-        typeof (schema as { description?: unknown }).description === "string"
-          ? (schema as { description: string }).description
-          : ""
-      )
+          typeof (schema as { description?: unknown }).description === "string"
+            ? (schema as { description: string }).description
+            : ""
+        )
       : "";
 
   const emitter = new EsmEmitter();
@@ -230,14 +216,21 @@ export const emitZod = (analysis: AnalysisResult): string => {
   }
 
   if (declarations.size) {
-    for (const [refName, rep] of orderDeclarations(Array.from(declarations.entries()), dependencies)) {
+    for (const [refName, rep] of orderDeclarations(
+      Array.from(declarations.entries()),
+      dependencies
+    )) {
       const expression = typeof rep === "string" ? rep : (rep as { expression: string }).expression;
       if (typeof expression !== "string") {
         throw new Error(`Expected declaration expression for ${refName}`);
       }
-      const hintedType = typeof rep === "object" && rep && "type" in rep && typeof (rep as { type?: string }).type === "string"
-        ? (rep as { type?: string }).type
-        : undefined;
+      const hintedType =
+        typeof rep === "object" &&
+        rep &&
+        "type" in rep &&
+        typeof (rep as { type?: string }).type === "string"
+          ? (rep as { type?: string }).type
+          : undefined;
       const effectiveHint = hintedType === "z.ZodTypeAny" ? undefined : hintedType;
 
       const hasLazy = expression.includes("z.lazy(");
@@ -245,8 +238,8 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
       // Check if this schema references any cycle members (recursive schemas)
       // This can cause TS7056 when TypeScript tries to serialize the expanded type
-      const referencesRecursiveSchema = Array.from(cycleRefNames).some(
-        cycleName => new RegExp(`\\b${cycleName}\\b`).test(expression)
+      const referencesRecursiveSchema = Array.from(cycleRefNames).some((cycleName) =>
+        new RegExp(`\\b${cycleName}\\b`).test(expression)
       );
 
       // Per Zod v4 docs: type annotations should be on GETTERS for recursive types, not on const declarations.
@@ -255,7 +248,9 @@ export const emitZod = (analysis: AnalysisResult): string => {
       // 1. z.lazy() without getters
       // 2. Any schema that references recursive schemas (to prevent TS7056)
       const needsTypeAnnotation = (hasLazy && !hasGetter) || referencesRecursiveSchema;
-      const storedType = needsTypeAnnotation ? (effectiveHint ?? inferTypeFromExpression(expression)) : undefined;
+      const storedType = needsTypeAnnotation
+        ? (effectiveHint ?? inferTypeFromExpression(expression))
+        : undefined;
 
       // Rule 2 from Zod v4: Don't chain methods on recursive types
       // If the schema has getters (recursive), we need to split it:
@@ -326,7 +321,8 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
   // Export type for root schema if type option is set, or if typeExports is enabled
   if (name && (type || typeExports)) {
-    const typeName = typeof type === "string" ? type : `${name[0].toUpperCase()}${name.substring(1)}`;
+    const typeName =
+      typeof type === "string" ? type : `${name[0].toUpperCase()}${name.substring(1)}`;
     emitter.addTypeExport({
       name: typeName,
       type: `z.infer<typeof ${name}>`,

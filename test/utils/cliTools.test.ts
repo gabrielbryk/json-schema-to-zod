@@ -53,9 +53,9 @@ suite("cliTools", (test) => {
     console.log = () => {
       logged = true;
     };
-    parseArgs({}, ['-h'], true);
-    parseArgs({}, ['--help'], true);
-    parseArgs({}, ['--help'], "some help string");
+    parseArgs({}, ["-h"], true);
+    parseArgs({}, ["--help"], true);
+    parseArgs({}, ["--help"], "some help string");
     assert(ran);
     assert(logged);
     process.exit = exit;

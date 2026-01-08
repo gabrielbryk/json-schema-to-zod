@@ -1,4 +1,3 @@
-
 import { parseSchema } from "../../src/index.js";
 
 import { suite } from "../suite.js";
@@ -10,11 +9,11 @@ suite("parseNullable", (test) => {
         {
           type: "string",
           nullable: true,
-          default: null
+          default: null,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.string().nullable().default(null)',
+      "z.string().nullable().default(null)"
     );
   });
 });

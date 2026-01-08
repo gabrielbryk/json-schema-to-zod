@@ -13,7 +13,7 @@ suite("parseNumber", (test) => {
     assert(
       parseNumber({
         type: "integer",
-        multipleOf: 1
+        multipleOf: 1,
       }),
       `z.int().multipleOf(1)`
     );
@@ -21,7 +21,7 @@ suite("parseNumber", (test) => {
     assert(
       parseNumber({
         type: "number",
-        multipleOf: 1
+        multipleOf: 1,
       }),
       `z.number().multipleOf(1)`
     );
@@ -70,29 +70,17 @@ suite("parseNumber", (test) => {
   });
 
   test("should map numeric formats to Zod v4 helpers", (assert) => {
-    assert(
-      parseNumber({ type: "number", format: "int32" }),
-      "z.int32()",
-    );
+    assert(parseNumber({ type: "number", format: "int32" }), "z.int32()");
 
-    assert(
-      parseNumber({ type: "number", format: "uint32" }),
-      "z.uint32()",
-    );
+    assert(parseNumber({ type: "number", format: "uint32" }), "z.uint32()");
 
-    assert(
-      parseNumber({ type: "number", format: "float32" }),
-      "z.float32()",
-    );
+    assert(parseNumber({ type: "number", format: "float32" }), "z.float32()");
 
-    assert(
-      parseNumber({ type: "number", format: "float64" }),
-      "z.float64()",
-    );
+    assert(parseNumber({ type: "number", format: "float64" }), "z.float64()");
 
     assert(
       parseNumber({ type: "number", format: "safeint", errorMessage: { format: "err" } }),
-      'z.safeint({ message: "err" })',
+      'z.safeint({ message: "err" })'
     );
   });
 
@@ -112,7 +100,7 @@ suite("parseNumber", (test) => {
         },
       }),
 
-      'z.int64({ message: "ayy" }).multipleOf(2, { message: "lmao" }).gt(0, { message: "deez" }).max(2, { message: "nuts" })',
+      'z.int64({ message: "ayy" }).multipleOf(2, { message: "lmao" }).gt(0, { message: "deez" }).max(2, { message: "nuts" })'
     );
   });
 

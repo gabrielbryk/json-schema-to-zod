@@ -7,7 +7,9 @@ import { resolveRef } from "../utils/resolveRef.js";
  * Check if a schema is a "required-only" validation constraint.
  * These are schemas that only specify `required` without defining types.
  */
-const isRequiredOnlySchema = (schema: JsonSchema): schema is JsonSchemaObject & { required: string[] } => {
+const isRequiredOnlySchema = (
+  schema: JsonSchema
+): schema is JsonSchemaObject & { required: string[] } => {
   if (typeof schema !== "object" || schema === null) {
     return false;
   }
@@ -36,7 +38,7 @@ const isRequiredOnlySchema = (schema: JsonSchema): schema is JsonSchemaObject & 
  * This handles the JSON Schema pattern where oneOf is used purely for validation.
  */
 const generateRequiredFieldsRefinement = (
-  requiredCombinations: string[][],
+  requiredCombinations: string[][]
 ): SchemaRepresentation & { isRefinementOnly: true; refinementBody: string } => {
   const conditions = requiredCombinations.map((fields) => {
     const checks = fields.map((f) => `obj[${JSON.stringify(f)}] !== undefined`).join(" && ");
@@ -83,14 +85,18 @@ const collectSchemaProperties = (
   // Collect from allOf members
   if (Array.isArray(schema.allOf)) {
     for (const member of schema.allOf) {
-      if (typeof member !== 'object' || member === null) continue;
+      if (typeof member !== "object" || member === null) continue;
 
       let resolvedMember = member as JsonSchemaObject;
 
       // Resolve $ref if needed
       if (resolvedMember.$ref || resolvedMember.$dynamicRef) {
-        const resolved = resolveRef(resolvedMember, (resolvedMember.$ref || resolvedMember.$dynamicRef)!, refs);
-        if (resolved && typeof resolved.schema === 'object' && resolved.schema !== null) {
+        const resolved = resolveRef(
+          resolvedMember,
+          (resolvedMember.$ref || resolvedMember.$dynamicRef)!,
+          refs
+        );
+        if (resolved && typeof resolved.schema === "object" && resolved.schema !== null) {
           resolvedMember = resolved.schema as JsonSchemaObject;
         } else {
           continue;
@@ -125,8 +131,8 @@ const collectSchemaProperties = (
  * - undefined: Cannot use discriminated union optimization
  */
 type DiscriminatorResult =
-  | { type: 'full'; key: string }
-  | { type: 'withDefault'; key: string; defaultIndex: number; constValues: string[] }
+  | { type: "full"; key: string }
+  | { type: "withDefault"; key: string; defaultIndex: number; constValues: string[] }
   | undefined;
 
 /**
@@ -145,14 +151,14 @@ const setsEqual = (a: Set<string>, b: Set<string>): boolean => {
  * Returns string values if it's a const or enum, undefined otherwise.
  */
 const getDiscriminatorValues = (prop: JsonSchemaObject): string[] | undefined => {
-  if (prop.const !== undefined && typeof prop.const === 'string') {
+  if (prop.const !== undefined && typeof prop.const === "string") {
     return [prop.const];
   }
   if (
     prop.enum &&
     Array.isArray(prop.enum) &&
     prop.enum.length > 0 &&
-    prop.enum.every((value) => typeof value === 'string')
+    prop.enum.every((value) => typeof value === "string")
   ) {
     return prop.enum as string[];
   }
@@ -166,10 +172,10 @@ const getDiscriminatorValues = (prop: JsonSchemaObject): string[] | undefined =>
 const getNegatedEnumValues = (prop: JsonSchemaObject): string[] | undefined => {
   if (
     prop.not &&
-    typeof prop.not === 'object' &&
+    typeof prop.not === "object" &&
     prop.not !== null &&
     Array.isArray((prop.not as JsonSchemaObject).enum) &&
-    (prop.not as JsonSchemaObject).enum!.every((v: unknown) => typeof v === 'string')
+    (prop.not as JsonSchemaObject).enum!.every((v: unknown) => typeof v === "string")
   ) {
     return (prop.not as JsonSchemaObject).enum as string[];
   }
@@ -179,24 +185,21 @@ const getNegatedEnumValues = (prop: JsonSchemaObject): string[] | undefined => {
 /**
  * Attempts to find a discriminator property common to all options.
  */
-const findImplicitDiscriminator = (
-  options: JsonSchema[],
-  refs: Refs
-): DiscriminatorResult => {
+const findImplicitDiscriminator = (options: JsonSchema[], refs: Refs): DiscriminatorResult => {
   if (options.length < 2) return undefined;
 
   // Fully resolve schemas and collect their properties (including from allOf)
   const resolvedOptions: { properties: Record<string, JsonSchema>; required: string[] }[] = [];
 
   for (const opt of options) {
-    if (typeof opt !== 'object' || opt === null) return undefined;
+    if (typeof opt !== "object" || opt === null) return undefined;
 
     let schemaObj = opt as JsonSchemaObject;
 
     // Resolve ref if needed
     if (schemaObj.$ref || schemaObj.$dynamicRef) {
       const resolved = resolveRef(schemaObj, (schemaObj.$ref || schemaObj.$dynamicRef)!, refs);
-      if (resolved && typeof resolved.schema === 'object' && resolved.schema !== null) {
+      if (resolved && typeof resolved.schema === "object" && resolved.schema !== null) {
         schemaObj = resolved.schema as JsonSchemaObject;
       } else {
         return undefined;
@@ -204,7 +207,7 @@ const findImplicitDiscriminator = (
     }
 
     // Must be an object type
-    if (schemaObj.type !== 'object') {
+    if (schemaObj.type !== "object") {
       return undefined;
     }
 
@@ -246,14 +249,18 @@ const findImplicitDiscriminator = (
 
       // Resolve property schema ref if needed (e.g. definitions/kind -> const)
       let prop: JsonSchema = propBeforeResolve;
-      if (typeof prop === 'object' && prop !== null && (prop.$ref || prop.$dynamicRef)) {
-        const resolvedProp = resolveRef(prop as JsonSchemaObject, (prop.$ref || prop.$dynamicRef)!, refs);
+      if (typeof prop === "object" && prop !== null && (prop.$ref || prop.$dynamicRef)) {
+        const resolvedProp = resolveRef(
+          prop as JsonSchemaObject,
+          (prop.$ref || prop.$dynamicRef)!,
+          refs
+        );
         if (resolvedProp) {
           prop = resolvedProp.schema;
         }
       }
 
-      if (typeof prop !== 'object' || prop === null) {
+      if (typeof prop !== "object" || prop === null) {
         isValidDiscriminator = false;
         break;
       }
@@ -300,7 +307,7 @@ const findImplicitDiscriminator = (
 
     // Check if all options have const values (full discriminated union)
     if (optionsWithDiscriminator === resolvedOptions.length) {
-      return { type: 'full', key };
+      return { type: "full", key };
     }
 
     // Check if we have a valid default case pattern
@@ -312,17 +319,17 @@ const findImplicitDiscriminator = (
       // Verify the negated enum exactly matches the const values
       const enumSet = new Set(defaultEnumValues);
       if (setsEqual(constValuesSet, enumSet)) {
-        return { type: 'withDefault', key, defaultIndex, constValues };
+        return { type: "withDefault", key, defaultIndex, constValues };
       }
     }
   }
 
   return undefined;
-}
+};
 
 export const parseOneOf = (
   schema: JsonSchemaObject & { oneOf: JsonSchema[] },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   if (!schema.oneOf.length) {
     return anyOrUnknown(refs);
@@ -345,7 +352,7 @@ export const parseOneOf = (
   // Optimize: Check for implicit discriminated union
   const discriminator = findImplicitDiscriminator(schema.oneOf, refs);
 
-  if (discriminator?.type === 'full') {
+  if (discriminator?.type === "full") {
     // All options have constant discriminator values
     const options = schema.oneOf.map((s, i) =>
       parseSchema(s, {
@@ -354,8 +361,8 @@ export const parseOneOf = (
       })
     );
 
-    const expressions = options.map(o => o.expression).join(", ");
-    const types = options.map(o => o.type).join(", ");
+    const expressions = options.map((o) => o.expression).join(", ");
+    const types = options.map((o) => o.type).join(", ");
 
     return {
       expression: `z.discriminatedUnion("${discriminator.key}", [${expressions}])`,
@@ -365,17 +372,17 @@ export const parseOneOf = (
   }
 
   // Fallback: Use z.xor for exclusive unions
-  // z.xor takes exactly two arguments. 
+  // z.xor takes exactly two arguments.
   // If more than 2, we must nest them: z.xor(A, z.xor(B, C)) ?
   // Or usage says: export function xor<const T extends readonly core.SomeType[]>(options: T, ...): ZodXor<T>
   // Wait, let's check `schemas.ts` again.
   // export function xor<const T extends readonly core.SomeType[]>(options: T, params?: ...): ZodXor<T>
-  // It takes an array of options! 
+  // It takes an array of options!
   // Wait, in `from-json-schema.ts` (Zod repo), how is it used?
   // It uses `z.xor`.
   // Let's verify `schemas.ts` content I viewed earlier.
   // Line 1368: export function xor<const T extends readonly core.SomeType[]>(options: T, params?: ...): ZodXor<T>
-  // Yes, it takes an array `options`. 
+  // Yes, it takes an array `options`.
   // It says "Unlike regular unions that succeed when any option matches, xor fails if zero or more than one option matches the input."
   // Perfect.
 
@@ -385,13 +392,11 @@ export const parseOneOf = (
       path: [...refs.path, "oneOf", i],
     });
 
-
-
     return parsed;
   });
 
-  const expressions = parsedSchemas.map(r => r.expression).join(", ");
-  const types = parsedSchemas.map(r => r.type).join(", ");
+  const expressions = parsedSchemas.map((r) => r.expression).join(", ");
+  const types = parsedSchemas.map((r) => r.type).join(", ");
 
   const expression = `z.xor([${expressions}])`;
   const type = `z.ZodXor<readonly [${types}]>`;

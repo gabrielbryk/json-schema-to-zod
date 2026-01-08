@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
   contents: write
@@ -13,33 +14,33 @@ permissions:
 
 jobs:
   release:
-    environment: npm-publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout Repo
+        uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          run_install: false
+          node-version: "24"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
+      - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Build Package
+        run: pnpm run build
 
-      - name: Release with Changesets
+      - name: Create Release Pull Request or Publish to npm
+        id: changesets
         uses: changesets/action@v1
         with:
-          commit: "ci: release"
-          title: "ci: release"
-          version: pnpm changeset version
-          publish: pnpm run release
+          publish: pnpm changeset publish --access public
+          commit: "chore: release package"
+          title: "chore: release package"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

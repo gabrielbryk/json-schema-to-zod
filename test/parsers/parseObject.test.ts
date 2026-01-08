@@ -13,12 +13,12 @@ suite("parseObject", (test) => {
     assert(
       parseObject(
         {
-          type: "object"
+          type: "object",
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
       `z.looseObject({})`
-    )
+    );
   });
 
   test("should handle with empty properties", (assert) => {
@@ -26,12 +26,12 @@ suite("parseObject", (test) => {
       parseObject(
         {
           type: "object",
-          properties: {}
+          properties: {},
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
       `z.looseObject({})`
-    )
+    );
   });
 
   test("With properties - should handle optional and required properties", (assert) => {
@@ -49,10 +49,10 @@ suite("parseObject", (test) => {
             },
           },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      'z.looseObject({ "myOptionalString": z.string().exactOptional(), "myRequiredString": z.string() })',
+      'z.looseObject({ "myOptionalString": z.string().exactOptional(), "myRequiredString": z.string() })'
     );
   });
 
@@ -69,9 +69,9 @@ suite("parseObject", (test) => {
           },
           additionalProperties: false,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.strictObject({ "myString": z.string() })',
+      'z.strictObject({ "myString": z.string() })'
     );
   });
 
@@ -88,9 +88,9 @@ suite("parseObject", (test) => {
           },
           additionalProperties: true,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.looseObject({ "myString": z.string() })',
+      'z.looseObject({ "myString": z.string() })'
     );
   });
 
@@ -107,10 +107,10 @@ suite("parseObject", (test) => {
           },
           additionalProperties: { type: "number" },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      'z.looseObject({ "myString": z.string() }).catchall(z.number())',
+      'z.looseObject({ "myString": z.string() }).catchall(z.number())'
     );
   });
 
@@ -121,9 +121,9 @@ suite("parseObject", (test) => {
           type: "object",
           additionalProperties: false,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.strictObject({})",
+      "z.strictObject({})"
     );
   });
 
@@ -134,9 +134,9 @@ suite("parseObject", (test) => {
           type: "object",
           additionalProperties: true,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.looseObject({})",
+      "z.looseObject({})"
     );
   });
 
@@ -148,9 +148,9 @@ suite("parseObject", (test) => {
           additionalProperties: { type: "number" },
         },
 
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.looseObject({}).catchall(z.number())",
+      "z.looseObject({}).catchall(z.number())"
     );
   });
 
@@ -166,9 +166,9 @@ suite("parseObject", (test) => {
             },
           },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      `z.looseObject({ "s": z.string().default("") })`,
+      `z.looseObject({ "s": z.string().default("") })`
     );
   });
 
@@ -202,10 +202,10 @@ suite("parseObject", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      'z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))',
+      'z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))'
     );
 
     assert(
@@ -227,14 +227,13 @@ suite("parseObject", (test) => {
                 },
               },
             },
-            {
-            },
+            {},
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      `z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.any()]))`,
+      `z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.any()]))`
     );
 
     assert(
@@ -266,10 +265,10 @@ suite("parseObject", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      'z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))',
+      'z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))'
     );
 
     assert(
@@ -291,14 +290,13 @@ suite("parseObject", (test) => {
                 },
               },
             },
-            {
-            },
+            {},
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      `z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.any()]))`,
+      `z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.any()]))`
     );
 
     const schema3 = {
@@ -345,14 +343,13 @@ suite("parseObject", (test) => {
                 },
               },
             },
-            {
-            },
+            {},
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
 
-      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`,
+      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`
     );
   });
 
@@ -379,7 +376,7 @@ suite("parseObject", (test) => {
           required: ["call", "with"],
         },
       ],
-    }
+    };
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     const expression = toExpression(result);
@@ -392,11 +389,7 @@ suite("parseObject", (test) => {
 
   const run = (output: string | { expression: string }, data: unknown) => {
     const expression = toExpression(output);
-    return eval(
-      `const {z} = require("zod"); ${expression}.safeParse(${JSON.stringify(
-        data,
-      )})`,
-    );
+    return eval(`const {z} = require("zod"); ${expression}.safeParse(${JSON.stringify(data)})`);
   };
 
   test("SKIPPED: oneOf branches respect unevaluatedProperties when combined with base properties", (assert) => {
@@ -447,8 +440,7 @@ suite("parseObject", (test) => {
       },
     };
 
-    const _expected =
-      'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() })';
+    const _expected = 'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() })';
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
 
@@ -705,7 +697,10 @@ issues: result.error.issues
       },
     };
 
-    const result = parseObject(schema as any as unknown as JsonSchemaObject & { type: "object" }, { path: [], seen: new Map() });
+    const result = parseObject(schema as any as unknown as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     const expression = toExpression(result);
 
     assert(expression.includes("deps missing"), true);

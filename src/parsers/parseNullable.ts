@@ -7,7 +7,7 @@ import { parseSchema } from "./parseSchema.js";
  */
 export const parseNullable = (
   schema: JsonSchemaObject & { nullable: true },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   const innerSchema = parseSchema(omit(schema, "nullable"), refs, true);
   return {

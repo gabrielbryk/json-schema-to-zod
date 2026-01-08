@@ -48,11 +48,8 @@ export function reconstructJsonSchema(schema: JsonSchemaObject): JsonSchemaObjec
       (secondElement.__jsonSchema as JsonSchemaObject).conditional
     ) {
       // Extract the main schema and conditional
-      const mainSchema = reconstructJsonSchema(
-        result.allOf[0] as JsonSchemaObject,
-      );
-      const conditionalMeta = (secondElement.__jsonSchema as JsonSchemaObject)
-        .conditional as {
+      const mainSchema = reconstructJsonSchema(result.allOf[0] as JsonSchemaObject);
+      const conditionalMeta = (secondElement.__jsonSchema as JsonSchemaObject).conditional as {
         if: unknown;
         then: unknown;
         else: unknown;
@@ -103,7 +100,7 @@ export function reconstructJsonSchema(schema: JsonSchemaObject): JsonSchemaObjec
         result[key] = value.map((item) =>
           typeof item === "object" && item !== null
             ? reconstructJsonSchema(item as JsonSchemaObject)
-            : item,
+            : item
         );
       } else {
         result[key] = reconstructJsonSchema(value as JsonSchemaObject);

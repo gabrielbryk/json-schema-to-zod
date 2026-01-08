@@ -17,7 +17,7 @@ import { parseSchema } from "../parsers/parseSchema.js";
 export const extractInlineObject = (
   schema: JsonSchema,
   refs: Refs,
-  path: (string | number)[],
+  path: (string | number)[]
 ): string | null => {
   // Skip if not an object
   if (typeof schema !== "object" || schema === null) {
@@ -122,9 +122,7 @@ const sanitizeIdentifier = (value: string): string => {
     .split(/\s+/)
     .filter(Boolean);
 
-  const pascalCase = words
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join("");
+  const pascalCase = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
 
   const cleaned = pascalCase.replace(/^[^a-zA-Z_$]+/, "").replace(/[^a-zA-Z0-9_$]/g, "");
   return cleaned || "InlineSchema";

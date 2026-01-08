@@ -5,7 +5,7 @@ import { extractInlineObject } from "../utils/extractInlineObject.js";
 
 export const parseAnyOf = (
   schema: JsonSchemaObject & { anyOf: JsonSchema[] },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   if (!schema.anyOf.length) {
     return anyOrUnknown(refs);
@@ -27,8 +27,8 @@ export const parseAnyOf = (
     return parseSchema(memberSchema, { ...refs, path: [...refs.path, "anyOf", i] });
   });
 
-  const expressions = members.map(m => m.expression).join(", ");
-  const types = members.map(m => m.type).join(", ");
+  const expressions = members.map((m) => m.expression).join(", ");
+  const types = members.map((m) => m.type).join(", ");
   const expression = `z.union([${expressions}])`;
   // Use readonly tuple for union type annotations (required for recursive type inference)
   const type = `z.ZodUnion<readonly [${types}]>`;

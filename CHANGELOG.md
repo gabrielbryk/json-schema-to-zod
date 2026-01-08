@@ -27,7 +27,6 @@
 ### Patch Changes
 
 - 466d672: Fix TS7056 error when generating declarations for schemas referencing recursive types
-
   - Add explicit type annotations to any schema that references recursive schemas (not just unions)
   - This prevents TypeScript from trying to serialize extremely large expanded types when generating .d.ts files
   - Fix type narrowing in parseObject for allOf required array handling
@@ -39,19 +38,16 @@
 - 2656c90: Fix Zod v4 type compatibility and improve discriminated union detection
 
   ### Zod v4 Type Fixes
-
   - Remove `ZodEffects` usage which doesn't exist in Zod v4
   - `.superRefine()` and `.refine()` no longer change the schema type
   - `.transform()` now correctly returns `ZodPipe` type instead of `ZodEffects`
 
   ### Discriminated Union Detection Improvements
-
   - Enhanced `findImplicitDiscriminator` to detect discriminators in `allOf` members
   - Properly resolves `$ref` when checking for discriminator values
   - Correctly collects `required` fields from both parent schema and `allOf` members
 
   ### Cleaner Output Generation
-
   - Simplified `parseAllOf` to avoid generating redundant `z.record().superRefine()` patterns
   - Build proper object types with specific property annotations instead of generic `ZodObject<Record<string, ZodTypeAny>>`
   - Intersection types are now properly tracked and reflected in type annotations

@@ -69,10 +69,7 @@ export const zodLazy = (schemaName: string): SchemaRepresentation => ({
 });
 
 // Typed lazy wrapper when we know the inner type
-export const zodLazyTyped = (
-  schemaName: string,
-  innerType: string
-): SchemaRepresentation => ({
+export const zodLazyTyped = (schemaName: string, innerType: string): SchemaRepresentation => ({
   expression: `z.lazy<${innerType}>(() => ${schemaName})`,
   type: `z.ZodLazy<${innerType}>`,
 });
@@ -93,9 +90,7 @@ export const zodNullable = (inner: SchemaRepresentation): SchemaRepresentation =
   type: `z.ZodNullable<${inner.type}>`,
 });
 
-export const zodNullableWrapper = (
-  inner: SchemaRepresentation
-): SchemaRepresentation => ({
+export const zodNullableWrapper = (inner: SchemaRepresentation): SchemaRepresentation => ({
   expression: `z.nullable(${inner.expression})`,
   type: `z.ZodNullable<${inner.type}>`,
 });
@@ -123,10 +118,7 @@ export const zodDescribe = (
 });
 
 // Meta doesn't change the type
-export const zodMeta = (
-  inner: SchemaRepresentation,
-  meta: string
-): SchemaRepresentation => ({
+export const zodMeta = (inner: SchemaRepresentation, meta: string): SchemaRepresentation => ({
   expression: `${inner.expression}.meta(${meta})`,
   type: inner.type,
 });
@@ -147,9 +139,7 @@ export const zodEnum = (values: string[]): SchemaRepresentation => {
 };
 
 // Union
-export const zodUnion = (
-  options: SchemaRepresentation[]
-): SchemaRepresentation => {
+export const zodUnion = (options: SchemaRepresentation[]): SchemaRepresentation => {
   const exprs = options.map((o) => o.expression).join(", ");
   const types = options.map((o) => o.type).join(", ");
   return {
@@ -287,10 +277,7 @@ export const zodSuperRefine = (
 });
 
 // Refine - doesn't change the type
-export const zodRefine = (
-  base: SchemaRepresentation,
-  refineFn: string
-): SchemaRepresentation => ({
+export const zodRefine = (base: SchemaRepresentation, refineFn: string): SchemaRepresentation => ({
   expression: `${base.expression}.refine(${refineFn})`,
   type: base.type,
 });
@@ -336,10 +323,7 @@ export const zodCoerceDate = (): SchemaRepresentation => ({
 });
 
 // Generic method chaining - for any method that doesn't change type
-export const zodChain = (
-  base: SchemaRepresentation,
-  method: string
-): SchemaRepresentation => ({
+export const zodChain = (base: SchemaRepresentation, method: string): SchemaRepresentation => ({
   expression: `${base.expression}.${method}`,
   type: base.type,
 });
@@ -379,9 +363,7 @@ export const inferTypeFromExpression = (expr: string): string => {
   }
 
   // Handle z.lazy without explicit type (possibly with method chains like .optional())
-  const lazyMatch = expr.match(
-    /^z\.lazy\(\s*\(\)\s*=>\s*([A-Za-z0-9_.$]+)\s*\)(\.[a-z]+\(\))*$/
-  );
+  const lazyMatch = expr.match(/^z\.lazy\(\s*\(\)\s*=>\s*([A-Za-z0-9_.$]+)\s*\)(\.[a-z]+\(\))*$/);
   if (lazyMatch) {
     let type = `z.ZodLazy<typeof ${lazyMatch[1]}>`;
     const methods = lazyMatch[2] || "";
@@ -508,7 +490,7 @@ export const inferTypeFromExpression = (expr: string): string => {
     if (bracketEnd !== -1) {
       const arrayContent = expr.substring(bracketStart + 1, bracketEnd); // inside the []
       const memberTypes = parseTopLevelArrayElements(arrayContent);
-      const types = memberTypes.map(m => inferTypeFromExpression(m.trim()));
+      const types = memberTypes.map((m) => inferTypeFromExpression(m.trim()));
       let baseType = `z.ZodUnion<readonly [${types.join(", ")}]>`;
 
       const remainder = expr.substring(bracketEnd + 2); // skip ] and )
@@ -538,9 +520,9 @@ export const inferTypeFromExpression = (expr: string): string => {
 const findTopLevelMethod = (expr: string, method: string): number => {
   let depth = 0;
   for (let i = 0; i < expr.length - method.length; i++) {
-    if (expr[i] === '(' || expr[i] === '[' || expr[i] === '{') {
+    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
       depth++;
-    } else if (expr[i] === ')' || expr[i] === ']' || expr[i] === '}') {
+    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
       depth--;
     } else if (depth === 0 && expr.substring(i, i + method.length) === method) {
       return i;
@@ -555,9 +537,9 @@ const findTopLevelMethod = (expr: string, method: string): number => {
 const findMatchingParen = (expr: string, openIndex: number): number => {
   let depth = 0;
   for (let i = openIndex; i < expr.length; i++) {
-    if (expr[i] === '(' || expr[i] === '[' || expr[i] === '{') {
+    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
       depth++;
-    } else if (expr[i] === ')' || expr[i] === ']' || expr[i] === '}') {
+    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
       depth--;
       if (depth === 0) {
         return i;
@@ -573,11 +555,11 @@ const findMatchingParen = (expr: string, openIndex: number): number => {
 const findTopLevelComma = (expr: string): number => {
   let depth = 0;
   for (let i = 0; i < expr.length; i++) {
-    if (expr[i] === '(' || expr[i] === '[' || expr[i] === '{') {
+    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
       depth++;
-    } else if (expr[i] === ')' || expr[i] === ']' || expr[i] === '}') {
+    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
       depth--;
-    } else if (depth === 0 && expr[i] === ',') {
+    } else if (depth === 0 && expr[i] === ",") {
       return i;
     }
   }
@@ -594,13 +576,13 @@ const parseTopLevelArrayElements = (content: string): string[] => {
 
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
-    if (char === '(' || char === '[' || char === '{') {
+    if (char === "(" || char === "[" || char === "{") {
       depth++;
       current += char;
-    } else if (char === ')' || char === ']' || char === '}') {
+    } else if (char === ")" || char === "]" || char === "}") {
       depth--;
       current += char;
-    } else if (char === ',' && depth === 0) {
+    } else if (char === "," && depth === 0) {
       if (current.trim()) {
         elements.push(current.trim());
       }

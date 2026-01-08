@@ -74,7 +74,7 @@ suite("generateSchemaBundle", (test) => {
 
     const wrapper = result.files.find((f: any) => f.fileName === "wrapper.schema.ts")!;
     assert(wrapper.contents.includes("export const InnerSchema = z.number()"));
-    assert(wrapper.contents.includes("\"val\": InnerSchema"));
+    assert(wrapper.contents.includes('"val": InnerSchema'));
   });
 
   test("avoids circular imports when possible via hoisting", (assert: any) => {
@@ -110,8 +110,8 @@ suite("generateSchemaBundle", (test) => {
     const wrapper = result.files.find((f: any) => f.fileName === "wrapper.schema.ts")!;
     assert(wrapper.contents.includes("import { OtherSchema } from './other.schema.js'"));
     assert(wrapper.contents.includes("export const InnerSchema = z.number()"));
-    assert(wrapper.contents.includes("\"val\": InnerSchema"));
-    assert(wrapper.contents.includes("\"other\": OtherSchema"));
+    assert(wrapper.contents.includes('"val": InnerSchema'));
+    assert(wrapper.contents.includes('"other": OtherSchema'));
   });
 
   test("unknown refs fall back to unknown", (assert) => {
@@ -226,8 +226,6 @@ suite("generateSchemaBundle", (test) => {
     assert(bFile!.contents.includes("z.lazy(() => ASchema)"));
   });
 
-
-
   test("inline defs use scoped names to reduce collisions", (assert) => {
     const schema = {
       $defs: {
@@ -260,9 +258,9 @@ suite("generateSchemaBundle", (test) => {
     const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
 
     assert(aFile.contents.includes("export const ADefsXSchema = z.number()"));
-    assert(aFile.contents.includes("\"v\": ADefsXSchema"));
+    assert(aFile.contents.includes('"v": ADefsXSchema'));
     assert(bFile.contents.includes("export const BDefsXSchema = z.string()"));
-    assert(bFile.contents.includes("\"v\": BDefsXSchema"));
+    assert(bFile.contents.includes('"v": BDefsXSchema'));
   });
 
   test("generated error handling uses ZodError.issues", (assert) => {
@@ -287,7 +285,7 @@ suite("generateSchemaBundle", (test) => {
 
   test("inline defs with cycles fall back to default parsing (no import rewrite)", (assert) => {
     const schema = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "fixtures/inline-defs-cycle.json"), "utf8"),
+      fs.readFileSync(path.join(__dirname, "fixtures/inline-defs-cycle.json"), "utf8")
     );
 
     const result = generateSchemaBundle(schema);
@@ -298,7 +296,7 @@ suite("generateSchemaBundle", (test) => {
 
   test("root definitions and inline definitions both resolve", (assert) => {
     const schema = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "fixtures/definitions-shadow.json"), "utf8"),
+      fs.readFileSync(path.join(__dirname, "fixtures/definitions-shadow.json"), "utf8")
     );
 
     const result = generateSchemaBundle(schema);
@@ -357,9 +355,17 @@ suite("generateSchemaBundle", (test) => {
     const nestedFile = result.files.find((f) => f.fileName === "nested-types.ts")!;
     assert(nestedFile.contents.includes("import type { Root } from './workflow.schema.js'"));
     assert(nestedFile.contents.includes("import type { Item } from './item.schema.js'"));
-    assert(nestedFile.contents.includes("export type Config = Access<Root, [\"config\"]>"));
-    assert(nestedFile.contents.includes("export type NestedArray = Access<Root, [\"config\", \"nestedArr\"]>"));
-    assert(nestedFile.contents.includes("export type NestedArrayItem = Access<Root, [\"config\", \"nestedArr\", \"items\"]>"));
-    assert(nestedFile.contents.includes("export type ItemMeta = Access<Item, [\"meta\"]>"));
+    assert(nestedFile.contents.includes('export type Config = Access<Root, ["config"]>'));
+    assert(
+      nestedFile.contents.includes(
+        'export type NestedArray = Access<Root, ["config", "nestedArr"]>'
+      )
+    );
+    assert(
+      nestedFile.contents.includes(
+        'export type NestedArrayItem = Access<Root, ["config", "nestedArr", "items"]>'
+      )
+    );
+    assert(nestedFile.contents.includes('export type ItemMeta = Access<Item, ["meta"]>'));
   });
 });

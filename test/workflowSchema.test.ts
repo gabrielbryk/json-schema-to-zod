@@ -7,9 +7,10 @@ import { suite } from "./suite.js";
 
 suite("workflow.yaml", (test) => {
   test("converts workflow schema fixture", (assert) => {
-    const schema = yaml.load(
-      readFileSync("test/fixtures/workflow.yaml", "utf8"),
-    ) as Record<string, unknown>;
+    const schema = yaml.load(readFileSync("test/fixtures/workflow.yaml", "utf8")) as Record<
+      string,
+      unknown
+    >;
 
     const output = jsonSchemaToZod(schema, {
       name: "workflowSchema",
@@ -28,9 +29,10 @@ suite("workflow.yaml", (test) => {
   });
 
   test("workflow schema type-checks without loosening types", (assert) => {
-    const schema = yaml.load(
-      readFileSync("test/fixtures/workflow.yaml", "utf8"),
-    ) as Record<string, unknown>;
+    const schema = yaml.load(readFileSync("test/fixtures/workflow.yaml", "utf8")) as Record<
+      string,
+      unknown
+    >;
 
     const source = jsonSchemaToZod(schema, {
       name: "workflowSchema",
@@ -41,18 +43,22 @@ suite("workflow.yaml", (test) => {
     writeFileSync(schemaPath, source);
 
     const tscPath = join(process.cwd(), "node_modules/.bin/tsc");
-    const { status } = spawnSync(tscPath, [
-      "--noEmit",
-      "--module",
-      "Node16",
-      "--moduleResolution",
-      "node16",
-      "--target",
-      "ES2022",
-      schemaPath,
-    ], {
-      encoding: "utf8",
-    });
+    const { status } = spawnSync(
+      tscPath,
+      [
+        "--noEmit",
+        "--module",
+        "Node16",
+        "--moduleResolution",
+        "node16",
+        "--target",
+        "ES2022",
+        schemaPath,
+      ],
+      {
+        encoding: "utf8",
+      }
+    );
 
     rmSync(dir, { recursive: true, force: true });
 
@@ -93,9 +99,7 @@ console.log(JSON.stringify({
   rmSync(dir, { recursive: true, force: true });
 
   if (status !== 0) {
-    throw new Error(
-      stderr || (error ? String(error) : "Failed to run compiled schema"),
-    );
+    throw new Error(stderr || (error ? String(error) : "Failed to run compiled schema"));
   }
 
   return JSON.parse(stdout);

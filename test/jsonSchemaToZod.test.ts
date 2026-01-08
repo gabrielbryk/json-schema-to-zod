@@ -17,16 +17,14 @@ suite("jsonSchemaToZod", (test: any) => {
   test("should produce a string of JS code creating a Zod schema from a simple JSON schema", (assert: any) => {
     assert(
       normalizeCode(
-        jsonSchemaToZod(
-          {
-            type: "string",
-          },
-        ),
+        jsonSchemaToZod({
+          type: "string",
+        })
       ),
       normalizeCode(`import { z } from "zod"
 
 export default z.string()
-`),
+`)
     );
   });
 
@@ -37,11 +35,11 @@ export default z.string()
           {
             type: "string",
           },
-          { noImport: true },
-        ),
+          { noImport: true }
+        )
       ),
       normalizeCode(`export default z.string()
-`),
+`)
     );
   });
 
@@ -52,14 +50,14 @@ export default z.string()
           {
             type: "string",
           },
-          { name: "mySchema", type: true },
-        ),
+          { name: "mySchema", type: true }
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export const mySchema = z.string()
 export type MySchema = z.infer<typeof mySchema>
-`),
+`)
     );
   });
 
@@ -70,14 +68,14 @@ export type MySchema = z.infer<typeof mySchema>
           {
             type: "string",
           },
-          { name: "mySchema", type: "MyType" },
-        ),
+          { name: "mySchema", type: "MyType" }
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export const mySchema = z.string()
 export type MyType = z.infer<typeof mySchema>
-`),
+`)
     );
   });
 
@@ -101,13 +99,13 @@ export type MyType = z.infer<typeof mySchema>
             type: "string",
             default: "foo",
           },
-          {},
-        ),
+          {}
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export default z.string().default("foo")
-`),
+`)
     );
   });
 
@@ -118,12 +116,12 @@ export default z.string().default("foo")
           type: "string",
           default: "",
         },
-        {},
+        {}
       ),
       `import { z } from "zod"
 
 export default z.string().default("")
-`,
+`
     );
   });
 
@@ -135,13 +133,13 @@ export default z.string().default("")
             type: "string",
             const: "",
           },
-          {},
-        ),
+          {}
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export default z.literal("")
-`),
+`)
     );
   });
 
@@ -153,26 +151,27 @@ export default z.literal("")
             type: "string",
             default: "foo",
           },
-          { withoutDefaults: true },
-        ),
+          { withoutDefaults: true }
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export default z.string()
-`),
+`)
     );
   });
 
   test("should include describes", (assert: any) => {
-    const code = jsonSchemaToZod(
-      {
-        type: "string",
-        description: "foo",
-      },
-    );
+    const code = jsonSchemaToZod({
+      type: "string",
+      description: "foo",
+    });
     const exported = getDefaultExport(code);
     assert(hasImportZod(code), true);
-    assert(exported && ts.isCallExpression(exported) && exported.getText().includes('.describe("foo")'), true);
+    assert(
+      exported && ts.isCallExpression(exported) && exported.getText().includes('.describe("foo")'),
+      true
+    );
   });
 
   test("can exclude describes", (assert: any) => {
@@ -183,32 +182,36 @@ export default z.string()
             type: "string",
             description: "foo",
           },
-          { withoutDescribes: true },
-        ),
+          { withoutDescribes: true }
+        )
       ),
       normalizeCode(`import { z } from "zod"
 
 export default z.string()
-`),
+`)
     );
   });
 
   test("can include jsdocs", (assert: any) => {
-    const code = jsonSchemaToZod({
-      type: "object",
-      description: "Description for schema",
-      properties: {
-        prop: { type: "string", description: "Description for prop" },
-        obj: {
-          type: "object",
-          description: "Description for object that is multiline\\nMore content\\n\\nAnd whitespace",
-          properties: {
-            nestedProp: { type: "string", description: "Description for nestedProp" },
-            nestedProp2: { type: "string", description: "Description for nestedProp2" },
+    const code = jsonSchemaToZod(
+      {
+        type: "object",
+        description: "Description for schema",
+        properties: {
+          prop: { type: "string", description: "Description for prop" },
+          obj: {
+            type: "object",
+            description:
+              "Description for object that is multiline\\nMore content\\n\\nAnd whitespace",
+            properties: {
+              nestedProp: { type: "string", description: "Description for nestedProp" },
+              nestedProp2: { type: "string", description: "Description for nestedProp2" },
+            },
           },
-        }
-      }
-    }, { withJsdocs: true });
+        },
+      },
+      { withJsdocs: true }
+    );
 
     assert(hasImportZod(code), true);
     assert(code.includes("Description for schema"), true);
@@ -229,12 +232,12 @@ export default z.string()
             },
           },
         },
-        {},
+        {}
       ),
       `import { z } from "zod"
 
 export default z.looseObject({ "prop": z.string().default("def") })
-`,
+`
     );
   });
 
@@ -245,12 +248,12 @@ export default z.looseObject({ "prop": z.string().default("def") })
           type: "boolean",
           default: false,
         },
-        {},
+        {}
       ),
       `import { z } from "zod"
 
 export default z.boolean().default(false)
-`,
+`
     );
   });
 
@@ -261,12 +264,12 @@ export default z.boolean().default(false)
           type: "null",
           default: undefined,
         },
-        {},
+        {}
       ),
       `import { z } from "zod"
 
 export default z.null()
-`,
+`
     );
   });
 
@@ -274,11 +277,7 @@ export default z.null()
     assert(
       jsonSchemaToZod(
         {
-          allOf: [
-            { type: "string" },
-            { type: "number" },
-            { type: "boolean", description: "foo" },
-          ],
+          allOf: [{ type: "string" }, { type: "number" }, { type: "boolean", description: "foo" }],
         },
         {
           parserOverride: (schema, refs) => {
@@ -292,30 +291,39 @@ export default z.null()
               return "myCustomZodSchema";
             }
           },
-        },
+        }
       ),
 
       `import { z } from "zod"
 
 export default z.intersection(z.string(), z.intersection(z.number(), myCustomZodSchema))
-`,
+`
     );
   });
 
   test("can output with name", (assert: any) => {
-    assert(jsonSchemaToZod({
-      type: "string"
-    }, { name: "someName" }), `import { z } from "zod"
+    assert(
+      jsonSchemaToZod(
+        {
+          type: "string",
+        },
+        { name: "someName" }
+      ),
+      `import { z } from "zod"
 
 export const someName = z.string()
-`);
+`
+    );
   });
 
   test("can output without name", (assert: any) => {
-    assert(jsonSchemaToZod(true), `import { z } from "zod"
+    assert(
+      jsonSchemaToZod(true),
+      `import { z } from "zod"
 
 export default z.any()
-`);
+`
+    );
   });
 
   test("declares $refs as named schemas and uses z.lazy for recursion", (assert: any) => {
@@ -367,7 +375,7 @@ export default z.any()
       `import { z } from "zod"
 
 export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("a"), "value": z.string() }), z.looseObject({ "kind": z.literal("b"), "flag": z.boolean() })])
-`,
+`
     );
   });
 

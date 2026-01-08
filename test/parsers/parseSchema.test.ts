@@ -12,23 +12,16 @@ suite("parseSchema", (test) => {
       type: "object",
       properties: {
         prop: {
-          type: "string"
-        }
-      }
+          type: "string",
+        },
+      },
     };
-    assert(
-      parseSchema(schema, { seen, path: [] })
-    );
-    assert(
-      parseSchema(schema, { seen, path: [] })
-    );
+    assert(parseSchema(schema, { seen, path: [] }));
+    assert(parseSchema(schema, { seen, path: [] }));
   });
 
   test("should be possible to describe a readonly schema", (assert) => {
-    assert(
-      parseSchema({ type: "string", readOnly: true }),
-      "z.string().readonly()",
-    );
+    assert(parseSchema({ type: "string", readOnly: true }), "z.string().readonly()");
   });
 
   test("should handle nullable", (assert) => {
@@ -38,36 +31,34 @@ suite("parseSchema", (test) => {
           type: "string",
           nullable: true,
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.string().nullable()',
+      "z.string().nullable()"
     );
   });
 
   test("should handle enum", (assert) => {
     assert(
       parseSchema({ enum: ["someValue", 57] }),
-      `z.union([z.literal("someValue"), z.literal(57)])`,
+      `z.union([z.literal("someValue"), z.literal(57)])`
     );
   });
 
   test("should handle multiple type", (assert) => {
     assert(
       parseSchema({
-        type: [
-          "string", "number"
-        ]
+        type: ["string", "number"],
       }),
-      `z.union([z.string(), z.number()])`,
+      `z.union([z.string(), z.number()])`
     );
   });
 
   test("should handle if-then-else type", (assert) => {
     assert(
       parseSchema({
-        if: { type: 'string' },
-        then: { type: 'number' },
-        else: { type: 'boolean' }
+        if: { type: "string" },
+        then: { type: "number" },
+        else: { type: "boolean" },
       }),
       `z.union([z.number(), z.boolean()]).superRefine((value,ctx) => {
   const result = z.string().safeParse(value).success
@@ -77,7 +68,7 @@ suite("parseSchema", (test) => {
     const issues = result.error.issues;
     issues.forEach((issue) => ctx.addIssue({ ...issue }))
   }
-})`,
+})`
     );
   });
 
@@ -89,9 +80,9 @@ suite("parseSchema", (test) => {
             type: "string",
           },
           { type: "number" },
-        ]
+        ],
       }),
-      "z.union([z.string(), z.number()])",
+      "z.union([z.string(), z.number()])"
     );
   });
 
@@ -103,9 +94,9 @@ suite("parseSchema", (test) => {
             type: "string",
           },
           { type: "number" },
-        ]
+        ],
       }),
-      "z.xor([z.string(), z.number()])",
+      "z.xor([z.string(), z.number()])"
     );
   });
 });
