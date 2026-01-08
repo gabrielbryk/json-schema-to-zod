@@ -1,5 +1,5 @@
-import { parseNot } from "../../src/parsers/parseNot";
-import { suite } from "../suite";
+import { parseNot } from "../../src/parsers/parseNot.js";
+import { suite } from "../suite.js";
 
 suite("parseNot", (test) => {
   test("", (assert) => {

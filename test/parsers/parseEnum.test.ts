@@ -1,5 +1,5 @@
-import { parseEnum } from "../../src/parsers/parseEnum";
-import { suite } from "../suite";
+import { parseEnum } from "../../src/parsers/parseEnum.js";
+import { suite } from "../suite.js";
 
 suite("parseEnum", (test) => {
   test("should create never with empty enum", (assert) => {

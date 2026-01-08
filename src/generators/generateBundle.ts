@@ -281,7 +281,7 @@ const createRefHandler = (
               // Self-recursion inside object getters can safely reference the schema name
               return refInfo.schemaName;
             }
-            return `z.lazy<typeof ${refInfo.schemaName}>(() => ${refInfo.schemaName})`;
+            return `z.lazy<z.ZodTypeAny>((): z.ZodTypeAny => ${refInfo.schemaName})`;
           }
 
           return refInfo.schemaName;

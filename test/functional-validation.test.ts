@@ -10,7 +10,8 @@
 
 import { createRequire } from "module";
 import { parseSchema } from "../src/parsers/parseSchema.js";
-import { suite } from "./suite";
+import { JsonSchema } from "../src/Types.js";
+import { suite } from "./suite.js";
 
 const require = createRequire(import.meta.url);
 
@@ -126,7 +127,7 @@ suite("functional-validation", (test) => {
     assert(compiled.compiled, true);
     if (compiled.compiled) {
       // Validation should fail (string too short), but shouldn't crash
-      assert(compiled.result.success, false);
+      assert((compiled.result as { success: boolean }).success, false);
     }
   });
 
@@ -205,7 +206,7 @@ suite("functional-validation", (test) => {
       ]
     };
 
-    const code = parseSchema(schema, { path: [], seen: new Map() });
+    const code = parseSchema(schema as unknown as JsonSchema, { path: [], seen: new Map() });
     const result = canCompile(code);
 
     if (!result.success) {
@@ -229,7 +230,7 @@ suite("functional-validation", (test) => {
 
     assert(compiled.compiled, true);
     if (compiled.compiled) {
-      assert(compiled.result.success, true);
+      assert((compiled.result as { success: boolean }).success, true);
     }
   });
 
@@ -246,7 +247,7 @@ suite("functional-validation", (test) => {
 
     assert(compiled.compiled, true);
     if (compiled.compiled) {
-      assert(compiled.result.success, true);
+      assert((compiled.result as { success: boolean }).success, true);
     }
   });
 

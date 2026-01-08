@@ -1,13 +1,14 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { generateSchemaBundle } from "../src";
-import { suite } from "./suite";
+import { generateSchemaBundle } from "../src/index.js";
+import { JsonSchema } from "../src/Types.js";
+import { suite } from "./suite.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 suite("generateSchemaBundle", (test) => {
-  test("emits per-def files with stitched imports", (assert) => {
+  test("emits per-def files with stitched imports", (assert: any) => {
     const schema = {
       $defs: {
         alpha: {
@@ -22,7 +23,7 @@ suite("generateSchemaBundle", (test) => {
       required: ["alpha"],
     };
 
-    const result = generateSchemaBundle(schema, {
+    const result = generateSchemaBundle(schema as unknown as JsonSchema, {
       name: "WorkflowSchema",
       type: "Workflow",
     });
@@ -32,7 +33,7 @@ suite("generateSchemaBundle", (test) => {
     assert(result.files, [
       {
         fileName: "alpha.schema.ts",
-        contents: `import { z } from "zod"\nimport { BetaSchema } from './beta.schema.js';\n\nexport const AlphaSchema = z.object({ "beta": BetaSchema })\nexport type Alpha = z.infer<typeof AlphaSchema>\n`,
+        contents: `import { z } from "zod"\nimport { BetaSchema } from './beta.schema.js';\n\nexport const AlphaSchema = z.object({ "beta": BetaSchema }).passthrough()\nexport type Alpha = z.infer<typeof AlphaSchema>\n`,
       },
       {
         fileName: "beta.schema.ts",
@@ -40,7 +41,7 @@ suite("generateSchemaBundle", (test) => {
       },
       {
         fileName: "workflow.schema.ts",
-        contents: `import { z } from "zod"\nimport { AlphaSchema } from './alpha.schema.js';\n\nexport const WorkflowSchema = z.object({ "alpha": AlphaSchema })\nexport type Workflow = z.infer<typeof WorkflowSchema>\n`,
+        contents: `import { z } from "zod"\nimport { AlphaSchema } from './alpha.schema.js';\n\nexport const WorkflowSchema = z.object({ "alpha": AlphaSchema }).passthrough()\nexport type Workflow = z.infer<typeof WorkflowSchema>\n`,
       },
     ]);
   });
@@ -65,7 +66,7 @@ suite("generateSchemaBundle", (test) => {
       },
     };
 
-    const result = generateSchemaBundle(schema, {
+    const result = generateSchemaBundle(schema as unknown as JsonSchema, {
       name: "RootSchema",
       type: "Root",
       liftInlineObjects: { enable: false },
@@ -74,6 +75,43 @@ suite("generateSchemaBundle", (test) => {
     const wrapper = result.files.find((f) => f.fileName === "wrapper.schema.ts")!;
     assert(wrapper.contents.includes("export const Inner = z.number()"));
     assert(wrapper.contents.includes("\"val\": Inner"));
+  });
+
+  test("avoids circular imports when possible via hoisting", (assert: any) => {
+    const schema = {
+      $defs: {
+        wrapper: {
+          type: "object",
+          $defs: {
+            inner: { type: "number" },
+          },
+          properties: {
+            val: { $ref: "#/$defs/inner" },
+            other: { $ref: "#/$defs/other" },
+          },
+          required: ["val"],
+        },
+        other: {
+          type: "string",
+        },
+      },
+      type: "object",
+      properties: {
+        wrapper: { $ref: "#/$defs/wrapper" },
+      },
+    };
+
+    const result = generateSchemaBundle(schema as unknown as JsonSchema, {
+      name: "RootSchema",
+      type: "Root",
+      liftInlineObjects: { enable: false },
+    });
+
+    const wrapper = result.files.find((f) => f.fileName === "wrapper.schema.ts")!;
+    assert(wrapper.contents.includes("import { OtherSchema } from './other.schema.js';"));
+    assert(wrapper.contents.includes("export const Inner = z.number()"));
+    assert(wrapper.contents.includes("\"val\": Inner"));
+    assert(wrapper.contents.includes("\"other\": OtherSchema"));
   });
 
   test("unknown refs fall back to unknown", (assert) => {
@@ -89,9 +127,39 @@ suite("generateSchemaBundle", (test) => {
       },
     };
 
-    const result = generateSchemaBundle(schema, { useUnknown: true });
+    const result = generateSchemaBundle(schema as unknown as JsonSchema, { useUnknown: true });
     const alphaFile = result.files.find((f) => f.fileName === "alpha.schema.ts")!;
     assert(alphaFile.contents.includes("z.unknown()"));
+  });
+
+  test("uses circular imports when cycles are unavoidable", (assert: any) => {
+    const schema = {
+      $defs: {
+        a: {
+          type: "object",
+          properties: { b: { $ref: "#/$defs/b" } },
+        },
+        b: {
+          type: "object",
+          properties: { a: { $ref: "#/$defs/a" } },
+        },
+      },
+      type: "object",
+      properties: {
+        a: { $ref: "#/$defs/a" },
+      },
+      required: ["a"],
+    };
+
+    const result = generateSchemaBundle(schema, {
+      refResolution: { lazyCrossRefs: false },
+    });
+
+    const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
+    const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
+
+    assert(aFile.contents.includes("import { BSchema } from './b.schema.js';"));
+    assert(bFile.contents.includes("import { ASchema } from './a.schema.js';"));
   });
 
   test("cycles across defs can be emitted lazily", (assert) => {

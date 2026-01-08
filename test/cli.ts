@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 suite("cli", (test) => {
   test("runs cli (help)", (assert) => {

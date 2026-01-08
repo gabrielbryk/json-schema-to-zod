@@ -1,6 +1,6 @@
 import { createRequire } from "module";
-import { parseString } from "../../src/parsers/parseString";
-import { suite } from "../suite";
+import { parseString } from "../../src/parsers/parseString.js";
+import { suite } from "../suite.js";
 
 suite("parseString", (test) => {
   const run = (output: string | { expression: string }, data: unknown) => {
@@ -271,7 +271,7 @@ suite("parseString", (test) => {
     const seen: { format: string; path: (string | number)[] }[] = [];
     parseString(
       { type: "string", format: "made-up" },
-      { path: ["root"], onUnknownFormat: (format, path) => seen.push({ format, path }) },
+      { path: ["root"], seen: new Map(), onUnknownFormat: (format, path) => seen.push({ format, path }) },
     );
     assert(seen, [{ format: "made-up", path: ["root"] }]);
   });

@@ -4,7 +4,7 @@ import { extname, join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
 import { JsonSchema } from "../src/Types.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 type Fixture = {
   filePath: string;

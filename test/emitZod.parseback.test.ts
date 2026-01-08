@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { jsonSchemaToZod } from "../src/jsonSchemaToZod.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 const transpiles = (source: string): boolean => {
   const { diagnostics } = ts.transpileModule(source, {

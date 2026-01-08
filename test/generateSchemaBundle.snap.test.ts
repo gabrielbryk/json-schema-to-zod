@@ -1,6 +1,6 @@
-import { generateSchemaBundle } from "../src";
+import { generateSchemaBundle } from "../src/index.js";
 import { normalizeCode } from "./utils/normalizeCode.js";
-import { suite } from "./suite";
+import { suite } from "./suite.js";
 
 suite("generateSchemaBundle snapshots", (test) => {
   test("emits full files for simple address/user bundle", (assert) => {
@@ -36,7 +36,7 @@ suite("generateSchemaBundle snapshots", (test) => {
           fileName: "address.schema.ts",
           contents: `import { z } from "zod"
 
-export const AddressSchema = z.object({ "line1": z.string(), "city": z.string().optional() })
+export const AddressSchema = z.object({ "line1": z.string(), "city": z.string().optional() }).passthrough()
 export type Address = z.infer<typeof AddressSchema>
 `,
         },
@@ -45,7 +45,7 @@ export type Address = z.infer<typeof AddressSchema>
           contents: `import { z } from "zod"
 import { AddressSchema } from './address.schema.js';
 
-export const UserSchema = z.object({ "name": z.string(), "address": AddressSchema })
+export const UserSchema = z.object({ "name": z.string(), "address": AddressSchema }).passthrough()
 export type User = z.infer<typeof UserSchema>
 `,
         },
@@ -54,7 +54,7 @@ export type User = z.infer<typeof UserSchema>
           contents: `import { z } from "zod"
 import { UserSchema } from './user.schema.js';
 
-export const RootSchema = z.object({ "user": UserSchema })
+export const RootSchema = z.object({ "user": UserSchema }).passthrough()
 export type Root = z.infer<typeof RootSchema>
 `,
         },

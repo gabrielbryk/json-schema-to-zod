@@ -32,9 +32,10 @@ export type JsonSchemaObject = {
   definitions?: Record<string, JsonSchema>;
   title?: string;
   description?: string;
-  examples?: Serializable[];
+  examples?: Serializable | Serializable[];
   deprecated?: boolean;
   dependentSchemas?: Record<string, JsonSchema>;
+  dependentRequired?: Record<string, string[]>;
   contains?: JsonSchema;
   minContains?: number;
   maxContains?: number;
@@ -51,6 +52,7 @@ export type JsonSchemaObject = {
 
   // array
   items?: JsonSchema | JsonSchema[];
+  prefixItems?: JsonSchema[];
   additionalItems?: JsonSchema;
   minItems?: number;
   maxItems?: number;

@@ -1,5 +1,5 @@
-import { parseArray } from "../../src/parsers/parseArray";
-import { suite } from "../suite";
+import { parseArray } from "../../src/parsers/parseArray.js";
+import { suite } from "../suite.js";
 
 suite("parseArray", (test) => {
   test("should create tuple with items array", (assert) => {
@@ -52,7 +52,7 @@ suite("parseArray", (test) => {
       "z.array(z.string()).max(2)",
     );
   });
-  
+
   test("should add unique for uniqueItems", (assert) => {
     assert(
       parseArray(

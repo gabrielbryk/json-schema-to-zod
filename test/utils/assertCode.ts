@@ -30,7 +30,7 @@ export const getTypeExport = (code: string, name: string): ts.TypeNode | undefin
       ts.isTypeAliasDeclaration(s) &&
       ts.isIdentifier(s.name) &&
       s.name.text === name &&
-      s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword),
+      (s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false),
   );
   return typeAlias?.type;
 };

@@ -127,16 +127,20 @@ export function parseAllOf(
   } else if (schema.allOf.length === 1) {
     const item = schema.allOf[0];
 
-    return parseSchema(item, {
+    const parsed = parseSchema(item, {
       ...refs,
       path: [
         ...refs.path,
         "allOf",
         (item as JsonSchemaObject & { [originalIndexKey]?: number })[
-          originalIndexKey
+        originalIndexKey
         ] ?? 0,
       ],
     });
+
+
+
+    return parsed;
   } else {
     // Try spread pattern first (more efficient than intersection)
     // This works when all members are either $refs to object schemas or inline objects

@@ -1,5 +1,5 @@
-import { half } from "../../src/utils/half";
-import { suite } from "../suite";
+import { half } from "../../src/utils/half.js";
+import { suite } from "../suite.js";
 
 suite("half", (test) => {
   test("half", (assert) => {

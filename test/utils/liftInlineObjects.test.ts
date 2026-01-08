@@ -1,4 +1,5 @@
 import { liftInlineObjects } from "../../src/utils/liftInlineObjects.js";
+import { JsonSchema } from "../../src/Types.js";
 
 describe("liftInlineObjects", () => {
   test("lifts inline property object into defs when enabled", () => {
@@ -11,7 +12,7 @@ describe("liftInlineObjects", () => {
           properties: { b: { type: "number" } },
         },
       },
-    } as const;
+    };
 
     const result = liftInlineObjects(schema, { enable: true, parentName: "Root" });
 
@@ -38,9 +39,9 @@ describe("liftInlineObjects", () => {
         { type: "object", properties: { a: { type: "string" } } },
         { type: "object", properties: { b: { type: "string" } } },
       ],
-    } as const;
+    };
 
-    const result = liftInlineObjects(schema, { enable: true, parentName: "Root" });
+    const result = liftInlineObjects(schema as unknown as JsonSchema, { enable: true, parentName: "Root" });
     expect(result.addedDefNames.length).toBe(0);
   });
 

@@ -1,5 +1,5 @@
-import { parseOneOf } from "../../src/parsers/parseOneOf";
-import { suite } from "../suite";
+import { parseOneOf } from "../../src/parsers/parseOneOf.js";
+import { suite } from "../suite.js";
 
 suite("parseOneOf", (test) => {
   test("should create a simple union by default", (assert) => {

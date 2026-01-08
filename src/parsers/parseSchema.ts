@@ -96,7 +96,7 @@ export const parseSchema = (
 
   if (!blockMeta) {
     if (!refs.withoutDescribes) {
-      parsed = addDescribes(schema, parsed, { ...refs, currentBaseUri: baseUri, dynamicAnchors });
+      parsed = addDescribes(schema, parsed);
     }
 
     if (!refs.withoutDefaults) {
@@ -167,30 +167,33 @@ const parseRef = (
   // We only need z.lazy() for forward refs, not for back-refs to already-declared schemas
   const isForwardRef = refs.inProgress!.has(refName);
 
-  const refType = `typeof ${refName}`;
+  // Check context: are we inside an object property where getters work?
+  // IMPORTANT: additionalProperties becomes z.record() (or .catchall()) which does NOT support getters for deferred evaluation
+  // Only named properties (properties, patternProperties) can use getters
+  const inNamedProperty =
+    refs.path.includes("properties") ||
+    refs.path.includes("patternProperties");
 
-  // For same-cycle refs, check if we need special handling
-  if (isSameCycle || isForwardRef) {
-    // Check context: are we inside an object property where getters work?
-    // IMPORTANT: additionalProperties becomes z.record() which does NOT support getters
-    // Only named properties (properties, patternProperties) can use getters
-    const inNamedProperty =
-      refs.path.includes("properties") ||
-      refs.path.includes("patternProperties");
+  // additionalProperties becomes z.record() value - getters don't work there
+  // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
+  // We also force ZodTypeAny here to break TypeScript circular inference loops
+  const inRecordContext = refs.path.includes("additionalProperties");
 
-    // additionalProperties becomes z.record() value - getters don't work there
-    // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
-    const inRecordContext = refs.path.includes("additionalProperties");
+  // For recursive refs, use ZodTypeAny to avoid TypeScript circular inference errors ("implicitly has type 'any'")
+  const isRecursive = isSameCycle || isForwardRef;
+  const refType = (isRecursive || inRecordContext) ? "z.ZodTypeAny" : `typeof ${refName}`;
 
+  // Use deferred/lazy logic if recursive or in a context that requires it (record/catchall)
+  if (isRecursive || inRecordContext) {
     // Self-recursion in named object properties: use direct ref (getter handles deferred eval)
     const isSelfRecursion = refName === refs.currentSchemaName;
-    if (inNamedProperty && isSelfRecursion) {
+    if (inNamedProperty && isSelfRecursion && !inRecordContext) {
       return { expression: refName, type: refType };
     }
 
     // Cross-schema refs in named object properties within same cycle: use direct ref
     // The getter in parseObject.ts will handle deferred evaluation
-    if (inNamedProperty && isSameCycle && !isForwardRef) {
+    if (inNamedProperty && isSameCycle && !isForwardRef && !inRecordContext) {
       return { expression: refName, type: refType };
     }
 
@@ -198,8 +201,8 @@ const parseRef = (
     // Also arrays, unions, and other non-object contexts with forward refs need z.lazy()
     if (isForwardRef || inRecordContext) {
       return {
-        expression: `z.lazy(() => ${refName})`,
-        type: `z.ZodLazy<${refType}>`
+        expression: `z.lazy<z.ZodTypeAny>((): z.ZodTypeAny => ${refName})`,
+        type: `z.ZodLazy<${refType}>`,
       };
     }
   }
@@ -209,26 +212,60 @@ const parseRef = (
 
 const addDescribes = (
   schema: JsonSchemaObject,
-  parsed: SchemaRepresentation,
-  refs?: Refs
+  parsed: SchemaRepresentation
 ): SchemaRepresentation => {
   let { expression, type } = parsed;
 
-  // Use .meta() for richer metadata when withMeta is enabled
-  if (refs?.withMeta) {
-    const meta: Record<string, unknown> = {};
+  const meta: Record<string, unknown> = {};
 
-    if (schema.$id) meta.id = schema.$id;
-    if (schema.title) meta.title = schema.title;
-    if (schema.description) meta.description = schema.description;
-    if (schema.examples) meta.examples = schema.examples;
-    if (schema.deprecated) meta.deprecated = schema.deprecated;
+  if (schema.$id) meta.id = schema.$id;
+  if (schema.title) meta.title = schema.title;
+  if (schema.description) meta.description = schema.description;
+  if (schema.examples) meta.examples = schema.examples;
+  if (schema.deprecated) meta.deprecated = schema.deprecated;
+
+  // Collect other unknown keywords as metadata if configured
+  // This aligns with Zod v4 "Custom metadata is preserved"
+  // We can filter out known keywords to find the "unknown" ones.
+  // This list needs to be comprehensive to avoid polluting meta with standard logic keywords.
+  const knownKeywords = new Set([
+    "type", "properties", "additionalProperties", "patternProperties",
+    "items", "prefixItems", "additionalItems", "contains", "minContains", "maxContains",
+    "required", "enum", "const", "format", "minLength", "maxLength", "pattern",
+    "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+    "if", "then", "else", "allOf", "anyOf", "oneOf", "not",
+    "$id", "$ref", "$dynamicRef", "$dynamicAnchor", "$schema", "$defs", "definitions",
+    "title", "description", "default", "examples", "deprecated", "readOnly", "writeOnly",
+    "contentEncoding", "contentMediaType", "contentSchema", "dependentRequired", "dependentSchemas",
+    "propertyNames", "unevaluatedProperties", "unevaluatedItems",
+    "nullable", "discriminator", "errorMessage", "externalDocs", "__originalIndex"
+  ]);
+
+  Object.keys(schema).forEach(key => {
+    if (!knownKeywords.has(key)) {
+      meta[key] = schema[key];
+    }
+  });
+
+  if (Object.keys(meta).length > 0) {
+    // Only add .meta() if there is something to add
+    // Note: Zod v4 .describe() writes to description too, which meta does too? 
+    // Zod .describe() sets the description property of the schema def.
+    // .meta() is for custom metadata. 
+    // If strict on description, use .describe().
+
+    // Zod v4: schema.describe("foo") sets description.
+    // schema.meta({ ... }) is for other stuff? 
+    // Actually, Zod documentation says: "Custom metadata is preserved".
+
+    if (meta.description) {
+      expression += `.describe(${JSON.stringify(meta.description)})`;
+      delete meta.description; // Don't duplicate in meta object if using describe
+    }
 
     if (Object.keys(meta).length > 0) {
       expression += `.meta(${JSON.stringify(meta)})`;
     }
-  } else if (schema.description) {
-    expression += `.describe(${JSON.stringify(schema.description)})`;
   }
 
   return { expression, type };
@@ -374,7 +411,11 @@ const selectParser: ParserSelector = (schema, refs) => {
 export const its = {
   an: {
     object: (x: JsonSchemaObject): x is JsonSchemaObject & { type: "object" } =>
-      x.type === "object",
+      x.type === "object" ||
+      x.properties !== undefined ||
+      x.additionalProperties !== undefined ||
+      x.patternProperties !== undefined ||
+      x.required !== undefined,
     array: (x: JsonSchemaObject): x is JsonSchemaObject & { type: "array" } =>
       x.type === "array",
     anyOf: (

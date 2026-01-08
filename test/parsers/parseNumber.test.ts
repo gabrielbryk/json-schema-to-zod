@@ -1,5 +1,5 @@
-import { parseNumber } from "../../src/parsers/parseNumber";
-import { suite } from "../suite";
+import { parseNumber } from "../../src/parsers/parseNumber.js";
+import { suite } from "../suite.js";
 
 suite("parseNumber", (test) => {
   test("should handle integer", (assert) => {
