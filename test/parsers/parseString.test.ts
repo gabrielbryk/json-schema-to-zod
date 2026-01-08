@@ -1,6 +1,7 @@
 import { createRequire } from "module";
 import { parseString } from "../../src/parsers/parseString.js";
 import { suite } from "../suite.js";
+import { expect } from "@jest/globals";
 
 suite("parseString", (test) => {
   const run = (output: string | { expression: string }, data: unknown) => {
@@ -19,7 +20,7 @@ suite("parseString", (test) => {
       errorMessage: { format: "hello" },
     });
 
-    assert(code, 'z.string().datetime({ offset: true, error: "hello" })');
+    assert(code, 'z.iso.datetime({ offset: true, message: "hello" })');
 
     assert(run(code, datetime), { success: true, data: datetime });
   });
@@ -40,7 +41,11 @@ suite("parseString", (test) => {
         type: "string",
         format: "ip",
       }),
-      "z.string().ip()",
+      `z.string().refine((val) => {
+          const v4 = z.ipv4().safeParse(val).success;
+          const v6 = z.ipv6().safeParse(val).success;
+          return v4 || v6;
+        })`,
     );
     assert(
       parseString({
@@ -77,7 +82,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "time",
       }),
-      `z.string().time()`,
+      `z.iso.time()`,
     );
   });
 
@@ -87,7 +92,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "date",
       }),
-      `z.string().date()`,
+      `z.iso.date()`,
     );
   });
 
@@ -97,7 +102,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "duration",
       }),
-      `z.string().duration()`,
+      `z.iso.duration()`,
     );
   });
 
@@ -107,7 +112,7 @@ suite("parseString", (test) => {
         type: "string",
         contentEncoding: "base64",
       }),
-      "z.string().base64()",
+      "z.base64()",
     );
     assert(
       parseString({
@@ -117,14 +122,14 @@ suite("parseString", (test) => {
           contentEncoding: "x",
         },
       }),
-      'z.string().base64({ error: "x" })',
+      'z.base64({ message: "x" })',
     );
     assert(
       parseString({
         type: "string",
         format: "binary",
       }),
-      "z.string().base64()",
+      "z.base64()",
     );
     assert(
       parseString({
@@ -134,7 +139,7 @@ suite("parseString", (test) => {
           format: "x",
         },
       }),
-      'z.string().base64({ error: "x" })',
+      'z.base64({ message: "x" })',
     );
   });
 
@@ -159,7 +164,7 @@ suite("parseString", (test) => {
           ]
         }
       }),
-      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}).pipe(z.object({ "name": z.string(), "age": z.number().int() }))',
+      'z.string().transform((str,ctx) => {try {return JSON.parse(str)} catch (err) {ctx.addIssue({code:"custom",message:"Invalid JSON"})}}).pipe(z.looseObject({"name":z.string(),"age":z.int()}))',
     );
     assert(
       parseString({
@@ -185,33 +190,37 @@ suite("parseString", (test) => {
           contentSchema: "y",
         },
       }),
-      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, { error: "x" }).pipe(z.object({ "name": z.string(), "age": z.number().int() }), { error: "y" })',
+      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, { message: "x" }).pipe(z.looseObject({ "name": z.string(), "age": z.int() }), { message: "y" })',
     );
   });
 
-  test("should accept errorMessage", (assert) => {
-    assert(
-      parseString({
-        type: "string",
-        format: "ipv4",
-        pattern: "x",
-        minLength: 1,
-        maxLength: 2,
-        errorMessage: {
-          format: "ayy",
-          pattern: "lmao",
-          minLength: "deez",
-          maxLength: "nuts",
+  test("should accept errorMessage", () => {
+    expect(
+      parseString(
+        {
+          type: "string",
+          format: "ipv4",
+          pattern: "x",
+          minLength: 1,
+          maxLength: 2,
+          errorMessage: {
+            format: "ayy",
+            pattern: "lmao",
+            minLength: "deez",
+            maxLength: "nuts",
+          },
         },
-      }),
-      'z.ipv4({ error: "ayy" }).regex(new RegExp("x"), { error: "lmao" }).min(1, { error: "deez" }).max(2, { error: "nuts" })',
+        { path: [], seen: new Map() },
+      ).expression,
+    ).toBe(
+      'z.ipv4({ message: "ayy" }).regex(new RegExp("x"), { message: "lmao" }).min(1, { message: "deez" }).max(2, { message: "nuts" })',
     );
   });
 
   test("should map extra string formats to Zod v4 helpers", (assert) => {
     assert(
       parseString({ type: "string", format: "jwt", errorMessage: { format: "x" } }),
-      'z.jwt({ error: "x" })',
+      'z.jwt({ message: "x" })',
     );
 
     assert(
@@ -236,7 +245,7 @@ suite("parseString", (test) => {
 
     assert(
       parseString({ type: "string", format: "e164", errorMessage: { format: "y" } }),
-      'z.e164({ error: "y" })',
+      'z.e164({ message: "y" })',
     );
 
     assert(
@@ -250,20 +259,42 @@ suite("parseString", (test) => {
     );
   });
 
-  test("should map additional standard formats", (assert) => {
-    assert(
-      parseString({ type: "string", format: "hostname" }),
-      "z.string().refine((val) => { if (typeof val !== \"string\" || val.length === 0 || val.length > 253) return false; return val.split(\".\").every((label) => label.length > 0 && label.length <= 63 && /^[A-Za-z0-9-]+$/.test(label) && label[0] !== \"-\" && label[label.length - 1] !== \"-\"); })",
+  test("should map additional standard formats", () => {
+    expect(
+      parseString(
+        {
+          type: "string",
+          format: "hostname",
+          errorMessage: { format: "lmao" },
+        },
+        { path: [], seen: new Map() },
+      ).expression,
+    ).toBe(
+      `z.string().refine((val) => {
+          if (typeof val !== "string" || val.length === 0 || val.length > 253) return false;
+          return val.split(".").every((label) => {
+            return label.length > 0 && label.length <= 63 && /^[A-Za-z0-9-]+$/.test(label) && label[0] !== "-" && label[label.length - 1] !== "-";
+          });
+        }, { message: "lmao" })`,
+    );
+    expect(
+      parseString({ type: "string", format: "json-pointer", errorMessage: { format: "x" } }, { path: [], seen: new Map() }).expression,
+    ).toBe(
+      'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { message: "x" })',
     );
 
-    assert(
-      parseString({ type: "string", format: "json-pointer", errorMessage: { format: "x" } }),
-      'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { error: "x" })',
-    );
+    const assert = (output: any, expected: string) => expect(output.expression).toBe(expected);
 
     assert(
       parseString({ type: "string", format: "regex" }),
-      "z.string().refine((val) => { try { new RegExp(val); return true; } catch { return false; } })",
+      `z.string().refine((val) => {
+          try {
+            new RegExp(val);
+            return true;
+          } catch {
+            return false;
+          }
+        })`
     );
   });
 

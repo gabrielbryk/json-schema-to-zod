@@ -30,7 +30,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.discriminatedUnion("objectType", [z.object({ "objectType": z.literal("typeA") }), z.object({ "objectType": z.literal("typeB") })])',
+      'z.discriminatedUnion("objectType", [z.looseObject({ "objectType": z.literal("typeA") }), z.looseObject({ "objectType": z.literal("typeB") })])',
     );
   });
 
@@ -53,7 +53,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.object({ "objectType": z.literal("typeA") })',
+      'z.looseObject({ "objectType": z.literal("typeA") })',
     );
   });
 
@@ -97,7 +97,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.discriminatedUnion("kind", [z.object({ "kind": z.literal("person"), "name": z.string() }), z.object({ "kind": z.literal("company"), "companyName": z.string() })])',
+      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("person"), "name": z.string() }), z.looseObject({ "kind": z.literal("company"), "companyName": z.string() })])',
     );
   });
 

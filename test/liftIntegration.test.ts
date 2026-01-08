@@ -18,8 +18,8 @@ describe("liftInlineObjects integration", () => {
       liftInlineObjects: { enable: true },
     });
 
-    expect(output).toContain('export const RootNested = z.object({ "b": z.number()');
-    expect(output).toContain('export const Root = z.object({ "a": z.string().optional(), "nested": RootNested.optional()');
+    expect(output).toContain('export const RootNestedSchema = z.looseObject({ "b": z.number().exactOptional() })');
+    expect(output).toContain('export const Root = z.looseObject({ "a": z.string().exactOptional(), "nested": RootNestedSchema.exactOptional() })');
   });
 
   test("does not hoist when flag is disabled", () => {

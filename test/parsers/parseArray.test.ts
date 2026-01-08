@@ -18,7 +18,7 @@ suite("parseArray", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      "z.tuple([z.string(),z.number()])",
+      "z.tuple([z.string(), z.number()]).rest(z.any())",
     );
   });
 

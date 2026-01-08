@@ -1,6 +1,6 @@
 
 import { parseSchema } from "../../src/index.js";
-import { parseNullable } from "../../src/parsers/parseNullable.js";
+
 import { suite } from "../suite.js";
 
 suite("parseNullable", (test) => {

@@ -141,20 +141,20 @@ const setsEqual = (a: Set<string>, b: Set<string>): boolean => {
 };
 
 /**
- * Extract the constant value from a property schema.
- * Returns the string value if it's a const or single-element enum, undefined otherwise.
+ * Extract discriminator values from a property schema.
+ * Returns string values if it's a const or enum, undefined otherwise.
  */
-const getConstValue = (prop: JsonSchemaObject): string | undefined => {
+const getDiscriminatorValues = (prop: JsonSchemaObject): string[] | undefined => {
   if (prop.const !== undefined && typeof prop.const === 'string') {
-    return prop.const;
+    return [prop.const];
   }
   if (
     prop.enum &&
     Array.isArray(prop.enum) &&
-    prop.enum.length === 1 &&
-    typeof prop.enum[0] === 'string'
+    prop.enum.length > 0 &&
+    prop.enum.every((value) => typeof value === 'string')
   ) {
-    return prop.enum[0];
+    return prop.enum as string[];
   }
   return undefined;
 };
@@ -227,6 +227,7 @@ const findImplicitDiscriminator = (
     let defaultIndex: number | undefined;
     let defaultEnumValues: string[] | undefined;
     let isValidDiscriminator = true;
+    let optionsWithDiscriminator = 0;
 
     for (let i = 0; i < resolvedOptions.length; i++) {
       const opt = resolvedOptions[i];
@@ -258,14 +259,20 @@ const findImplicitDiscriminator = (
       }
 
       // Check for constant value
-      const constValue = getConstValue(prop);
+      const constValue = getDiscriminatorValues(prop);
       if (constValue !== undefined) {
-        if (constValuesSet.has(constValue)) {
-          isValidDiscriminator = false; // Duplicate value found
+        optionsWithDiscriminator += 1;
+        for (const value of constValue) {
+          if (constValuesSet.has(value)) {
+            isValidDiscriminator = false; // Duplicate value found
+            break;
+          }
+          constValuesSet.add(value);
+          constValues.push(value);
+        }
+        if (!isValidDiscriminator) {
           break;
         }
-        constValuesSet.add(constValue);
-        constValues.push(constValue);
         continue;
       }
 
@@ -292,7 +299,7 @@ const findImplicitDiscriminator = (
     }
 
     // Check if all options have const values (full discriminated union)
-    if (constValues.length === resolvedOptions.length) {
+    if (optionsWithDiscriminator === resolvedOptions.length) {
       return { type: 'full', key };
     }
 
@@ -300,7 +307,7 @@ const findImplicitDiscriminator = (
     if (
       defaultIndex !== undefined &&
       defaultEnumValues !== undefined &&
-      constValues.length === resolvedOptions.length - 1
+      optionsWithDiscriminator === resolvedOptions.length - 1
     ) {
       // Verify the negated enum exactly matches the const values
       const enumSet = new Set(defaultEnumValues);

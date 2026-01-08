@@ -2,7 +2,7 @@ import { JsonSchema } from "../src/Types.js";
 import jsonSchemaToZod from "../src/index.js";
 import { suite } from "./suite.js";
 import { normalizeCode } from "./utils/normalizeCode.js";
-import { getDefaultExport, getExportedConst, hasImportZod } from "./utils/assertCode.js";
+import { getDefaultExport, hasImportZod } from "./utils/assertCode.js";
 import ts from "typescript";
 
 suite("jsonSchemaToZod", (test: any) => {
@@ -233,7 +233,7 @@ export default z.string()
       ),
       `import { z } from "zod"
 
-export default z.object({ "prop": z.string().default("def") }).passthrough()
+export default z.looseObject({ "prop": z.string().default("def") })
 `,
     );
   });
@@ -318,7 +318,7 @@ export default z.any()
 `);
   });
 
-  test("declares $refs as named schemas and uses getters for recursion", (assert: any) => {
+  test("declares $refs as named schemas and uses z.lazy for recursion", (assert: any) => {
     const schema = {
       $defs: {
         node: {
@@ -334,10 +334,7 @@ export default z.any()
     };
 
     const code = jsonSchemaToZod(schema);
-    const decl = getExportedConst(code, "Node");
-    assert(decl !== undefined, true);
-    assert(code.includes('get "next"(): z.ZodOptional<typeof Node>'), true);
-    assert(code.includes("return Node.optional()"), true);
+    assert(code.includes('"next": z.lazy(() => NodeSchema).exactOptional()'), true);
   });
 
   test("uses upgraded discriminatedUnion map syntax", (assert: any) => {
@@ -369,7 +366,7 @@ export default z.any()
       jsonSchemaToZod(schema as unknown as JsonSchema),
       `import { z } from "zod"
 
-export default z.discriminatedUnion("kind", [z.object({ "kind": z.literal("a"), "value": z.string() }).passthrough(), z.object({ "kind": z.literal("b"), "flag": z.boolean() }).passthrough()])
+export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("a"), "value": z.string() }), z.looseObject({ "kind": z.literal("b"), "flag": z.boolean() })])
 `,
     );
   });
@@ -458,7 +455,7 @@ export default z.discriminatedUnion("kind", [z.object({ "kind": z.literal("a"), 
 
     const output = jsonSchemaToZod(schema, { name: "Node", exportRefs: true });
 
-    assert(output.includes("export const Node2"));
-    assert(output.includes("export const Node = Node2"));
+    assert(output.includes("export const NodeSchema"));
+    assert(output.includes("export const Node = NodeSchema"));
   });
 });

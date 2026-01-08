@@ -17,7 +17,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.object({}).passthrough()`
+      `z.looseObject({})`
     )
   });
 
@@ -30,7 +30,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.object({}).passthrough()`
+      `z.looseObject({})`
     )
   });
 
@@ -52,7 +52,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.object({ "myOptionalString": z.string().optional(), "myRequiredString": z.string() }).passthrough()',
+      'z.looseObject({ "myOptionalString": z.string().exactOptional(), "myRequiredString": z.string() })',
     );
   });
 
@@ -71,7 +71,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.object({ "myString": z.string() }).strict()',
+      'z.strictObject({ "myString": z.string() })',
     );
   });
 
@@ -90,7 +90,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      'z.object({ "myString": z.string() }).passthrough()',
+      'z.looseObject({ "myString": z.string() })',
     );
   });
 
@@ -110,7 +110,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.object({ "myString": z.string() }).catchall(z.number())',
+      'z.looseObject({ "myString": z.string() }).catchall(z.number())',
     );
   });
 
@@ -136,7 +136,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      "z.object({}).passthrough()",
+      "z.looseObject({})",
     );
   });
 
@@ -150,7 +150,7 @@ suite("parseObject", (test) => {
 
         { path: [], seen: new Map() },
       ),
-      "z.object({}).catchall(z.number())",
+      "z.looseObject({}).catchall(z.number())",
     );
   });
 
@@ -168,7 +168,7 @@ suite("parseObject", (test) => {
         },
         { path: [], seen: new Map() },
       ),
-      `z.object({ "s": z.string().default("") }).passthrough()`,
+      `z.looseObject({ "s": z.string().default("") })`,
     );
   });
 
@@ -205,7 +205,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.intersection(z.object({ "a": z.string() }).passthrough(), z.union([z.object({ "b": z.string() }).passthrough(), z.object({ "c": z.string() }).passthrough()]))',
+      'z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))',
     );
 
     assert(
@@ -234,7 +234,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.intersection(z.object({ "a": z.string() }).passthrough(), z.union([z.object({ "b": z.string() }).passthrough(), z.any()]))`,
+      `z.intersection(z.looseObject({ "a": z.string() }), z.union([z.looseObject({ "b": z.string() }), z.any()]))`,
     );
 
     assert(
@@ -269,7 +269,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      'z.intersection(z.object({ "a": z.string() }).passthrough(), z.xor([z.object({ "b": z.string() }).passthrough(), z.object({ "c": z.string() }).passthrough()]))',
+      'z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.looseObject({ "c": z.string() })]))',
     );
 
     assert(
@@ -298,7 +298,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.intersection(z.object({ "a": z.string() }).passthrough(), z.xor([z.object({ "b": z.string() }).passthrough(), z.any()]))`,
+      `z.intersection(z.looseObject({ "a": z.string() }), z.xor([z.looseObject({ "b": z.string() }), z.any()]))`,
     );
 
     const schema3 = {
@@ -312,14 +312,14 @@ suite("parseObject", (test) => {
     };
 
     // @ts-ignore
-    const result3 = parseObject(schema as any3, { path: [], seen: new Map() });
+    const result3 = parseObject(schema3 as any, { path: [], seen: new Map() });
     const n = (s: string) => s.replace(/\s/g, "").replace(/,/g, ", "); // normalize
     const normalized3 = n((result3 as { expression: string }).expression);
     const expected3_Obj = n(
-      `z.intersection(z.intersection(z.object({ "a": z.string() }).passthrough(), z.object({ "b": z.string() }).passthrough()), z.object({ "c": z.string() }).passthrough())`
+      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.looseObject({ "c": z.string() }))`
     );
     const expected3_Any = n(
-      `z.intersection(z.intersection(z.object({ "a": z.string() }).passthrough(), z.object({ "b": z.string() }).passthrough()), z.any())`
+      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`
     );
 
     if (normalized3 !== expected3_Obj && normalized3 !== expected3_Any) {
@@ -352,7 +352,7 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() },
       ),
 
-      `z.intersection(z.intersection(z.object({ "a": z.string() }).passthrough(), z.object({ "b": z.string() }).passthrough()), z.any())`,
+      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`,
     );
   });
 
@@ -379,7 +379,7 @@ suite("parseObject", (test) => {
           required: ["call", "with"],
         },
       ],
-    } 
+    }
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     const expression = toExpression(result);
@@ -448,7 +448,7 @@ suite("parseObject", (test) => {
     };
 
     const _expected =
-      'z.object({ "a": z.string(), "b": z.number().optional() }).passthrough()';
+      'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() })';
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
 
@@ -482,7 +482,7 @@ suite("parseObject", (test) => {
     };
 
     const _expected =
-      'z.object({ "a": z.string(), "b": z.number().optional() }).catchall(z.boolean())';
+      'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }).catchall(z.boolean())';
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
 
@@ -508,7 +508,7 @@ suite("parseObject", (test) => {
       },
     };
 
-    const _expected = `z.intersection(z.object({ "a": z.string(), "b": z.number().optional() }).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
+    const _expected = `z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     assert(result, _expected);
@@ -533,7 +533,7 @@ suite("parseObject", (test) => {
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.object({ "a": z.string(), "b": z.number().optional() }).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
+    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
 for (const key in value) {
 if (["a", "b"].includes(key)) continue;
 let matched = false;
@@ -567,7 +567,7 @@ issues: result.error.issues
       additionalProperties: { type: "boolean" },
     };
 
-    const _expected = "z.object({}).catchall(z.boolean())";
+    const _expected = "z.looseObject({}).catchall(z.boolean())";
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
 
@@ -584,7 +584,7 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.object({}).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
+    const _expected = `z.intersection(z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
 for (const key in value) {
 if ([].includes(key)) continue;
 let matched = false;
@@ -622,7 +622,7 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.object({}).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
+    const _expected = `z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     assert(toExpression(result), _expected);
@@ -637,7 +637,7 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.object({}).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
+    const _expected = `z.intersection(z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     const expression = toExpression(result);
@@ -665,7 +665,7 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.object({ "a": z.string(), "b": z.number().optional() }).passthrough(), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
+    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
 
     const result = parseObject(schema as any, { path: [], seen: new Map() });
     assert(result, _expected);

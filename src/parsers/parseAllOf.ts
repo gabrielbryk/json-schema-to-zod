@@ -43,10 +43,10 @@ const parseObjectShape = (
     const optional = !hasDefault && !required;
 
     const valueExpr = optional
-      ? `${parsedProp.expression}.optional()`
+      ? `${parsedProp.expression}.exactOptional()`
       : parsedProp.expression;
     const valueType = optional
-      ? `z.ZodOptional<${parsedProp.type}>`
+      ? `z.ZodExactOptional<${parsedProp.type}>`
       : parsedProp.type;
 
     shapeEntries.push(`${JSON.stringify(key)}: ${valueExpr}`);
@@ -90,7 +90,7 @@ const trySpreadPattern = (
   if (shapeEntries.length === 0) return undefined;
 
   return {
-    expression: `z.object({ ${shapeEntries.join(", ")} })`,
+    expression: `z.looseObject({ ${shapeEntries.join(", ")} })`,
     type: `z.ZodObject<{ ${shapeTypes.join(", ")} }>`,
   };
 };

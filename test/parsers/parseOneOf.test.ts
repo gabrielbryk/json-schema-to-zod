@@ -2,21 +2,18 @@ import { parseOneOf } from "../../src/parsers/parseOneOf.js";
 import { suite } from "../suite.js";
 
 suite("parseOneOf", (test) => {
-  test("should create a simple union by default", (assert) => {
-    assert(
+  it("should create a simple union by default", () => {
+    expect(
       parseOneOf(
         {
-          oneOf: [
-            {
-              type: "string",
-            },
-            { type: "number" },
-          ],
+          oneOf: [{ type: "string" }, { type: "number" }],
         },
         { path: [], seen: new Map() },
       ),
-      `z.union([z.string(), z.number()])`,
-    );
+    ).toEqual({
+      expression: "z.xor([z.string(), z.number()])",
+      type: "z.ZodXor<readonly [z.ZodString, z.ZodNumber]>",
+    });
   });
 
   test("should create a strict union with superRefine when strictOneOf is enabled", (assert) => {
@@ -32,25 +29,7 @@ suite("parseOneOf", (test) => {
         },
         { path: [], seen: new Map(), strictOneOf: true },
       ),
-      `z.union([z.string(), z.number()]).superRefine((x, ctx) => {
-    const schemas = [z.string(), z.number()];
-    const errors = schemas.reduce<z.ZodError[]>(
-      (errors, schema) =>
-        ((result) =>
-          result.error ? [...errors, result.error] : errors)(
-          schema.safeParse(x),
-        ),
-      [],
-    );
-    if (schemas.length - errors.length !== 1) {
-      ctx.addIssue({
-        path: [],
-        code: "invalid_union",
-        errors: errors.map(e => e.issues),
-        message: "Invalid input: Should pass single schema",
-      });
-    }
-  })`,
+      "z.xor([z.string(), z.number()])",
     );
   });
 
@@ -61,6 +40,34 @@ suite("parseOneOf", (test) => {
         { path: [], seen: new Map() },
       ),
       "z.string()",
+    );
+  });
+
+  test("supports enum discriminators in discriminated unions", (assert) => {
+    assert(
+      parseOneOf(
+        {
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                kind: { enum: ["a", "b"] },
+                value: { type: "string" },
+              },
+              required: ["kind", "value"],
+            },
+            {
+              type: "object",
+              properties: {
+                kind: { const: "c" },
+              },
+              required: ["kind"],
+            },
+          ],
+        },
+        { path: [], seen: new Map() },
+      ),
+      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.enum(["a", "b"]), "value": z.string() }), z.looseObject({ "kind": z.literal("c") })])',
     );
   });
 

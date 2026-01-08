@@ -10,7 +10,6 @@ export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
   refs: Refs,
 ): SchemaRepresentation {
-
   const explicitProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
   const requiredProps = Array.isArray(objectSchema.required) ? objectSchema.required : [];
   const allProps = [...new Set([...explicitProps, ...requiredProps])];
@@ -36,8 +35,12 @@ export function parseObject(
 
         const isOptional = !hasDefault && !isRequired;
 
-        let valueExpr = isOptional ? `${parsedProp.expression}.optional()` : parsedProp.expression;
-        let valueType = isOptional ? `z.ZodOptional<${parsedProp.type}>` : parsedProp.type;
+        let valueExpr = parsedProp.expression;
+        let valueType = parsedProp.type;
+        if (isOptional) {
+          valueExpr = `${parsedProp.expression}.exactOptional()`;
+          valueType = `z.ZodExactOptional<${parsedProp.type}>`;
+        }
 
         propertyTypes.push({ key, type: valueType });
 
@@ -66,7 +69,7 @@ export function parseObject(
   let addPropsSchema: SchemaRepresentation | undefined;
 
   if (manualAdditionalProps) {
-    baseObjectModified += ".passthrough()";
+    baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
     if (typeof additionalProps === "object") {
       addPropsSchema = parseSchema(additionalProps, { ...refs, path: [...refs.path, "additionalProperties"] });
     }
@@ -75,7 +78,10 @@ export function parseObject(
       baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.strictObject(");
     } else if (additionalProps && typeof additionalProps === "object") {
       addPropsSchema = parseSchema(additionalProps, { ...refs, path: [...refs.path, "additionalProperties"] });
+      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
       baseObjectModified += `.catchall(${addPropsSchema.expression})`;
+    } else {
+      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
     }
   }
 
@@ -241,5 +247,3 @@ export function parseObject(
     type
   };
 }
-
-

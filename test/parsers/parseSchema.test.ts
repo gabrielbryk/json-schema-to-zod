@@ -105,7 +105,7 @@ suite("parseSchema", (test) => {
           { type: "number" },
         ]
       }),
-      `z.union([z.string(), z.number()])`,
+      "z.xor([z.string(), z.number()])",
     );
   });
 });

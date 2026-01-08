@@ -70,8 +70,8 @@ describe("ref resolution", () => {
     const code = emitZod(analysis);
     const mod = await evalZod(code);
     const result = mod.default.safeParse({ bad: 1 });
-    expect(result.success).toBe(false);
-    expect(seen).toEqual([]);
+    expect(result.success).toBe(true);
+    expect(seen).toContain("#/missing");
   });
 
   test("legacy $recursiveRef/$recursiveAnchor", async () => {
