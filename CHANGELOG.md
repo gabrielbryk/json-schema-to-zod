@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.13.0
+
+### Minor Changes
+
+- 1e42453: Trigger minor release after CI/tooling alignment.
+
 ## 2.12.1
 
 ### Patch Changes
