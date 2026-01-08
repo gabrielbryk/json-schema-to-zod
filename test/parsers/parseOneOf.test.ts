@@ -8,8 +8,8 @@ suite("parseOneOf", (test) => {
         {
           oneOf: [{ type: "string" }, { type: "number" }],
         },
-        { path: [], seen: new Map() },
-      ),
+        { path: [], seen: new Map() }
+      )
     ).toEqual({
       expression: "z.xor([z.string(), z.number()])",
       type: "z.ZodXor<readonly [z.ZodString, z.ZodNumber]>",
@@ -27,19 +27,16 @@ suite("parseOneOf", (test) => {
             { type: "number" },
           ],
         },
-        { path: [], seen: new Map(), strictOneOf: true },
+        { path: [], seen: new Map(), strictOneOf: true }
       ),
-      "z.xor([z.string(), z.number()])",
+      "z.xor([z.string(), z.number()])"
     );
   });
 
   test("should extract a single schema", (assert) => {
     assert(
-      parseOneOf(
-        { oneOf: [{ type: "string" }] },
-        { path: [], seen: new Map() },
-      ),
-      "z.string()",
+      parseOneOf({ oneOf: [{ type: "string" }] }, { path: [], seen: new Map() }),
+      "z.string()"
     );
   });
 
@@ -65,9 +62,9 @@ suite("parseOneOf", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.enum(["a", "b"]), "value": z.string() }), z.looseObject({ "kind": z.literal("c") })])',
+      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.enum(["a", "b"]), "value": z.string() }), z.looseObject({ "kind": z.literal("c") })])'
     );
   });
 

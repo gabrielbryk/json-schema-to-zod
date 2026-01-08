@@ -19,9 +19,14 @@ const toExpression = (value: string | { expression: string }): string =>
   typeof value === "string" ? value : value.expression;
 
 const esmToCjs = (code: string): string => {
-  const importsReplaced = code.replace(/^import { z } from "zod";?\n?/m, 'const { z } = require("zod");\n');
+  const importsReplaced = code.replace(
+    /^import { z } from "zod";?\n?/m,
+    'const { z } = require("zod");\n'
+  );
   const hasDefaultExport = /^export default /m.test(importsReplaced);
-  const exportedConsts = Array.from(importsReplaced.matchAll(/^export const (\w+) =/gm)).map((m) => m[1]);
+  const exportedConsts = Array.from(importsReplaced.matchAll(/^export const (\w+) =/gm)).map(
+    (m) => m[1]
+  );
 
   let transformed = importsReplaced
     .replace(/^export const (\w+) =/gm, "const $1 =")
@@ -29,10 +34,7 @@ const esmToCjs = (code: string): string => {
     .replace(/^export type .*$/gm, "");
 
   if (hasDefaultExport || exportedConsts.length) {
-    const exportsList = [
-      ...(hasDefaultExport ? ["__default__"] : []),
-      ...exportedConsts,
-    ];
+    const exportsList = [...(hasDefaultExport ? ["__default__"] : []), ...exportedConsts];
     const exportValue = exportsList.length === 1 ? exportsList[0] : `{ ${exportsList.join(", ")} }`;
     transformed += `\nmodule.exports = ${exportValue};`;
   }
@@ -44,10 +46,13 @@ const runZodCode = <T = unknown>(zodCode: string): T => {
   const isEsm = /export (default|const)/.test(zodCode) || /^import { z } from "zod"/m.test(zodCode);
 
   if (!isEsm) {
-    return new Function("require", `
+    return new Function(
+      "require",
+      `
       const { z } = require("zod");
       return (${zodCode});
-    `)(require) as T;
+    `
+    )(require) as T;
   }
 
   const normalized = esmToCjs(zodCode);
@@ -63,9 +68,7 @@ const runZodCode = <T = unknown>(zodCode: string): T => {
 const evalAndParse = (zodCode: string | { expression: string }, data: unknown) => {
   const code = toExpression(zodCode);
   try {
-    const schema = runZodCode<{ safeParse: (value: unknown) => unknown }>(
-      code,
-    );
+    const schema = runZodCode<{ safeParse: (value: unknown) => unknown }>(code);
     return { compiled: true, result: schema.safeParse(data) };
   } catch (e) {
     return { compiled: false, error: e instanceof Error ? e.message : String(e) };
@@ -73,7 +76,9 @@ const evalAndParse = (zodCode: string | { expression: string }, data: unknown) =
 };
 
 // Helper to just check if code compiles
-const canCompile = (zodCode: string | { expression: string }): { success: boolean; error?: string } => {
+const canCompile = (
+  zodCode: string | { expression: string }
+): { success: boolean; error?: string } => {
   const code = toExpression(zodCode);
   try {
     runZodCode(code);
@@ -84,12 +89,11 @@ const canCompile = (zodCode: string | { expression: string }): { success: boolea
 };
 
 suite("functional-validation", (test) => {
-
   test("if-then-else should compile and run", (assert) => {
     const schema = {
       if: { type: "string" },
       then: { type: "number" },
-      else: { type: "boolean" }
+      else: { type: "boolean" },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -110,7 +114,7 @@ suite("functional-validation", (test) => {
     const schema = {
       if: { type: "string" },
       then: { type: "string", minLength: 10 },
-      else: { type: "number", minimum: 100 }
+      else: { type: "number", minimum: 100 },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -138,19 +142,19 @@ suite("functional-validation", (test) => {
         cleanup: {
           type: "string",
           enum: ["always", "never", "eventually"],
-          default: "never"
+          default: "never",
         },
-        after: { type: "string" }
+        after: { type: "string" },
       },
       if: {
-        properties: { cleanup: { const: "eventually" } }
+        properties: { cleanup: { const: "eventually" } },
       },
       then: {
-        required: ["after"]
+        required: ["after"],
       },
       else: {
-        not: { required: ["after"] }
-      }
+        not: { required: ["after"] },
+      },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -167,7 +171,7 @@ suite("functional-validation", (test) => {
   test("record with value schema should compile", (assert) => {
     const schema = {
       type: "object",
-      additionalProperties: { type: "string" }
+      additionalProperties: { type: "string" },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -184,7 +188,7 @@ suite("functional-validation", (test) => {
   test("record with unknown value should compile", (assert) => {
     const schema = {
       type: "object",
-      additionalProperties: true
+      additionalProperties: true,
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -202,8 +206,8 @@ suite("functional-validation", (test) => {
     const schema = {
       allOf: [
         { type: "object", properties: { a: { type: "string" } } },
-        { type: "object", properties: { b: { type: "number" } } }
-      ]
+        { type: "object", properties: { b: { type: "number" } } },
+      ],
     };
 
     const code = parseSchema(schema as unknown as JsonSchema, { path: [], seen: new Map() });
@@ -219,10 +223,7 @@ suite("functional-validation", (test) => {
 
   test("anyOf should compile and validate correctly", (assert) => {
     const schema = {
-      anyOf: [
-        { type: "string" },
-        { type: "number" }
-      ]
+      anyOf: [{ type: "string" }, { type: "number" }],
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -236,10 +237,7 @@ suite("functional-validation", (test) => {
 
   test("oneOf should compile and validate correctly", (assert) => {
     const schema = {
-      oneOf: [
-        { type: "string" },
-        { type: "number" }
-      ]
+      oneOf: [{ type: "string" }, { type: "number" }],
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -253,7 +251,7 @@ suite("functional-validation", (test) => {
 
   test("not should compile", (assert) => {
     const schema = {
-      not: { type: "string" }
+      not: { type: "string" },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -272,8 +270,8 @@ suite("functional-validation", (test) => {
       type: "object",
       patternProperties: {
         "^S_": { type: "string" },
-        "^I_": { type: "integer" }
-      }
+        "^I_": { type: "integer" },
+      },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -294,18 +292,15 @@ suite("functional-validation", (test) => {
         name: { type: "string" },
         config: {
           type: "object",
-          additionalProperties: { type: "string" }
+          additionalProperties: { type: "string" },
         },
         items: {
           type: "array",
           items: {
-            anyOf: [
-              { type: "string" },
-              { type: "object", additionalProperties: true }
-            ]
-          }
-        }
-      }
+            anyOf: [{ type: "string" }, { type: "object", additionalProperties: true }],
+          },
+        },
+      },
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });
@@ -324,9 +319,9 @@ suite("functional-validation", (test) => {
       type: "object",
       properties: {
         name: { type: "string" },
-        age: { type: "integer" }
+        age: { type: "integer" },
       },
-      required: ["name"]
+      required: ["name"],
     };
 
     const code = parseSchema(schema, { path: [], seen: new Map() });

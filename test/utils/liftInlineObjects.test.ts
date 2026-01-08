@@ -19,7 +19,8 @@ describe("liftInlineObjects", () => {
     expect(result.addedDefNames.length).toBe(1);
     const defName = result.addedDefNames[0];
     expect(result.defs[defName]).toBeDefined();
-    const nestedRef = (result.schema as { properties: Record<string, unknown> }).properties.nested as Record<string, unknown>;
+    const nestedRef = (result.schema as { properties: Record<string, unknown> }).properties
+      .nested as Record<string, unknown>;
     expect(nestedRef).toEqual({ $ref: `#/$defs/${defName}` });
   });
 
@@ -30,7 +31,9 @@ describe("liftInlineObjects", () => {
     } as const;
     const result = liftInlineObjects(schema, { enable: false });
     expect(result.addedDefNames).toHaveLength(0);
-    expect((result.schema as { properties: Record<string, unknown> }).properties.nested).toHaveProperty("properties");
+    expect(
+      (result.schema as { properties: Record<string, unknown> }).properties.nested
+    ).toHaveProperty("properties");
   });
 
   test("skips lifting top-level allOf branches", () => {
@@ -41,7 +44,10 @@ describe("liftInlineObjects", () => {
       ],
     };
 
-    const result = liftInlineObjects(schema as unknown as JsonSchema, { enable: true, parentName: "Root" });
+    const result = liftInlineObjects(schema as unknown as JsonSchema, {
+      enable: true,
+      parentName: "Root",
+    });
     expect(result.addedDefNames.length).toBe(0);
   });
 
@@ -60,7 +66,11 @@ describe("liftInlineObjects", () => {
       },
     } as const;
 
-    const result = liftInlineObjects(schema, { enable: true, parentName: "CallTask", allowInDefs: true });
+    const result = liftInlineObjects(schema, {
+      enable: true,
+      parentName: "CallTask",
+      allowInDefs: true,
+    });
     expect(result.addedDefNames.length).toBeGreaterThan(0);
     const defNames = result.addedDefNames;
     expect(defNames.some((n) => n.includes("With"))).toBe(true);
@@ -82,9 +92,14 @@ describe("liftInlineObjects", () => {
       },
     } as const;
 
-    const result = liftInlineObjects(schema, { enable: true, parentName: "Root", allowInDefs: true });
+    const result = liftInlineObjects(schema, {
+      enable: true,
+      parentName: "Root",
+      allowInDefs: true,
+    });
     expect(result.addedDefNames.length).toBeGreaterThan(0);
-    const nestedRef = (result.schema as { properties: Record<string, unknown> }).properties.nested as { $ref?: unknown };
+    const nestedRef = (result.schema as { properties: Record<string, unknown> }).properties
+      .nested as { $ref?: unknown };
     expect(typeof nestedRef.$ref).toBe("string");
   });
 
@@ -104,7 +119,11 @@ describe("liftInlineObjects", () => {
     const result = liftInlineObjects(schema, { enable: true, parentName: "Node" });
 
     expect(result.addedDefNames).toHaveLength(0);
-    const nodeSchema = (result.schema as { properties: Record<string, { properties: Record<string, { $ref: string }> }> }).properties.node;
+    const nodeSchema = (
+      result.schema as {
+        properties: Record<string, { properties: Record<string, { $ref: string }> }>;
+      }
+    ).properties.node;
     expect(nodeSchema.properties.next.$ref).toBe("#/properties/node");
   });
 });

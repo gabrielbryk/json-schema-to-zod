@@ -31,7 +31,7 @@ import { resolveRef } from "../utils/resolveRef.js";
 export const parseSchema = (
   schema: JsonSchema,
   refs: Refs = { seen: new Map(), path: [] },
-  blockMeta?: boolean,
+  blockMeta?: boolean
 ): SchemaRepresentation => {
   // Ensure ref bookkeeping exists so $ref declarations and getter-based recursion work
   refs.root = refs.root ?? schema;
@@ -43,9 +43,7 @@ export const parseSchema = (
   refs.usedNames = refs.usedNames ?? new Set();
 
   if (typeof schema !== "object") {
-    return schema
-      ? anyOrUnknown(refs)
-      : { expression: "z.never()", type: "z.ZodNever" };
+    return schema ? anyOrUnknown(refs) : { expression: "z.never()", type: "z.ZodNever" };
   }
 
   const parentBase = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
@@ -61,7 +59,11 @@ export const parseSchema = (
   }
 
   if (refs.parserOverride) {
-    const custom = refs.parserOverride(schema, { ...refs, currentBaseUri: baseUri, dynamicAnchors });
+    const custom = refs.parserOverride(schema, {
+      ...refs,
+      currentBaseUri: baseUri,
+      dynamicAnchors,
+    });
 
     if (typeof custom === "string") {
       // ParserOverride returns string for backward compatibility
@@ -113,10 +115,9 @@ export const parseSchema = (
 
 const parseRef = (
   schema: JsonSchemaObject & { $ref?: string; $dynamicRef?: string },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   const refValue = schema.$dynamicRef ?? schema.$ref;
-
 
   if (typeof refValue !== "string") {
     return anyOrUnknown(refs);
@@ -172,7 +173,6 @@ const parseRef = (
   // IMPORTANT: additionalProperties becomes z.record() (or .catchall()) which does NOT support getters for deferred evaluation
   // Only named properties (properties, patternProperties) can use getters
 
-
   // additionalProperties becomes z.record() value - getters don't work there
   // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
   // We also force ZodTypeAny here to break TypeScript circular inference loops
@@ -183,8 +183,8 @@ const parseRef = (
   // However, TS 4.x/5.x often requires explicit type for recursive inferred types.
   // Zod documentation recommends: z.ZodType<MyType> = z.lazy(...)
   // Since we don't have the named type available here easily, we rely on inference by removing the generic.
-  const isRecursive = isSameCycle || isForwardRef || (refName === refs.currentSchemaName);
-  const refType = (isRecursive || inRecordContext) ? "z.ZodTypeAny" : `typeof ${refName}`;
+  const isRecursive = isSameCycle || isForwardRef || refName === refs.currentSchemaName;
+  const refType = isRecursive || inRecordContext ? "z.ZodTypeAny" : `typeof ${refName}`;
 
   // Use deferred/lazy logic if recursive or in a context that requires it (record/catchall)
   if (isRecursive || inRecordContext) {
@@ -218,19 +218,65 @@ const addDescribes = (
   // We can filter out known keywords to find the "unknown" ones.
   // This list needs to be comprehensive to avoid polluting meta with standard logic keywords.
   const knownKeywords = new Set([
-    "type", "properties", "additionalProperties", "patternProperties",
-    "items", "prefixItems", "additionalItems", "contains", "minContains", "maxContains",
-    "required", "enum", "const", "format", "minLength", "maxLength", "pattern",
-    "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
-    "if", "then", "else", "allOf", "anyOf", "oneOf", "not",
-    "$id", "$ref", "$dynamicRef", "$dynamicAnchor", "$schema", "$defs", "definitions",
-    "title", "description", "default", "examples", "deprecated", "readOnly", "writeOnly",
-    "contentEncoding", "contentMediaType", "contentSchema", "dependentRequired", "dependentSchemas",
-    "propertyNames", "unevaluatedProperties", "unevaluatedItems",
-    "nullable", "discriminator", "errorMessage", "externalDocs", "__originalIndex"
+    "type",
+    "properties",
+    "additionalProperties",
+    "patternProperties",
+    "items",
+    "prefixItems",
+    "additionalItems",
+    "contains",
+    "minContains",
+    "maxContains",
+    "required",
+    "enum",
+    "const",
+    "format",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "multipleOf",
+    "if",
+    "then",
+    "else",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "$id",
+    "$ref",
+    "$dynamicRef",
+    "$dynamicAnchor",
+    "$schema",
+    "$defs",
+    "definitions",
+    "title",
+    "description",
+    "default",
+    "examples",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "contentEncoding",
+    "contentMediaType",
+    "contentSchema",
+    "dependentRequired",
+    "dependentSchemas",
+    "propertyNames",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "nullable",
+    "discriminator",
+    "errorMessage",
+    "externalDocs",
+    "__originalIndex",
   ]);
 
-  Object.keys(schema).forEach(key => {
+  Object.keys(schema).forEach((key) => {
     if (!knownKeywords.has(key)) {
       meta[key] = schema[key];
     }
@@ -238,13 +284,13 @@ const addDescribes = (
 
   if (Object.keys(meta).length > 0) {
     // Only add .meta() if there is something to add
-    // Note: Zod v4 .describe() writes to description too, which meta does too? 
+    // Note: Zod v4 .describe() writes to description too, which meta does too?
     // Zod .describe() sets the description property of the schema def.
-    // .meta() is for custom metadata. 
+    // .meta() is for custom metadata.
     // If strict on description, use .describe().
 
     // Zod v4: schema.describe("foo") sets description.
-    // schema.meta({ ... }) is for other stuff? 
+    // schema.meta({ ... }) is for other stuff?
     // Actually, Zod documentation says: "Custom metadata is preserved".
 
     if (meta.description) {
@@ -260,11 +306,7 @@ const addDescribes = (
   return { expression, type };
 };
 
-const getOrCreateRefName = (
-  pointer: string,
-  path: (string | number)[],
-  refs: Refs,
-): string => {
+const getOrCreateRefName = (pointer: string, path: (string | number)[], refs: Refs): string => {
   if (refs.refNameByPointer?.has(pointer)) {
     return refs.refNameByPointer.get(pointer)!;
   }
@@ -275,10 +317,7 @@ const getOrCreateRefName = (
   return preferred;
 };
 
-const buildNameFromPath = (
-  path: (string | number)[],
-  used?: Set<string>,
-): string => {
+const buildNameFromPath = (path: (string | number)[], used?: Set<string>): string => {
   const filtered = path
     .map((segment, idx) => {
       if (idx === 0 && (segment === "$defs" || segment === "definitions")) {
@@ -292,18 +331,18 @@ const buildNameFromPath = (
 
   const base = filtered.length
     ? filtered
-      .map((segment) =>
-        typeof segment === "number"
-          ? `Ref${segment}`
-          : segment
-            .toString()
-            .replace(/[^a-zA-Z0-9_$]/g, " ")
-            .split(" ")
-            .filter(Boolean)
-            .map(capitalize)
-            .join(""),
-      )
-      .join("")
+        .map((segment) =>
+          typeof segment === "number"
+            ? `Ref${segment}`
+            : segment
+                .toString()
+                .replace(/[^a-zA-Z0-9_$]/g, " ")
+                .split(" ")
+                .filter(Boolean)
+                .map(capitalize)
+                .join("")
+        )
+        .join("")
     : "Ref";
 
   let finalName = base;
@@ -385,10 +424,7 @@ const selectParser: ParserSelector = (schema, refs) => {
     return parseMultipleType(schema, refs);
   } else if (its.a.primitive(schema, "string")) {
     return parseString(schema, refs);
-  } else if (
-    its.a.primitive(schema, "number") ||
-    its.a.primitive(schema, "integer")
-  ) {
+  } else if (its.a.primitive(schema, "number") || its.a.primitive(schema, "integer")) {
     return parseNumber(schema);
   } else if (its.a.primitive(schema, "boolean")) {
     return parseBoolean();
@@ -409,65 +445,56 @@ export const its = {
       x.additionalProperties !== undefined ||
       x.patternProperties !== undefined ||
       x.required !== undefined,
-    array: (x: JsonSchemaObject): x is JsonSchemaObject & { type: "array" } =>
-      x.type === "array",
+    array: (x: JsonSchemaObject): x is JsonSchemaObject & { type: "array" } => x.type === "array",
     anyOf: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       anyOf: JsonSchema[];
     } => x.anyOf !== undefined,
     allOf: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       allOf: JsonSchema[];
     } => x.allOf !== undefined,
     enum: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       enum: Serializable | Serializable[];
     } => x.enum !== undefined,
   },
   a: {
-    nullable: (
-      x: JsonSchemaObject,
-    ): x is JsonSchemaObject & { nullable: true } =>
+    nullable: (x: JsonSchemaObject): x is JsonSchemaObject & { nullable: true } =>
       (x as { nullable?: boolean }).nullable === true,
-    multipleType: (
-      x: JsonSchemaObject,
-    ): x is JsonSchemaObject & { type: string[] } => Array.isArray(x.type),
+    multipleType: (x: JsonSchemaObject): x is JsonSchemaObject & { type: string[] } =>
+      Array.isArray(x.type),
     not: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       not: JsonSchema;
     } => x.not !== undefined,
     ref: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       $ref?: string;
       $dynamicRef?: string;
     } => typeof x.$ref === "string" || typeof x.$dynamicRef === "string",
     const: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       const: Serializable;
     } => x.const !== undefined,
     primitive: <T extends "string" | "number" | "integer" | "boolean" | "null">(
       x: JsonSchemaObject,
-      p: T,
+      p: T
     ): x is JsonSchemaObject & { type: T } => x.type === p,
     conditional: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       if: JsonSchema;
       then: JsonSchema;
       else: JsonSchema;
-    } =>
-      Boolean(
-        "if" in x && x.if && "then" in x && "else" in x && x.then && x.else,
-      ),
-    simpleDiscriminatedOneOf: (
-      x: JsonSchemaObject,
-    ): x is SimpleDiscriminatedOneOfSchema => {
+    } => Boolean("if" in x && x.if && "then" in x && "else" in x && x.then && x.else),
+    simpleDiscriminatedOneOf: (x: JsonSchemaObject): x is SimpleDiscriminatedOneOfSchema => {
       if (
         !x.oneOf ||
         !Array.isArray(x.oneOf) ||
@@ -509,7 +536,7 @@ export const its = {
       });
     },
     oneOf: (
-      x: JsonSchemaObject,
+      x: JsonSchemaObject
     ): x is JsonSchemaObject & {
       oneOf: JsonSchema[];
     } => x.oneOf !== undefined,

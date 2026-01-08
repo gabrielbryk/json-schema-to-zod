@@ -15,7 +15,7 @@ function checkSrcDir(path: string): string[] {
     if (statSync(itemPath).isDirectory()) {
       lines.push(...checkSrcDir(itemPath));
     } else if (item.endsWith(".ts")) {
-      lines.push('export * from "./' + itemPath.slice(4, -2) + 'js"');
+      lines.push('export * from "./' + itemPath.slice(4, -2) + 'js";');
     }
   }
 
@@ -25,8 +25,8 @@ function checkSrcDir(path: string): string[] {
 const lines = checkSrcDir("src");
 
 lines.push(
-  'import { jsonSchemaToZod } from "./jsonSchemaToZod.js"',
-  "export default jsonSchemaToZod",
+  'import { jsonSchemaToZod } from "./jsonSchemaToZod.js";',
+  "export default jsonSchemaToZod;"
 );
 
-writeFileSync("./src/index.ts", lines.join("\n"));
+writeFileSync("./src/index.ts", `${lines.join("\n")}\n`);

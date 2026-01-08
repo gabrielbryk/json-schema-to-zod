@@ -6,19 +6,19 @@ suite("parseArray", (test) => {
     assert(
       parseArray(
         {
-          type: 'array',
+          type: "array",
           items: [
             {
-              type: 'string'
+              type: "string",
             },
             {
-              type: 'number'
-            }
-          ]
+              type: "number",
+            },
+          ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.tuple([z.string(), z.number()]).rest(z.any())",
+      "z.tuple([z.string(), z.number()]).rest(z.any())"
     );
   });
 
@@ -26,14 +26,14 @@ suite("parseArray", (test) => {
     assert(
       parseArray(
         {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'string'
-          }
+            type: "string",
+          },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.array(z.string())",
+      "z.array(z.string())"
     );
   });
 
@@ -41,15 +41,15 @@ suite("parseArray", (test) => {
     assert(
       parseArray(
         {
-          type: 'array',
+          type: "array",
           maxItems: 2,
           items: {
-            type: 'string'
-          }
+            type: "string",
+          },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.array(z.string()).max(2)",
+      "z.array(z.string()).max(2)"
     );
   });
 
@@ -57,13 +57,13 @@ suite("parseArray", (test) => {
     assert(
       parseArray(
         {
-          type: 'array',
+          type: "array",
           uniqueItems: true,
           items: {
-            type: 'string'
-          }
+            type: "string",
+          },
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
       `z.array(z.string()).superRefine((arr, ctx) => {
   const seen = new Set();
@@ -86,7 +86,7 @@ suite("parseArray", (test) => {
 
     seen.add(key);
   }
-})`,
+})`
     );
   });
-})
+});

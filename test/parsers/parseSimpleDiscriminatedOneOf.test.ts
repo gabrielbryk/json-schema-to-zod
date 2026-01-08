@@ -9,7 +9,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
       parseSimpleDiscriminatedOneOf(
         {
           discriminator: {
-            propertyName: "objectType"
+            propertyName: "objectType",
           },
           oneOf: [
             {
@@ -28,9 +28,9 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.discriminatedUnion("objectType", [z.looseObject({ "objectType": z.literal("typeA") }), z.looseObject({ "objectType": z.literal("typeB") })])',
+      'z.discriminatedUnion("objectType", [z.looseObject({ "objectType": z.literal("typeA") }), z.looseObject({ "objectType": z.literal("typeB") })])'
     );
   });
 
@@ -39,7 +39,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
       parseSimpleDiscriminatedOneOf(
         {
           discriminator: {
-            propertyName: "objectType"
+            propertyName: "objectType",
           },
           oneOf: [
             {
@@ -51,22 +51,25 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.looseObject({ "objectType": z.literal("typeA") })',
+      'z.looseObject({ "objectType": z.literal("typeA") })'
     );
   });
 
   test("should return z.any() if array is empty", (assert) => {
-    assert(parseSimpleDiscriminatedOneOf(
-      {
-        oneOf: [],
-        discriminator: {
-          propertyName: "objectType"
+    assert(
+      parseSimpleDiscriminatedOneOf(
+        {
+          oneOf: [],
+          discriminator: {
+            propertyName: "objectType",
+          },
         },
-      },
-      { path: [], seen: new Map() },
-    ), "z.any()");
+        { path: [], seen: new Map() }
+      ),
+      "z.any()"
+    );
   });
 
   test("should handle discriminator with const values", (assert) => {
@@ -74,7 +77,7 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
       parseSimpleDiscriminatedOneOf(
         {
           discriminator: {
-            propertyName: "kind"
+            propertyName: "kind",
           },
           oneOf: [
             {
@@ -95,9 +98,9 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
             },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("person"), "name": z.string() }), z.looseObject({ "kind": z.literal("company"), "companyName": z.string() })])',
+      'z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("person"), "name": z.string() }), z.looseObject({ "kind": z.literal("company"), "companyName": z.string() })])'
     );
   });
 
@@ -109,22 +112,22 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object" as const,
           properties: {
             type: { type: "string" as const, const: "A" },
-            value: { type: "string" as const }
+            value: { type: "string" as const },
           },
-          required: ["type", "value"]
+          required: ["type", "value"],
         },
         {
           type: "object" as const,
           properties: {
             type: { type: "string" as const, const: "B" },
-            count: { type: "number" as const }
+            count: { type: "number" as const },
           },
-          required: ["type", "count"]
-        }
+          required: ["type", "count"],
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as JsonSchemaObject;
     assert(its.a.simpleDiscriminatedOneOf(schema), true);
   });
@@ -136,14 +139,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             kind: { type: "string", enum: ["person"] },
-            name: { type: "string" }
+            name: { type: "string" },
           },
-          required: ["kind", "name"]
-        }
+          required: ["kind", "name"],
+        },
       ],
       discriminator: {
-        propertyName: "kind"
-      }
+        propertyName: "kind",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), true);
   });
@@ -155,13 +158,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             version: { type: "number", const: 1 },
-            data: { type: "string" }
-          }
-        }
+            data: { type: "string" },
+          },
+        },
       ],
       discriminator: {
-        propertyName: "version"
-      }
+        propertyName: "version",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -169,8 +172,8 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
   test("type guard should reject schema without oneOf", (assert) => {
     const schema = {
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -181,10 +184,10 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string", const: "A" }
-          }
-        }
-      ]
+            type: { type: "string", const: "A" },
+          },
+        },
+      ],
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -193,8 +196,8 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
     const schema = {
       oneOf: [],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -205,11 +208,11 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string", const: "A" }
-          }
-        }
+            type: { type: "string", const: "A" },
+          },
+        },
       ],
-      discriminator: {}
+      discriminator: {},
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -220,13 +223,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string", const: "A" }
-          }
-        }
+            type: { type: "string", const: "A" },
+          },
+        },
       ],
       discriminator: {
-        propertyName: 123
-      }
+        propertyName: 123,
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -238,13 +241,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string", const: "A" }
-          }
-        }
+            type: { type: "string", const: "A" },
+          },
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -255,13 +258,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            value: { type: "string" }
-          }
-        }
+            value: { type: "string" },
+          },
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -272,13 +275,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string" } // No const or enum
-          }
-        }
+            type: { type: "string" }, // No const or enum
+          },
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -289,13 +292,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "string", enum: ["A", "B"] } // Multi-value enum
-          }
-        }
+            type: { type: "string", enum: ["A", "B"] }, // Multi-value enum
+          },
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -304,13 +307,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
     const schema = {
       oneOf: [
         {
-          type: "object"
+          type: "object",
           // No properties
-        }
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -321,13 +324,13 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
         {
           type: "object",
           properties: {
-            type: { type: "boolean", const: true } // Boolean not supported
-          }
-        }
+            type: { type: "boolean", const: true }, // Boolean not supported
+          },
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     };
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -336,14 +339,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
     const schema1 = {
       oneOf: null,
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     const schema2 = {
       oneOf: undefined,
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     assert(its.a.simpleDiscriminatedOneOf(schema1), false);
     assert(its.a.simpleDiscriminatedOneOf(schema2), false);
@@ -356,14 +359,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             type: { type: "string", const: "A" },
-            value: { type: "string" }
+            value: { type: "string" },
           },
-          required: ["value"] // missing "type" in required
-        }
+          required: ["value"], // missing "type" in required
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as JsonSchemaObject;
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -375,14 +378,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             type: { type: "string", const: "A" },
-            value: { type: "string" }
-          }
+            value: { type: "string" },
+          },
           // No required array at all
-        }
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as JsonSchemaObject;
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -394,14 +397,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             type: { type: "string", const: "A" },
-            value: { type: "string" }
+            value: { type: "string" },
           },
-          required: true // boolean instead of array
-        }
+          required: true, // boolean instead of array
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as unknown as JsonSchemaObject; // Using invalid shape intentionally
     assert(its.a.simpleDiscriminatedOneOf(schema), false);
   });
@@ -413,14 +416,14 @@ suite("parseSimpleDiscriminatedOneOf", (test) => {
           type: "object",
           properties: {
             type: { type: "string", const: "A" },
-            value: { type: "string" }
+            value: { type: "string" },
           },
-          required: ["type", "value"] // "type" is properly required
-        }
+          required: ["type", "value"], // "type" is properly required
+        },
       ],
       discriminator: {
-        propertyName: "type"
-      }
+        propertyName: "type",
+      },
     } as JsonSchemaObject;
     assert(its.a.simpleDiscriminatedOneOf(schema), true);
   });

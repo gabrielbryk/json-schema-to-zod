@@ -9,7 +9,10 @@ export const getDefaultExport = (code: string): ts.Expression | undefined => {
   return assignment?.expression;
 };
 
-export const getExportedConst = (code: string, name: string): { initializer: ts.Expression; type?: ts.TypeNode } | undefined => {
+export const getExportedConst = (
+  code: string,
+  name: string
+): { initializer: ts.Expression; type?: ts.TypeNode } | undefined => {
   const sf = parse(code);
   for (const stmt of sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue;
@@ -30,7 +33,7 @@ export const getTypeExport = (code: string, name: string): ts.TypeNode | undefin
       ts.isTypeAliasDeclaration(s) &&
       ts.isIdentifier(s.name) &&
       s.name.text === name &&
-      (s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false),
+      (s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false)
   );
   return typeAlias?.type;
 };
@@ -44,6 +47,6 @@ export const hasImportZod = (code: string): boolean => {
       s.moduleSpecifier.text === "zod" &&
       s.importClause?.namedBindings &&
       ts.isNamedImports(s.importClause.namedBindings) &&
-      s.importClause.namedBindings.elements.some((el) => el.name.text === "z"),
+      s.importClause.namedBindings.elements.some((el) => el.name.text === "z")
   );
 };

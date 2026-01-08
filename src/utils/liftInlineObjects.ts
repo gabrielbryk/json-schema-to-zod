@@ -116,7 +116,7 @@ const allowedHoistContexts: ContextKind[] = [
 const visit = (node: unknown, ctx: VisitContext): JsonSchema => {
   if (Array.isArray(node)) {
     return node.map((entry, index) =>
-      visit(entry, { ...ctx, path: [...ctx.path, index], context: ctx.context }),
+      visit(entry, { ...ctx, path: [...ctx.path, index], context: ctx.context })
     ) as unknown as JsonSchema;
   }
 
@@ -175,7 +175,11 @@ const visit = (node: unknown, ctx: VisitContext): JsonSchema => {
   return deepTransform(obj, ctx, false);
 };
 
-const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInDefs: boolean): JsonSchemaObject => {
+const deepTransform = (
+  obj: Record<string, unknown>,
+  ctx: VisitContext,
+  forceInDefs: boolean
+): JsonSchemaObject => {
   const nextInDefs = ctx.inDefs || forceInDefs;
   const clone: Record<string, unknown> = { ...obj };
 
@@ -203,7 +207,12 @@ const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInD
   if (clone.$defs && typeof clone.$defs === "object" && ctx.allowInDefs) {
     const defsObj = clone.$defs as Record<string, unknown>;
     for (const [key, value] of Object.entries(defsObj)) {
-      const visited = visit(value, { ...ctx, path: [...ctx.path, "$defs", key], inDefs: true, context: "root" });
+      const visited = visit(value, {
+        ...ctx,
+        path: [...ctx.path, "$defs", key],
+        inDefs: true,
+        context: "root",
+      });
       ctx.defs[key] = visited;
     }
     clone.$defs = ctx.defs;
@@ -213,7 +222,12 @@ const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInD
   if (clone.patternProperties && typeof clone.patternProperties === "object") {
     const newPatterns: Record<string, JsonSchema> = {};
     for (const [key, value] of Object.entries(clone.patternProperties as Record<string, unknown>)) {
-      newPatterns[key] = visit(value, { ...ctx, path: [...ctx.path, key], inDefs: nextInDefs, context: "patternProperties" });
+      newPatterns[key] = visit(value, {
+        ...ctx,
+        path: [...ctx.path, key],
+        inDefs: nextInDefs,
+        context: "patternProperties",
+      });
     }
     clone.patternProperties = newPatterns;
   }
@@ -230,7 +244,12 @@ const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInD
 
   // items / additionalItems
   if (clone.items) {
-    clone.items = visit(clone.items, { ...ctx, path: [...ctx.path, "items"], inDefs: nextInDefs, context: "items" });
+    clone.items = visit(clone.items, {
+      ...ctx,
+      path: [...ctx.path, "items"],
+      inDefs: nextInDefs,
+      context: "items",
+    });
   }
   if (clone.additionalItems) {
     clone.additionalItems = visit(clone.additionalItems, {
@@ -245,15 +264,32 @@ const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInD
   for (const keyword of ["allOf", "anyOf", "oneOf"] as const) {
     if (Array.isArray(clone[keyword])) {
       clone[keyword] = (clone[keyword] as unknown[]).map((entry, index) =>
-        visit(entry, { ...ctx, path: [...ctx.path, keyword, index], inDefs: nextInDefs, context: keyword }),
+        visit(entry, {
+          ...ctx,
+          path: [...ctx.path, keyword, index],
+          inDefs: nextInDefs,
+          context: keyword,
+        })
       );
     }
   }
 
   // conditionals
-  for (const keyword of ["if", "then", "else", "not", "contains", "unevaluatedProperties"] as const) {
+  for (const keyword of [
+    "if",
+    "then",
+    "else",
+    "not",
+    "contains",
+    "unevaluatedProperties",
+  ] as const) {
     if (clone[keyword]) {
-      clone[keyword] = visit(clone[keyword], { ...ctx, path: [...ctx.path, keyword], inDefs: nextInDefs, context: keyword });
+      clone[keyword] = visit(clone[keyword], {
+        ...ctx,
+        path: [...ctx.path, keyword],
+        inDefs: nextInDefs,
+        context: keyword,
+      });
     }
   }
 
@@ -275,7 +311,11 @@ const deepTransform = (obj: Record<string, unknown>, ctx: VisitContext, forceInD
 };
 
 const getDefs = (schema: JsonSchema): Record<string, JsonSchema> => {
-  if (typeof schema === "object" && schema !== null && typeof (schema as JsonSchemaObject).$defs === "object") {
+  if (
+    typeof schema === "object" &&
+    schema !== null &&
+    typeof (schema as JsonSchemaObject).$defs === "object"
+  ) {
     return { ...(schema as JsonSchemaObject).$defs } as Record<string, JsonSchema>;
   }
   return {};
@@ -283,17 +323,30 @@ const getDefs = (schema: JsonSchema): Record<string, JsonSchema> => {
 
 const isObjectSchema = (schema: Record<string, unknown>): boolean => {
   if (schema.type === "object") return true;
-  return Boolean(schema.properties || schema.patternProperties || schema.additionalProperties || schema.required || schema.unevaluatedProperties);
+  return Boolean(
+    schema.properties ||
+    schema.patternProperties ||
+    schema.additionalProperties ||
+    schema.required ||
+    schema.unevaluatedProperties
+  );
 };
 
 const isMetaOnly = (schema: Record<string, unknown>): boolean => {
   const keys = Object.keys(schema);
-  return keys.every((k) => ["title", "description", "$id", "$schema", "$anchor", "$dynamicAnchor", "examples"].includes(k));
+  return keys.every((k) =>
+    ["title", "description", "$id", "$schema", "$anchor", "$dynamicAnchor", "examples"].includes(k)
+  );
 };
 
 const isRecursiveRef = (schema: Record<string, unknown>, ctx: VisitContext): boolean => {
   // Only guard when refs are present on the schema itself
-  const ref = typeof schema.$ref === "string" ? schema.$ref : typeof schema.$dynamicRef === "string" ? schema.$dynamicRef : null;
+  const ref =
+    typeof schema.$ref === "string"
+      ? schema.$ref
+      : typeof schema.$dynamicRef === "string"
+        ? schema.$dynamicRef
+        : null;
   if (!ref) return false;
 
   const resolved = resolveRef(schema as JsonSchemaObject, ref, {
@@ -339,7 +392,11 @@ const extractCallConst = (ctx: VisitContext): string | undefined => {
   if (!ctx.rootSchema || ctx.path.length === 0) return undefined;
   const parentPath = ctx.path.slice(0, -1);
   const parentNode = getAtPath(ctx.rootSchema, parentPath);
-  if (parentNode && typeof parentNode === "object" && (parentNode as Record<string, unknown>).properties) {
+  if (
+    parentNode &&
+    typeof parentNode === "object" &&
+    (parentNode as Record<string, unknown>).properties
+  ) {
     const props = (parentNode as Record<string, unknown>).properties as Record<string, unknown>;
     const callProp = props["call"];
     if (callProp && typeof callProp === "object" && (callProp as Record<string, unknown>).const) {
@@ -380,7 +437,7 @@ const normalizePath = (path: (string | number)[]): string => {
 const computeCyclicPaths = (
   schema: JsonSchemaObject,
   refRegistry: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string }>,
-  rootBaseUri: string,
+  rootBaseUri: string
 ): Set<string> => {
   const edges = new Map<string, Set<string>>();
   const nodes = new Set<string>();
@@ -390,7 +447,12 @@ const computeCyclicPaths = (
     edges.get(from)!.add(to);
   };
 
-  const walk = (node: JsonSchema, path: (string | number)[], baseUri: string, ownerPath: (string | number)[]) => {
+  const walk = (
+    node: JsonSchema,
+    path: (string | number)[],
+    baseUri: string,
+    ownerPath: (string | number)[]
+  ) => {
     if (typeof node !== "object" || node === null) return;
     const obj = node as JsonSchemaObject;
     const pathStr = normalizePath(path);
@@ -400,7 +462,12 @@ const computeCyclicPaths = (
 
     const nextBase = typeof obj.$id === "string" ? resolveUri(baseUri, obj.$id) : baseUri;
 
-    const ref = typeof obj.$ref === "string" ? obj.$ref : typeof obj.$dynamicRef === "string" ? obj.$dynamicRef : obj.$recursiveRef;
+    const ref =
+      typeof obj.$ref === "string"
+        ? obj.$ref
+        : typeof obj.$dynamicRef === "string"
+          ? obj.$dynamicRef
+          : obj.$recursiveRef;
     if (typeof ref === "string") {
       const resolved = resolveRef(obj, ref, {
         path,
@@ -437,7 +504,9 @@ const computeCyclicPaths = (
 
     // patternProperties
     if (obj.patternProperties && typeof obj.patternProperties === "object") {
-      for (const [patKey, patVal] of Object.entries(obj.patternProperties as Record<string, unknown>)) {
+      for (const [patKey, patVal] of Object.entries(
+        obj.patternProperties as Record<string, unknown>
+      )) {
         const childPath = [...path, patKey];
         addEdge(ownerStr, normalizePath(childPath));
         walk(patVal as JsonSchema, childPath, nextBase, childPath);
@@ -446,7 +515,9 @@ const computeCyclicPaths = (
 
     // dependentSchemas
     if (obj.dependentSchemas && typeof obj.dependentSchemas === "object") {
-      for (const [depKey, depVal] of Object.entries(obj.dependentSchemas as Record<string, unknown>)) {
+      for (const [depKey, depVal] of Object.entries(
+        obj.dependentSchemas as Record<string, unknown>
+      )) {
         const childPath = [...path, depKey];
         addEdge(ownerStr, normalizePath(childPath));
         walk(depVal as JsonSchema, childPath, nextBase, childPath);
@@ -537,25 +608,47 @@ const computeCyclicPaths = (
   return cycles;
 };
 
-const subtreeHasCycle = (node: Record<string, unknown>, ctx: VisitContext, pathPrefix: (string | number)[]): boolean => {
+const subtreeHasCycle = (
+  node: Record<string, unknown>,
+  ctx: VisitContext,
+  pathPrefix: (string | number)[]
+): boolean => {
   // Keywords that create structural recursion (require z.lazy()) vs property references
   // When a schema is reached through these keywords and participates in a cycle,
   // it will generate z.lazy() which causes type annotation issues when lifted
   const structuralKeywords = new Set([
-    "additionalProperties", "items", "additionalItems", "contains",
-    "unevaluatedProperties", "not", "if", "then", "else",
-    "allOf", "anyOf", "oneOf"
+    "additionalProperties",
+    "items",
+    "additionalItems",
+    "contains",
+    "unevaluatedProperties",
+    "not",
+    "if",
+    "then",
+    "else",
+    "allOf",
+    "anyOf",
+    "oneOf",
   ]);
 
   const rootPathStr = normalizePath(pathPrefix);
 
-  const walk = (value: unknown, path: (string | number)[], parentContext: string | null): boolean => {
+  const walk = (
+    value: unknown,
+    path: (string | number)[],
+    parentContext: string | null
+  ): boolean => {
     if (typeof value !== "object" || value === null) return false;
     const obj = value as Record<string, unknown>;
 
     // Check if this node has a $ref that points back to the root or an ancestor
     // This would create self-referential recursion which blocks lifting
-    const ref = typeof obj.$ref === "string" ? obj.$ref : typeof obj.$dynamicRef === "string" ? obj.$dynamicRef : null;
+    const ref =
+      typeof obj.$ref === "string"
+        ? obj.$ref
+        : typeof obj.$dynamicRef === "string"
+          ? obj.$dynamicRef
+          : null;
     if (ref) {
       // Resolve the ref to see if it points to root or an ancestor
       if (ref.startsWith("#/")) {

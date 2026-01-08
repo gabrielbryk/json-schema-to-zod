@@ -2,7 +2,7 @@ import { JsonSchema } from "../Types.js";
 
 export const findRefDependencies = (
   schema: JsonSchema | undefined,
-  validDefNames: string[],
+  validDefNames: string[]
 ): Set<string> => {
   const deps = new Set<string>();
 
@@ -72,7 +72,7 @@ export const detectCycles = (defNames: string[], deps: Map<string, Set<string>>)
 
 export const computeScc = (
   defNames: string[],
-  deps: Map<string, Set<string>>,
+  deps: Map<string, Set<string>>
 ): { cycleMembers: Set<string>; componentByName: Map<string, number> } => {
   // Tarjan's algorithm, keeps mapping for quick "is this ref in my cycle?"
   const index = new Map<string, number>();

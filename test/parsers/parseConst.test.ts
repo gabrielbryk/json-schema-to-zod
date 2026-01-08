@@ -7,7 +7,7 @@ suite("parseConst", (test) => {
       parseConst({
         const: false,
       }),
-      "z.literal(false)",
+      "z.literal(false)"
     );
   });
 });

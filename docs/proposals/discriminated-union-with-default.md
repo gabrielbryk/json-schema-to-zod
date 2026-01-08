@@ -25,7 +25,7 @@ callTask:
       properties:
         call: { const: "http" }
     # ... more known variants
-    - title: CallFunction  # Default/catch-all
+    - title: CallFunction # Default/catch-all
       properties:
         call:
           not:
@@ -44,8 +44,8 @@ z.union([
   openapiSchema,
   a2aSchema,
   mcpSchema,
-  callFunctionSchema  // Default case
-])
+  callFunctionSchema, // Default case
+]);
 ```
 
 This uses O(n) sequential matching - Zod tries each schema until one passes.
@@ -60,13 +60,14 @@ z.union([
     httpSchema,
     openapiSchema,
     a2aSchema,
-    mcpSchema
+    mcpSchema,
   ]),
-  callFunctionSchema  // Default case
-])
+  callFunctionSchema, // Default case
+]);
 ```
 
 **Benefits:**
+
 - Known values (`"asyncapi"`, `"grpc"`, etc.) use O(1) discriminated union lookup
 - Unknown values fail fast from discriminatedUnion, then try the default case
 - More efficient runtime validation for the common case
@@ -76,12 +77,14 @@ z.union([
 ### Step 1: Identify Discriminator Candidates
 
 For each property key that appears in all oneOf options:
+
 1. Collect options where the property has a constant value (`const` or `enum: [single]`)
 2. Identify if exactly ONE option has `not: { enum: [...] }` for the same property
 
 ### Step 2: Validate Default Case Pattern
 
 The "default case" pattern is valid when:
+
 1. All other options have constant discriminator values
 2. Exactly one option has `not: { enum: values }`
 3. The `values` in the negated enum **exactly match** the const values from other options
@@ -91,8 +94,8 @@ The "default case" pattern is valid when:
 
 ```typescript
 type DiscriminatorResult =
-  | { type: 'full'; key: string }
-  | { type: 'withDefault'; key: string; defaultIndex: number; constValues: string[] }
+  | { type: "full"; key: string }
+  | { type: "withDefault"; key: string; defaultIndex: number; constValues: string[] }
   | undefined;
 ```
 
@@ -103,10 +106,7 @@ type DiscriminatorResult =
 1. **Enhance `findImplicitDiscriminator`** to detect the default case pattern:
 
 ```typescript
-const findImplicitDiscriminator = (
-  options: JsonSchema[],
-  refs: Refs
-): DiscriminatorResult => {
+const findImplicitDiscriminator = (options: JsonSchema[], refs: Refs): DiscriminatorResult => {
   // ... existing logic to collect properties and required fields
 
   for (const key of candidateKeys) {
@@ -138,13 +138,13 @@ const findImplicitDiscriminator = (
       const constSet = new Set(constValues);
       const enumSet = new Set(defaultEnumValues);
       if (setsEqual(constSet, enumSet)) {
-        return { type: 'withDefault', key, defaultIndex, constValues };
+        return { type: "withDefault", key, defaultIndex, constValues };
       }
     }
 
     // All have const values
     if (constValues.length === resolvedOptions.length) {
-      return { type: 'full', key };
+      return { type: "full", key };
     }
   }
 
@@ -186,6 +186,7 @@ export const parseOneOf = (schema, refs) => {
 **Problem**: In Zod v4, `ZodDiscriminatedUnion` cannot be used as a member of `ZodUnion` at the type level.
 
 When we generate:
+
 ```typescript
 z.union([
   z.discriminatedUnion("call", [known1, known2, ...]),
@@ -194,6 +195,7 @@ z.union([
 ```
 
 The runtime works correctly, but TypeScript fails with:
+
 ```
 Type 'ZodDiscriminatedUnion<...>' is not assignable to type 'SomeType'.
 The types of '_zod.values' are incompatible between these types.
@@ -204,6 +206,7 @@ The types of '_zod.values' are incompatible between these types.
 **Workaround Attempted**: Use a type annotation listing all individual variants while keeping the optimized runtime expression. This fails because Zod v4's strict tuple checking requires the type annotation tuple length to match the runtime tuple length.
 
 **Potential Solutions**:
+
 1. **Wait for Zod v4 update**: If Zod adds `ZodDiscriminatedUnion` to `SomeType`, this would work
 2. **Use type assertion**: Cast the result with `as unknown as ZodUnion<...>` - unsafe but functional
 3. **Request Zod feature**: Open an issue requesting discriminated union composability
@@ -235,6 +238,7 @@ z.ZodUnion<readonly [
 ## Testing
 
 Add test cases for:
+
 1. Basic discriminated union with default case
 2. Default case with exact enum match
 3. Default case with partial enum match (should fall back to union)

@@ -12,7 +12,7 @@ suite("omit", (test) => {
       input,
       "b",
       // @ts-expect-error testing invalid key
-      "c",
+      "c"
     );
 
     const output = omit(input, "b");

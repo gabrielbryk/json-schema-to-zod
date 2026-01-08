@@ -133,9 +133,7 @@ console.log(JSON.stringify({
   rmSync(dir, { recursive: true, force: true });
 
   if (status !== 0) {
-    throw new Error(
-      stderr || (error ? String(error) : "Failed to run compiled schema"),
-    );
+    throw new Error(stderr || (error ? String(error) : "Failed to run compiled schema"));
   }
 
   return JSON.parse(stdout);
@@ -145,7 +143,7 @@ function compileAndValidate(
   source: string,
   exportName: string,
   validData: unknown,
-  invalidData: unknown,
+  invalidData: unknown
 ) {
   const dir = mkdtempSync(join(process.cwd(), ".tmp-compiled-"));
   const schemaPath = join(dir, "schema.ts");
@@ -178,9 +176,7 @@ console.log(JSON.stringify({
   rmSync(dir, { recursive: true, force: true });
 
   if (status !== 0) {
-    throw new Error(
-      stderr || (error ? String(error) : "Failed to run validation"),
-    );
+    throw new Error(stderr || (error ? String(error) : "Failed to run validation"));
   }
 
   return JSON.parse(stdout);

@@ -1,5 +1,5 @@
 import { readFileSync, mkdirSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { join } from "path";
 import yaml from "js-yaml";
 import jsonSchemaToZod from "../src/index.js";
 
@@ -45,32 +45,23 @@ function main() {
 
   for (const block of blocks) {
     const normalizedLines = block.lines.map((l, idx) =>
-      idx === 0 ? l.replace(/^\s*(export\s+)?const\s+/, "export const ") : l,
+      idx === 0 ? l.replace(/^\s*(export\s+)?const\s+/, "export const ") : l
     );
     const content = normalizedLines.join("\n");
     const deps = Array.from(names)
       .filter((n) => n !== block.name)
       .filter((n) => new RegExp(`\\b${n}\\b`).test(content));
 
-    const importDepLines = deps.map(
-      (dep) => `import { ${dep} } from "./${dep}.js"`,
-    );
+    const importDepLines = deps.map((dep) => `import { ${dep} } from "./${dep}.js"`);
 
-    const fileContent = [
-      ...importLines,
-      ...importDepLines,
-      content,
-      "",
-    ].join("\n");
+    const fileContent = [...importLines, ...importDepLines, content, ""].join("\n");
 
     writeFileSync(join(SCHEMA_DIR, `${block.name}.ts`), fileContent);
   }
 
   // index exports all and the root schema
   const exportLines = Array.from(
-    new Set(
-      blocks.map((b) => `export { ${b.name} } from "./schemas/${b.name}.js"`),
-    ),
+    new Set(blocks.map((b) => `export { ${b.name} } from "./schemas/${b.name}.js"`))
   );
 
   writeFileSync(OUTPUT_INDEX, exportLines.join("\n") + "\n");

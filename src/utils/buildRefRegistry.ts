@@ -11,7 +11,7 @@ export type RefRegistryEntry = {
 
 export const buildRefRegistry = (
   schema: JsonSchema,
-  rootBaseUri = "root:///",
+  rootBaseUri = "root:///"
 ): { registry: Map<string, RefRegistryEntry>; rootBaseUri: string } => {
   const registry = new Map<string, RefRegistryEntry>();
 

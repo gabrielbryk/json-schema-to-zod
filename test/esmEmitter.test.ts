@@ -8,12 +8,15 @@ suite("esmEmitter", (test) => {
     emitter.addConst({ name: "Foo", expression: "z.string()", exported: true });
     emitter.addDefaultExport({ expression: "Foo" });
 
-    assert(emitter.render(), `import { z } from "zod"
+    assert(
+      emitter.render(),
+      `import { z } from "zod"
 
 export const Foo = z.string()
 
 export default Foo
-`);
+`
+    );
   });
 
   test("dedupes imports and preserves jsdoc", (assert) => {
@@ -23,10 +26,13 @@ export default Foo
     emitter.addConst({ name: "Foo", expression: "z.string()", jsdoc: "/**Doc*/" });
     emitter.addTypeExport({ name: "FooType", type: "string" });
 
-    assert(emitter.render(), `import { z } from "zod";
+    assert(
+      emitter.render(),
+      `import { z } from "zod";
 /*Doc*/
 const Foo = z.string();
 export type FooType = string;
-`);
+`
+    );
   });
 });

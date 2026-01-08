@@ -63,7 +63,7 @@ export type Root = z.infer<typeof RootSchema>
 
     assert(
       { ...result, files: normalizeFiles(result.files) },
-      { ...expected, files: normalizeFiles(expected.files) },
+      { ...expected, files: normalizeFiles(expected.files) }
     );
   });
 });

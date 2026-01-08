@@ -13,19 +13,16 @@ suite("parseAnyOf", (test) => {
             { type: "number" },
           ],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.union([z.string(), z.number()])",
+      "z.union([z.string(), z.number()])"
     );
   });
 
   test("should extract a single schema", (assert) => {
     assert(
-      parseAnyOf(
-        { anyOf: [{ type: "string" }] },
-        { path: [], seen: new Map() },
-      ),
-      "z.string()",
+      parseAnyOf({ anyOf: [{ type: "string" }] }, { path: [], seen: new Map() }),
+      "z.string()"
     );
   });
 

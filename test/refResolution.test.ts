@@ -53,7 +53,9 @@ describe("ref resolution", () => {
 
     expect(mod.default.safeParse({ value: "a" }).success).toBe(true);
     expect(mod.default.safeParse({ value: "a", child: { value: "b" } }).success).toBe(true);
-    expect(mod.default.safeParse({ value: "a", child: { child: { value: 1 } } }).success).toBe(true);
+    expect(mod.default.safeParse({ value: "a", child: { child: { value: 1 } } }).success).toBe(
+      true
+    );
   });
 
   test("unresolved ref invokes hook", async () => {

@@ -2,7 +2,7 @@ import { JsonSchemaObject, SchemaRepresentation } from "../Types.js";
 import { withMessage } from "../utils/withMessage.js";
 
 export const parseNumber = (
-  schema: JsonSchemaObject & { type: "number" | "integer" },
+  schema: JsonSchemaObject & { type: "number" | "integer" }
 ): SchemaRepresentation => {
   const formatMessage = schema.errorMessage?.format;
   const formatParams = formatMessage ? `{ message: ${JSON.stringify(formatMessage)} }` : "";

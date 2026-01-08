@@ -15,10 +15,7 @@ suite("reconstructJsonSchema", (test: any) => {
 
     const result = reconstructJsonSchema(input);
 
-    assert(
-      JSON.stringify(result.patternProperties),
-      JSON.stringify({ "^x-": { type: "string" } })
-    );
+    assert(JSON.stringify(result.patternProperties), JSON.stringify({ "^x-": { type: "string" } }));
     assert(result.__jsonSchema, undefined);
   });
 
@@ -46,10 +43,7 @@ suite("reconstructJsonSchema", (test: any) => {
 
     const result = reconstructJsonSchema(input);
 
-    assert(
-      JSON.stringify(result.if),
-      JSON.stringify({ properties: { type: { const: "a" } } })
-    );
+    assert(JSON.stringify(result.if), JSON.stringify({ properties: { type: { const: "a" } } }));
     assert(JSON.stringify(result.then), JSON.stringify({ required: ["valueA"] }));
     assert(JSON.stringify(result.else), JSON.stringify({ required: ["valueB"] }));
     assert(result.allOf, undefined);

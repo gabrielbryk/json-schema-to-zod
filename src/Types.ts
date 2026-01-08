@@ -88,10 +88,7 @@ export type JsonSchemaObject = {
 } & Record<string, unknown>;
 
 export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => SchemaRepresentation;
-export type ParserOverride = (
-  schema: JsonSchemaObject,
-  refs: Refs,
-) => string | void;
+export type ParserOverride = (schema: JsonSchemaObject, refs: Refs) => string | void;
 
 export type Options = {
   name?: string;
@@ -166,7 +163,16 @@ export type Options = {
   /** Root/base URI for the document */
   rootBaseUri?: string;
   /** Prebuilt registry of resolved URIs/anchors */
-  refRegistry?: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
+  refRegistry?: Map<
+    string,
+    {
+      schema: JsonSchema;
+      path: (string | number)[];
+      baseUri: string;
+      dynamic?: boolean;
+      anchor?: string;
+    }
+  >;
   /**
    * Lift inline object schemas into top-level defs to improve reusability.
    * Default is ON; set enable: false to opt out.
@@ -175,7 +181,10 @@ export type Options = {
     /** Whether to enable lifting inline object schemas (default: true). */
     enable?: boolean;
     /** Optional hook to override generated names for lifted defs. */
-    nameForPath?: (path: (string | number)[], ctx: { parentName?: string; existingNames: Set<string>; branchInfo?: unknown }) => string;
+    nameForPath?: (
+      path: (string | number)[],
+      ctx: { parentName?: string; existingNames: Set<string>; branchInfo?: unknown }
+    ) => string;
     /** Deduplicate lifted shapes by structural hash (ignoring titles/descriptions). Default: false. */
     dedup?: boolean;
     /** Allow hoisting inside $defs content (default: true). */
@@ -201,7 +210,16 @@ export type Refs = Options & {
   /** Root/base URI for the document */
   rootBaseUri?: string;
   /** Prebuilt registry of resolved URIs/anchors */
-  refRegistry?: Map<string, { schema: JsonSchema; path: (string | number)[]; baseUri: string; dynamic?: boolean; anchor?: string }>;
+  refRegistry?: Map<
+    string,
+    {
+      schema: JsonSchema;
+      path: (string | number)[];
+      baseUri: string;
+      dynamic?: boolean;
+      anchor?: string;
+    }
+  >;
   definitions?: Record<string, JsonSchema>;
   /** Stack of active dynamic anchors (nearest last) */
   dynamicAnchors?: { name: string; uri: string; path: (string | number)[] }[];
@@ -213,10 +231,10 @@ export type SimpleDiscriminatedOneOfSchema<D extends string = string> = JsonSche
     properties: {
       [K in D]: JsonSchemaObject & { type: "string" };
     } & {
-      [key: string]: JsonSchemaObject
+      [key: string]: JsonSchemaObject;
     };
   })[];
   discriminator: {
     propertyName: D;
   };
-}
+};

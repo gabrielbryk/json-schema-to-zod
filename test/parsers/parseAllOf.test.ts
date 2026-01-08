@@ -8,9 +8,9 @@ suite("parseAllOf", (test) => {
         {
           allOf: [],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.never()",
+      "z.never()"
     );
   });
 
@@ -20,9 +20,9 @@ suite("parseAllOf", (test) => {
         {
           allOf: [{ type: "string" }, true],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      "z.intersection(z.string(), z.any())",
+      "z.intersection(z.string(), z.any())"
     );
   });
 
@@ -32,9 +32,9 @@ suite("parseAllOf", (test) => {
         {
           allOf: [{ type: "string" }, false],
         },
-        { path: [], seen: new Map() },
+        { path: [], seen: new Map() }
       ),
-      `z.intersection(z.string(), z.any().refine((value) => !z.any().safeParse(value).success, "Invalid input: Should NOT be valid against schema"))`,
+      `z.intersection(z.string(), z.any().refine((value) => !z.any().safeParse(value).success, "Invalid input: Should NOT be valid against schema"))`
     );
   });
 });

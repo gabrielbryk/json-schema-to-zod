@@ -4,7 +4,7 @@ import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseNot = (
   schema: JsonSchemaObject & { not: JsonSchema },
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   const baseSchema = anyOrUnknown(refs);
   const notSchema = parseSchema(schema.not, {

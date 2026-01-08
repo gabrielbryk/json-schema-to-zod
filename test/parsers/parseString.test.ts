@@ -31,7 +31,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "email",
       }),
-      "z.email()",
+      "z.email()"
     );
   });
 
@@ -45,14 +45,14 @@ suite("parseString", (test) => {
           const v4 = z.ipv4().safeParse(val).success;
           const v6 = z.ipv6().safeParse(val).success;
           return v4 || v6;
-        })`,
+        })`
     );
     assert(
       parseString({
         type: "string",
         format: "ipv6",
       }),
-      `z.ipv6()`,
+      `z.ipv6()`
     );
   });
 
@@ -62,7 +62,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "uri",
       }),
-      `z.url()`,
+      `z.url()`
     );
   });
 
@@ -72,7 +72,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "uuid",
       }),
-      `z.uuid()`,
+      `z.uuid()`
     );
   });
 
@@ -82,7 +82,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "time",
       }),
-      `z.iso.time()`,
+      `z.iso.time()`
     );
   });
 
@@ -92,7 +92,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "date",
       }),
-      `z.iso.date()`,
+      `z.iso.date()`
     );
   });
 
@@ -102,7 +102,7 @@ suite("parseString", (test) => {
         type: "string",
         format: "duration",
       }),
-      `z.iso.duration()`,
+      `z.iso.duration()`
     );
   });
 
@@ -112,7 +112,7 @@ suite("parseString", (test) => {
         type: "string",
         contentEncoding: "base64",
       }),
-      "z.base64()",
+      "z.base64()"
     );
     assert(
       parseString({
@@ -122,14 +122,14 @@ suite("parseString", (test) => {
           contentEncoding: "x",
         },
       }),
-      'z.base64({ message: "x" })',
+      'z.base64({ message: "x" })'
     );
     assert(
       parseString({
         type: "string",
         format: "binary",
       }),
-      "z.base64()",
+      "z.base64()"
     );
     assert(
       parseString({
@@ -139,7 +139,7 @@ suite("parseString", (test) => {
           format: "x",
         },
       }),
-      'z.base64({ message: "x" })',
+      'z.base64({ message: "x" })'
     );
   });
 
@@ -152,19 +152,16 @@ suite("parseString", (test) => {
           type: "object",
           properties: {
             name: {
-              type: "string"
+              type: "string",
             },
             age: {
-              type: "integer"
-            }
+              type: "integer",
+            },
           },
-          required: [
-            "name",
-            "age"
-          ]
-        }
+          required: ["name", "age"],
+        },
       }),
-      'z.string().transform((str,ctx) => {try {return JSON.parse(str)} catch (err) {ctx.addIssue({code:"custom",message:"Invalid JSON"})}}).pipe(z.looseObject({"name":z.string(),"age":z.int()}))',
+      'z.string().transform((str,ctx) => {try {return JSON.parse(str)} catch (err) {ctx.addIssue({code:"custom",message:"Invalid JSON"})}}).pipe(z.looseObject({"name":z.string(),"age":z.int()}))'
     );
     assert(
       parseString({
@@ -174,23 +171,20 @@ suite("parseString", (test) => {
           type: "object",
           properties: {
             name: {
-              type: "string"
+              type: "string",
             },
             age: {
-              type: "integer"
-            }
+              type: "integer",
+            },
           },
-          required: [
-            "name",
-            "age"
-          ]
+          required: ["name", "age"],
         },
         errorMessage: {
           contentMediaType: "x",
           contentSchema: "y",
         },
       }),
-      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, { message: "x" }).pipe(z.looseObject({ "name": z.string(), "age": z.int() }), { message: "y" })',
+      'z.string().transform((str, ctx) => { try { return JSON.parse(str); } catch (err) { ctx.addIssue({ code: "custom", message: "Invalid JSON" }); }}, { message: "x" }).pipe(z.looseObject({ "name": z.string(), "age": z.int() }), { message: "y" })'
     );
   });
 
@@ -210,53 +204,35 @@ suite("parseString", (test) => {
             maxLength: "nuts",
           },
         },
-        { path: [], seen: new Map() },
-      ).expression,
+        { path: [], seen: new Map() }
+      ).expression
     ).toBe(
-      'z.ipv4({ message: "ayy" }).regex(new RegExp("x"), { message: "lmao" }).min(1, { message: "deez" }).max(2, { message: "nuts" })',
+      'z.ipv4({ message: "ayy" }).regex(new RegExp("x"), { message: "lmao" }).min(1, { message: "deez" }).max(2, { message: "nuts" })'
     );
   });
 
   test("should map extra string formats to Zod v4 helpers", (assert) => {
     assert(
       parseString({ type: "string", format: "jwt", errorMessage: { format: "x" } }),
-      'z.jwt({ message: "x" })',
+      'z.jwt({ message: "x" })'
     );
 
-    assert(
-      parseString({ type: "string", format: "cuid" }),
-      "z.cuid()",
-    );
+    assert(parseString({ type: "string", format: "cuid" }), "z.cuid()");
 
-    assert(
-      parseString({ type: "string", format: "cuid2" }),
-      "z.cuid2()",
-    );
+    assert(parseString({ type: "string", format: "cuid2" }), "z.cuid2()");
 
-    assert(
-      parseString({ type: "string", format: "nanoid" }),
-      "z.nanoid()",
-    );
+    assert(parseString({ type: "string", format: "nanoid" }), "z.nanoid()");
 
-    assert(
-      parseString({ type: "string", format: "ulid" }),
-      "z.ulid()",
-    );
+    assert(parseString({ type: "string", format: "ulid" }), "z.ulid()");
 
     assert(
       parseString({ type: "string", format: "e164", errorMessage: { format: "y" } }),
-      'z.e164({ message: "y" })',
+      'z.e164({ message: "y" })'
     );
 
-    assert(
-      parseString({ type: "string", format: "base64url" }),
-      "z.base64url()",
-    );
+    assert(parseString({ type: "string", format: "base64url" }), "z.base64url()");
 
-    assert(
-      parseString({ type: "string", format: "emoji" }),
-      "z.emoji()",
-    );
+    assert(parseString({ type: "string", format: "emoji" }), "z.emoji()");
   });
 
   test("should map additional standard formats", () => {
@@ -267,20 +243,23 @@ suite("parseString", (test) => {
           format: "hostname",
           errorMessage: { format: "lmao" },
         },
-        { path: [], seen: new Map() },
-      ).expression,
+        { path: [], seen: new Map() }
+      ).expression
     ).toBe(
       `z.string().refine((val) => {
           if (typeof val !== "string" || val.length === 0 || val.length > 253) return false;
           return val.split(".").every((label) => {
             return label.length > 0 && label.length <= 63 && /^[A-Za-z0-9-]+$/.test(label) && label[0] !== "-" && label[label.length - 1] !== "-";
           });
-        }, { message: "lmao" })`,
+        }, { message: "lmao" })`
     );
     expect(
-      parseString({ type: "string", format: "json-pointer", errorMessage: { format: "x" } }, { path: [], seen: new Map() }).expression,
+      parseString(
+        { type: "string", format: "json-pointer", errorMessage: { format: "x" } },
+        { path: [], seen: new Map() }
+      ).expression
     ).toBe(
-      'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { message: "x" })',
+      'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { message: "x" })'
     );
 
     const assert = (output: any, expected: string) => expect(output.expression).toBe(expected);
@@ -302,7 +281,11 @@ suite("parseString", (test) => {
     const seen: { format: string; path: (string | number)[] }[] = [];
     parseString(
       { type: "string", format: "made-up" },
-      { path: ["root"], seen: new Map(), onUnknownFormat: (format, path) => seen.push({ format, path }) },
+      {
+        path: ["root"],
+        seen: new Map(),
+        onUnknownFormat: (format, path) => seen.push({ format, path }),
+      }
     );
     assert(seen, [{ format: "made-up", path: ["root"] }]);
   });

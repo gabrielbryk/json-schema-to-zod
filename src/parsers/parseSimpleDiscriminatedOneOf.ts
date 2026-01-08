@@ -4,7 +4,7 @@ import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 
 export const parseSimpleDiscriminatedOneOf = (
   schema: SimpleDiscriminatedOneOfSchema,
-  refs: Refs,
+  refs: Refs
 ): SchemaRepresentation => {
   const discriminator = schema.discriminator.propertyName;
 
@@ -12,7 +12,7 @@ export const parseSimpleDiscriminatedOneOf = (
     parseSchema(option, {
       ...refs,
       path: [...refs.path, "oneOf", i],
-    }),
+    })
   );
 
   if (!schema.oneOf.length) {
@@ -26,8 +26,8 @@ export const parseSimpleDiscriminatedOneOf = (
     });
   }
 
-  const expressions = options.map(o => o.expression).join(", ");
-  const types = options.map(o => o.type).join(", ");
+  const expressions = options.map((o) => o.expression).join(", ");
+  const types = options.map((o) => o.type).join(", ");
 
   return {
     expression: `z.discriminatedUnion("${discriminator}", [${expressions}])`,

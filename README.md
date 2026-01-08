@@ -47,15 +47,15 @@ json-refs resolve mySchema.json | json-schema-to-zod | prettier --parser typescr
 
 #### Options
 
-| Flag           | Shorthand | Function                                                                                       |
-| -------------- | --------- | ---------------------------------------------------------------------------------------------- |
-| `--input`      | `-i`      | JSON or a source file path. Required if no data is piped.                                      |
-| `--output`     | `-o`      | A file path to write to. If not supplied stdout will be used.                                  |
-| `--name`       | `-n`      | The name of the schema in the output                                                           |
-| `--depth`      | `-d`      | Maximum depth of recursion in schema before falling back to `z.any()`. Defaults to 0.          |
-| `--type`       | `-t`      | Export a named type along with the schema. Requires `name` to be set. |
-| `--noImport`   | `-ni`     | Removes the `import { z } from 'zod';` or equivalent from the output.                          |
-| `--withJsdocs` | `-wj`     | Generate jsdocs off of the description property.                                               |
+| Flag           | Shorthand | Function                                                                              |
+| -------------- | --------- | ------------------------------------------------------------------------------------- |
+| `--input`      | `-i`      | JSON or a source file path. Required if no data is piped.                             |
+| `--output`     | `-o`      | A file path to write to. If not supplied stdout will be used.                         |
+| `--name`       | `-n`      | The name of the schema in the output                                                  |
+| `--depth`      | `-d`      | Maximum depth of recursion in schema before falling back to `z.any()`. Defaults to 0. |
+| `--type`       | `-t`      | Export a named type along with the schema. Requires `name` to be set.                 |
+| `--noImport`   | `-ni`     | Removes the `import { z } from 'zod';` or equivalent from the output.                 |
+| `--withJsdocs` | `-wj`     | Generate jsdocs off of the description property.                                      |
 
 ### Programmatic
 

@@ -1,6 +1,6 @@
 export type NameForPathHook = (
   path: (string | number)[],
-  ctx: { parentName?: string; existingNames: Set<string>; branchInfo?: unknown },
+  ctx: { parentName?: string; existingNames: Set<string>; branchInfo?: unknown }
 ) => string;
 
 export type GenerateNameOptions = {

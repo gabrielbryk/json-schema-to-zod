@@ -1,7 +1,7 @@
 import { JsonSchemaObject, SchemaRepresentation, Serializable } from "../Types.js";
 
 export const parseConst = (
-  schema: JsonSchemaObject & { const: Serializable },
+  schema: JsonSchemaObject & { const: Serializable }
 ): SchemaRepresentation => {
   const value = schema.const;
   const expression = `z.literal(${JSON.stringify(value)})`;
