@@ -350,6 +350,26 @@ suite("parseObject", (test) => {
     );
   });
 
+  test("oneOf required-only refinement preserves base object type", (assert) => {
+    const schema = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+      },
+      oneOf: [{ required: ["a"] }, { required: ["b"] }],
+    };
+
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
+    const expression = toExpression(result);
+
+    assert(expression.includes("z.any().superRefine"), false);
+    assert(expression.includes("z.looseObject"), true);
+    assert(expression.includes(".superRefine((obj, ctx) =>"), true);
+  });
+
   test("SKIPPED: allOf merges parent required into properties member", (assert) => {
     return;
     const schema = {
@@ -691,6 +711,40 @@ issues: result.error.issues
       seen: new Map(),
     });
     assert(result, _expected);
+  });
+
+  test("builds balanced intersections for multiple members", (assert) => {
+    const schema = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+      },
+      patternProperties: {
+        "\\.": { type: "array" },
+        "\\,": { type: "array", minItems: 1 },
+      },
+      allOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["c"],
+          properties: {
+            c: { type: "number" },
+          },
+        },
+      ],
+    };
+
+    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string().exactOptional(), "c": z.number() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })), z.strictObject({ "c": z.number() })))`;
+
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
+    const expression = toExpression(result);
+
+    assert(expression, _expected);
+    assert(expression.includes("z.intersection(z.intersection(z.intersection("), false);
   });
 
   test("dependentRequired", (assert) => {

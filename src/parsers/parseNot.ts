@@ -6,15 +6,18 @@ export const parseNot = (
   schema: JsonSchemaObject & { not: JsonSchema },
   refs: Refs
 ): SchemaRepresentation => {
-  const baseSchema = anyOrUnknown(refs);
+  const baseSchemaInput: JsonSchemaObject = { ...schema };
+  delete (baseSchemaInput as { not?: JsonSchema }).not;
+  const baseSchema = parseSchema(baseSchemaInput, refs, true);
+  const resolvedBase = baseSchema.expression === "z.never()" ? anyOrUnknown(refs) : baseSchema;
   const notSchema = parseSchema(schema.not, {
     ...refs,
     path: [...refs.path, "not"],
   });
 
   return {
-    expression: `${baseSchema.expression}.refine((value) => !${notSchema.expression}.safeParse(value).success, "Invalid input: Should NOT be valid against schema")`,
+    expression: `${resolvedBase.expression}.refine((value) => !${notSchema.expression}.safeParse(value).success, "Invalid input: Should NOT be valid against schema")`,
     // In Zod v4, .refine() doesn't change the type
-    type: baseSchema.type,
+    type: resolvedBase.type,
   };
 };

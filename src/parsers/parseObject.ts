@@ -5,33 +5,8 @@ import { parseSchema } from "./parseSchema.js";
 
 import { addJsdocs } from "../utils/jsdocs.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
+import { buildIntersectionTree } from "../utils/buildIntersectionTree.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
-import { half } from "../utils/half.js";
-
-const buildIntersectionTree = (members: SchemaRepresentation[]): SchemaRepresentation => {
-  if (members.length === 0) {
-    return { expression: "z.never()", type: "z.ZodNever" };
-  }
-  if (members.length === 1) {
-    return members[0]!;
-  }
-  if (members.length === 2) {
-    const [left, right] = members;
-    return {
-      expression: `z.intersection(${left.expression}, ${right.expression})`,
-      type: `z.ZodIntersection<${left.type}, ${right.type}>`,
-    };
-  }
-
-  const [leftItems, rightItems] = half(members);
-  const left = buildIntersectionTree(leftItems);
-  const right = buildIntersectionTree(rightItems);
-
-  return {
-    expression: `z.intersection(${left.expression}, ${right.expression})`,
-    type: `z.ZodIntersection<${left.type}, ${right.type}>`,
-  };
-};
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
@@ -59,6 +34,35 @@ export function parseObject(
     if (keys.length === 0) return false;
     return keys.every((key) => key === "properties" || key === "required");
   };
+
+  const propertyOnlyOverlapKeys = new Set<string>();
+  const propertyOnlyKeysByIndex = new Map<number, string[]>();
+  if (objectSchema.allOf) {
+    const keyCounts = new Map<string, number>();
+    const addKey = (key: string) => {
+      keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+    };
+
+    for (const key of Object.keys(objectSchema.properties ?? {})) {
+      addKey(key);
+    }
+
+    objectSchema.allOf.forEach((member, index) => {
+      if (!isPropertyOnlyAllOfMember(member)) return;
+      const obj = member as JsonSchemaObject;
+      const keys = Object.keys(obj.properties ?? {});
+      if (keys.length) {
+        propertyOnlyKeysByIndex.set(index, keys);
+        keys.forEach(addKey);
+      }
+    });
+
+    for (const [key, count] of keyCounts) {
+      if (count > 1) {
+        propertyOnlyOverlapKeys.add(key);
+      }
+    }
+  }
 
   // 1. Process Properties (Base Object)
   let baseObjectExpr = "z.object({";
@@ -160,6 +164,7 @@ export function parseObject(
 
   // 3b. Add manual additionalProperties check if needed
   let manualAdditionalRefine = "";
+  let oneOfRefinement = "";
   if (manualAdditionalProps) {
     const definedProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
 
@@ -208,7 +213,11 @@ export function parseObject(
     // If we just use simple intersection:
     schemaWithAllOf.allOf.forEach((s, i) => {
       if (isPropertyOnlyAllOfMember(s)) {
-        return;
+        const keys = propertyOnlyKeysByIndex.get(i) ?? [];
+        const hasOverlap = keys.some((key) => propertyOnlyOverlapKeys.has(key));
+        if (!hasOverlap) {
+          return;
+        }
       }
       const res = parseSchema(s, { ...refs, path: [...refs.path, "allOf", i] });
       intersectionMembers.push(res);
@@ -218,7 +227,15 @@ export function parseObject(
   if (objectSchema.oneOf) {
     const schemaWithOneOf = objectSchema as JsonSchemaObject & { oneOf: JsonSchema[] };
     const res = parseOneOf(schemaWithOneOf, refs);
-    intersectionMembers.push(res);
+    if (
+      "isRefinementOnly" in res &&
+      res.isRefinementOnly === true &&
+      typeof (res as { refinementBody?: unknown }).refinementBody === "string"
+    ) {
+      oneOfRefinement = `.superRefine(${(res as { refinementBody: string }).refinementBody})`;
+    } else {
+      intersectionMembers.push(res);
+    }
   }
 
   if (objectSchema.anyOf) {
@@ -229,7 +246,7 @@ export function parseObject(
 
   // 5. propertyNames, unevaluatedProperties, dependentSchemas etc.
   const final = buildIntersectionTree(intersectionMembers);
-  let finalExpr = `${final.expression}${manualAdditionalRefine}`;
+  let finalExpr = `${final.expression}${manualAdditionalRefine}${oneOfRefinement}`;
 
   if (objectSchema.propertyNames) {
     const normalizedPropNames =

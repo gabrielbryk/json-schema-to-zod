@@ -52,4 +52,28 @@ suite("allOf required properties", (test) => {
     assert(output.includes('"foo": z.string().exactOptional()'));
     assert(!output.includes("z.intersection"));
   });
+
+  test("preserves overlapping property constraints from property-only allOf members", (assert) => {
+    const schema = {
+      type: "object",
+      allOf: [
+        {
+          properties: {
+            foo: { type: "string", minLength: 2 },
+          },
+        },
+        {
+          properties: {
+            foo: { type: "string", pattern: "^a" },
+          },
+        },
+      ],
+    };
+
+    const output = jsonSchemaToZod(schema, { name: "TestSchema" });
+
+    assert(output.includes("z.intersection"));
+    assert(output.includes("min(2"));
+    assert(output.includes('regex(new RegExp("^a"))'));
+  });
 });
