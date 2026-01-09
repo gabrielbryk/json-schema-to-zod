@@ -1,0 +1,10 @@
+{
+  "definitions": {
+    "task": {
+      "type": "object",
+      "properties": { "id": { "type": "string" } },
+      "required": ["id"]
+    }
+  },
+  "$ref": "#/definitions/task"
+}

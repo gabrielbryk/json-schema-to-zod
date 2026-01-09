@@ -1,0 +1,14 @@
+{
+  "allOf": [
+    {
+      "type": "object",
+      "properties": { "id": { "type": "string" } },
+      "required": ["id"]
+    },
+    {
+      "type": "object",
+      "properties": { "count": { "type": "number" } },
+      "required": ["count"]
+    }
+  ]
+}

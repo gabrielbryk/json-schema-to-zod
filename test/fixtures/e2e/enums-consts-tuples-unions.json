@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "status": { "enum": ["open", "closed"] },
+    "kind": { "const": "fixed" },
+    "pair": {
+      "type": "array",
+      "items": [{ "type": "string" }, { "type": "number" }],
+      "additionalItems": false
+    },
+    "value": { "oneOf": [{ "type": "string" }, { "type": "number" }] }
+  },
+  "required": ["status", "kind", "pair", "value"]
+}
