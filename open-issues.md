@@ -47,7 +47,7 @@ Standard issue format (use for all entries):
 - Evidence: `.tmp-workflow-schema-output.ts:152` (`McpClientSchema.version`); schema requires `version` but no definition exists (`test/fixtures/workflow.yaml:606-620`).
 - Impact: Output type is overly permissive and hides schema inconsistencies.
 - Proposed fix: Emit a warning when `required` contains undefined properties; optionally support a strict mode that errors on this.
-- Related: Default openness (fallbacks + passthrough) is not configurable; Property-only allOf members skipped in intersections can drop constraints
+- Related: Default openness (fallbacks + passthrough) is not configurable
 - Depends on: —
 - Notes: This is a schema authoring issue, but surfacing it improves trust in generated output.
 
@@ -114,15 +114,3 @@ Standard issue format (use for all entries):
 - Related: Large union splitting to avoid TS7056
 - Depends on: —
 - Notes: This can start with union/intersection nodes before a full rewrite.
-
-## [Property-only allOf members skipped in intersections can drop constraints]
-
-- Status: open
-- Category: correctness
-- Summary: Property-only `allOf` members are skipped during intersections; overlapping property keys with differing constraints can be dropped.
-- Evidence: `src/parsers/parseObject.ts` skips property-only `allOf` members; `src/utils/collectSchemaProperties.ts` merges with first-wins behavior.
-- Impact: Validation/type constraints may be weaker than the schema (e.g., `minLength` in one member and `pattern` in another).
-- Proposed fix: Only skip intersections when property sets are disjoint or identical; for overlapping keys, intersect property schemas (or keep the intersection for those members).
-- Related: Required property without schema falls back to z.any
-- Depends on: —
-- Notes: A helper could detect overlapping keys and route through `parseAllOf` or per-property `allOf` merging.

@@ -22,6 +22,7 @@ export * from "./parsers/parseSchema.js";
 export * from "./parsers/parseSimpleDiscriminatedOneOf.js";
 export * from "./parsers/parseString.js";
 export * from "./utils/anyOrUnknown.js";
+export * from "./utils/buildIntersectionTree.js";
 export * from "./utils/buildRefRegistry.js";
 export * from "./utils/collectSchemaProperties.js";
 export * from "./utils/cycles.js";
