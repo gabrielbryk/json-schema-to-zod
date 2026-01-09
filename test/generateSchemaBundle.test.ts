@@ -8,7 +8,7 @@ import { suite } from "./suite.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 suite("generateSchemaBundle", (test) => {
-  test("emits per-def files with stitched imports", (assert: any) => {
+  test("emits per-def files with stitched imports", (assert) => {
     const schema = {
       $defs: {
         alpha: {
@@ -72,12 +72,12 @@ suite("generateSchemaBundle", (test) => {
       liftInlineObjects: { enable: false },
     });
 
-    const wrapper = result.files.find((f: any) => f.fileName === "wrapper.schema.ts")!;
+    const wrapper = result.files.find((f) => f.fileName === "wrapper.schema.ts")!;
     assert(wrapper.contents.includes("export const InnerSchema = z.number()"));
     assert(wrapper.contents.includes('"val": InnerSchema'));
   });
 
-  test("avoids circular imports when possible via hoisting", (assert: any) => {
+  test("avoids circular imports when possible via hoisting", (assert) => {
     const schema = {
       $defs: {
         wrapper: {
@@ -107,7 +107,7 @@ suite("generateSchemaBundle", (test) => {
       liftInlineObjects: { enable: false },
     });
 
-    const wrapper = result.files.find((f: any) => f.fileName === "wrapper.schema.ts")!;
+    const wrapper = result.files.find((f) => f.fileName === "wrapper.schema.ts")!;
     assert(wrapper.contents.includes("import { OtherSchema } from './other.schema.js'"));
     assert(wrapper.contents.includes("export const InnerSchema = z.number()"));
     assert(wrapper.contents.includes('"val": InnerSchema'));
@@ -128,7 +128,7 @@ suite("generateSchemaBundle", (test) => {
     };
 
     const result = generateSchemaBundle(schema as unknown as JsonSchema, { useUnknown: true });
-    const alphaFile = result.files.find((f: any) => f.fileName === "alpha.schema.ts")!;
+    const alphaFile = result.files.find((f) => f.fileName === "alpha.schema.ts")!;
     assert(alphaFile.contents.includes("z.unknown()"));
   });
 
@@ -154,7 +154,9 @@ suite("generateSchemaBundle", (test) => {
       required: ["root"],
     };
 
-    const result = generateSchemaBundle(schema as any, { liftInlineObjects: { enable: false } });
+    const result = generateSchemaBundle(schema as JsonSchema, {
+      liftInlineObjects: { enable: false },
+    });
     const nodeFile = result.files.find((f) => f.fileName === "node.schema.ts")!;
 
     // We expect z.lazy() for recursion now as it's more stable across contexts
@@ -163,7 +165,7 @@ suite("generateSchemaBundle", (test) => {
     // but the z.lazy wrapping is the primary thing we want to verify here.
   });
 
-  test("uses circular imports when cycles are unavoidable", (assert: any) => {
+  test("uses circular imports when cycles are unavoidable", (assert) => {
     const schema = {
       $defs: {
         a: {
@@ -186,8 +188,8 @@ suite("generateSchemaBundle", (test) => {
       refResolution: { lazyCrossRefs: false },
     });
 
-    const aFile = result.files.find((f: any) => f.fileName === "a.schema.ts")!;
-    const bFile = result.files.find((f: any) => f.fileName === "b.schema.ts")!;
+    const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
+    const bFile = result.files.find((f) => f.fileName === "b.schema.ts")!;
 
     assert(aFile.contents.includes("import { BSchema } from './b.schema.js'"));
     assert(bFile.contents.includes("import { ASchema } from './a.schema.js'"));
@@ -216,8 +218,8 @@ suite("generateSchemaBundle", (test) => {
       refResolution: { lazyCrossRefs: true },
     });
 
-    const aFile = result.files.find((f: any) => f.fileName === "a.schema.ts")!;
-    const bFile = result.files.find((f: any) => f.fileName === "b.schema.ts");
+    const aFile = result.files.find((f) => f.fileName === "a.schema.ts")!;
+    const bFile = result.files.find((f) => f.fileName === "b.schema.ts");
 
     // In lazy mode across files, we use z.lazy since they are mutual dependencies
     assert(aFile.contents.includes("import { BSchema } from './b.schema.js'"));
@@ -300,7 +302,7 @@ suite("generateSchemaBundle", (test) => {
     );
 
     const result = generateSchemaBundle(schema);
-    const alphaFile = result.files.find((f: any) => f.fileName === "alpha.schema.ts")!;
+    const alphaFile = result.files.find((f) => f.fileName === "alpha.schema.ts")!;
     // Inline definitions/shared should be number
     assert(alphaFile.contents.includes("export const AlphaDefsSharedSchema = z.number()"));
     // Root definitions/shared should be string and imported

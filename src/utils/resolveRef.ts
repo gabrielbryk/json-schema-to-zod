@@ -108,7 +108,7 @@ export const resolveRef = (
 
     const tryResolve = (rootNode: unknown) => {
       if (!rootNode) return undefined;
-      let current: any = rootNode;
+      let current: unknown = rootNode;
       for (const segment of rawSegments) {
         const record = current as Record<string, unknown> | null;
         if (!record || typeof record !== "object") {

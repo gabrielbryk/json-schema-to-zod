@@ -309,20 +309,17 @@ suite("parseObject", (test) => {
       ],
     };
 
-    // @ts-ignore
-    const result3 = parseObject(schema3 as any, { path: [], seen: new Map() });
+    const result3 = parseObject(schema3 as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     const n = (s: string) => s.replace(/\s/g, "").replace(/,/g, ", "); // normalize
     const normalized3 = n((result3 as { expression: string }).expression);
-    const expected3_Obj = n(
-      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.looseObject({ "c": z.string() }))`
-    );
-    const expected3_Any = n(
-      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`
+    const expected3_Merged = n(
+      `z.looseObject({ "a": z.string(), "b": z.string(), "c": z.string() })`
     );
 
-    if (normalized3 !== expected3_Obj && normalized3 !== expected3_Any) {
-      expect(normalized3).toBe(expected3_Obj);
-    }
+    expect(normalized3).toBe(expected3_Merged);
 
     assert(
       parseObject(
@@ -349,8 +346,28 @@ suite("parseObject", (test) => {
         { path: [], seen: new Map() }
       ),
 
-      `z.intersection(z.intersection(z.looseObject({ "a": z.string() }), z.looseObject({ "b": z.string() })), z.any())`
+      `z.intersection(z.looseObject({ "a": z.string(), "b": z.string() }), z.any())`
     );
+  });
+
+  test("oneOf required-only refinement preserves base object type", (assert) => {
+    const schema = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+      },
+      oneOf: [{ required: ["a"] }, { required: ["b"] }],
+    };
+
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
+    const expression = toExpression(result);
+
+    assert(expression.includes("z.any().superRefine"), false);
+    assert(expression.includes("z.looseObject"), true);
+    assert(expression.includes(".superRefine((obj, ctx) =>"), true);
   });
 
   test("SKIPPED: allOf merges parent required into properties member", (assert) => {
@@ -378,7 +395,10 @@ suite("parseObject", (test) => {
       ],
     };
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     const expression = toExpression(result);
 
     assert(run(result, { call: "asyncapi", with: { doc: "hi" } }).success, true);
@@ -412,7 +432,10 @@ suite("parseObject", (test) => {
       ],
     };
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     assert(run(result, { base: "hi", a: "ok" }).success, true);
     assert(run(result, { base: "hi", b: 123 }).success, true);
@@ -442,7 +465,10 @@ suite("parseObject", (test) => {
 
     const _expected = 'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() })';
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     assert(result, _expected);
 
@@ -476,7 +502,10 @@ suite("parseObject", (test) => {
     const _expected =
       'z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }).catchall(z.boolean())';
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     assert(result, _expected);
 
@@ -502,7 +531,10 @@ suite("parseObject", (test) => {
 
     const _expected = `z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     assert(result, _expected);
   });
 
@@ -525,7 +557,7 @@ suite("parseObject", (test) => {
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
+    const _expected = `z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))).superRefine((value, ctx) => {
 for (const key in value) {
 if (["a", "b"].includes(key)) continue;
 let matched = false;
@@ -547,7 +579,10 @@ issues: result.error.issues
 }
 })`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     const expression = toExpression(result);
     assert(expression, _expected);
@@ -561,7 +596,10 @@ issues: result.error.issues
 
     const _expected = "z.looseObject({}).catchall(z.boolean())";
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     assert(result, _expected);
   });
@@ -576,7 +614,7 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))).superRefine((value, ctx) => {
+    const _expected = `z.intersection(z.looseObject({}), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))).superRefine((value, ctx) => {
 for (const key in value) {
 if ([].includes(key)) continue;
 let matched = false;
@@ -598,7 +636,10 @@ issues: result.error.issues
 }
 })`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
 
     const expression = toExpression(result);
     assert(expression, _expected);
@@ -616,7 +657,10 @@ issues: result.error.issues
 
     const _expected = `z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())))`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     assert(toExpression(result), _expected);
   });
 
@@ -629,9 +673,12 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.looseObject({}), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
+    const _expected = `z.intersection(z.looseObject({}), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))))`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     const expression = toExpression(result);
 
     assert(expression, _expected);
@@ -657,10 +704,47 @@ issues: result.error.issues
       },
     };
 
-    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })))`;
+    const _expected = `z.intersection(z.looseObject({ "a": z.string(), "b": z.number().exactOptional() }), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any())), z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 }))))`;
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     assert(result, _expected);
+  });
+
+  test("builds balanced intersections for multiple members", (assert) => {
+    const schema = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+      },
+      patternProperties: {
+        "\\.": { type: "array" },
+        "\\,": { type: "array", minItems: 1 },
+      },
+      allOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["c"],
+          properties: {
+            c: { type: "number" },
+          },
+        },
+      ],
+    };
+
+    const _expected = `z.intersection(z.intersection(z.looseObject({ "a": z.string().exactOptional(), "c": z.number() }), z.looseRecord(z.string().regex(new RegExp("\\\\.")), z.array(z.any()))), z.intersection(z.looseRecord(z.string().regex(new RegExp("\\\\,")), z.array(z.any()).min(1).meta({ "minItems": 1 })), z.strictObject({ "c": z.number() })))`;
+
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
+    const expression = toExpression(result);
+
+    assert(expression, _expected);
+    assert(expression.includes("z.intersection(z.intersection(z.intersection("), false);
   });
 
   test("dependentRequired", (assert) => {
@@ -676,7 +760,10 @@ issues: result.error.issues
       },
     };
 
-    const result = parseObject(schema as any, { path: [], seen: new Map() });
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
+      path: [],
+      seen: new Map(),
+    });
     const expression = toExpression(result);
 
     assert(expression.includes("Dependent required properties missing"), true);
@@ -697,7 +784,7 @@ issues: result.error.issues
       },
     };
 
-    const result = parseObject(schema as any as unknown as JsonSchemaObject & { type: "object" }, {
+    const result = parseObject(schema as JsonSchemaObject & { type: "object" }, {
       path: [],
       seen: new Map(),
     });

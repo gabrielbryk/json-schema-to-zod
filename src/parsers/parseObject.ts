@@ -4,15 +4,65 @@ import { parseOneOf } from "./parseOneOf.js";
 import { parseSchema } from "./parseSchema.js";
 
 import { addJsdocs } from "../utils/jsdocs.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
+import { buildIntersectionTree } from "../utils/buildIntersectionTree.js";
+import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
   refs: Refs
 ): SchemaRepresentation {
+  const collectedProperties = objectSchema.allOf
+    ? collectSchemaProperties(objectSchema, refs)
+    : undefined;
   const explicitProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
-  const requiredProps = Array.isArray(objectSchema.required) ? objectSchema.required : [];
-  const allProps = [...new Set([...explicitProps, ...requiredProps])];
+  const collectedProps = collectedProperties ? Object.keys(collectedProperties.properties) : [];
+  const requiredProps = collectedProperties
+    ? collectedProperties.required
+    : Array.isArray(objectSchema.required)
+      ? objectSchema.required
+      : [];
+  const allProps = [...new Set([...explicitProps, ...requiredProps, ...collectedProps])];
   const hasProperties = allProps.length > 0;
+  const requiredSet = new Set(requiredProps);
+
+  const isPropertyOnlyAllOfMember = (member: JsonSchema): boolean => {
+    if (typeof member !== "object" || member === null) return false;
+    const obj = member as JsonSchemaObject;
+    if (obj.$ref || obj.$dynamicRef) return false;
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return false;
+    return keys.every((key) => key === "properties" || key === "required");
+  };
+
+  const propertyOnlyOverlapKeys = new Set<string>();
+  const propertyOnlyKeysByIndex = new Map<number, string[]>();
+  if (objectSchema.allOf) {
+    const keyCounts = new Map<string, number>();
+    const addKey = (key: string) => {
+      keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+    };
+
+    for (const key of Object.keys(objectSchema.properties ?? {})) {
+      addKey(key);
+    }
+
+    objectSchema.allOf.forEach((member, index) => {
+      if (!isPropertyOnlyAllOfMember(member)) return;
+      const obj = member as JsonSchemaObject;
+      const keys = Object.keys(obj.properties ?? {});
+      if (keys.length) {
+        propertyOnlyKeysByIndex.set(index, keys);
+        keys.forEach(addKey);
+      }
+    });
+
+    for (const [key, count] of keyCounts) {
+      if (count > 1) {
+        propertyOnlyOverlapKeys.add(key);
+      }
+    }
+  }
 
   // 1. Process Properties (Base Object)
   let baseObjectExpr = "z.object({";
@@ -21,15 +71,25 @@ export function parseObject(
   if (hasProperties) {
     baseObjectExpr += allProps
       .map((key) => {
-        const propSchema = objectSchema.properties?.[key];
-        const parsedProp = propSchema
-          ? parseSchema(propSchema, { ...refs, path: [...refs.path, "properties", key] })
-          : { expression: "z.any()", type: "z.ZodAny" };
+        const hasDirectProp = Object.prototype.hasOwnProperty.call(
+          objectSchema.properties ?? {},
+          key
+        );
+        const propSchema = hasDirectProp
+          ? objectSchema.properties?.[key]
+          : collectedProperties?.properties[key];
+        const propPath = hasDirectProp
+          ? [...refs.path, "properties", key]
+          : (collectedProperties?.propertyPaths[key] ?? [...refs.path, "properties", key]);
+        const parsedProp =
+          propSchema !== undefined
+            ? parseSchema(propSchema, { ...refs, path: propPath })
+            : anyOrUnknown(refs);
 
         const hasDefault = typeof propSchema === "object" && propSchema.default !== undefined;
         // Check "required" array from parent
-        const isRequired = Array.isArray(objectSchema.required)
-          ? objectSchema.required.includes(key)
+        const isRequired = requiredSet.has(key)
+          ? true
           : typeof propSchema === "object" && propSchema.required === true;
 
         const isOptional = !hasDefault && !isRequired;
@@ -92,28 +152,23 @@ export function parseObject(
   }
 
   // 3. Handle patternProperties using Intersection with z.looseRecord
-  let finalExpr = baseObjectModified;
-  const intersectionTypes: string[] = [];
+  const intersectionMembers: SchemaRepresentation[] = [];
 
-  if (hasPattern) {
-    for (const [pattern, schema] of Object.entries(patternProps)) {
-      const validSchema = parseSchema(schema, {
-        ...refs,
-        path: [...refs.path, "patternProperties", pattern],
-      });
-      const keySchema = `z.string().regex(new RegExp(${JSON.stringify(pattern)}))`;
-      const recordExpr = `z.looseRecord(${keySchema}, ${validSchema.expression})`;
-
-      finalExpr = `z.intersection(${finalExpr}, ${recordExpr})`;
-      intersectionTypes.push(`z.ZodRecord<z.ZodString, ${validSchema.type}>`);
-    }
+  let baseType = "z.ZodObject<any>";
+  if (propertyTypes.length) {
+    const shape = propertyTypes.map((p) => `${JSON.stringify(p.key)}: ${p.type}`).join("; ");
+    baseType = `z.ZodObject<{${shape}}>`;
   }
 
+  intersectionMembers.push({ expression: baseObjectModified, type: baseType });
+
   // 3b. Add manual additionalProperties check if needed
+  let manualAdditionalRefine = "";
+  let oneOfRefinement = "";
   if (manualAdditionalProps) {
     const definedProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
 
-    finalExpr += `.superRefine((value, ctx) => {
+    manualAdditionalRefine = `.superRefine((value, ctx) => {
   for (const key in value) {
     if (${JSON.stringify(definedProps)}.includes(key)) continue;
     let matched = false;
@@ -134,6 +189,22 @@ export function parseObject(
 
   // 4. Handle composition (allOf, oneOf, anyOf) via Intersection
 
+  if (hasPattern) {
+    for (const [pattern, schema] of Object.entries(patternProps)) {
+      const validSchema = parseSchema(schema, {
+        ...refs,
+        path: [...refs.path, "patternProperties", pattern],
+      });
+      const keySchema = `z.string().regex(new RegExp(${JSON.stringify(pattern)}))`;
+      const recordExpr = `z.looseRecord(${keySchema}, ${validSchema.expression})`;
+
+      intersectionMembers.push({
+        expression: recordExpr,
+        type: `z.ZodRecord<z.ZodString, ${validSchema.type}>`,
+      });
+    }
+  }
+
   if (objectSchema.allOf) {
     // Cast because we checked it exists
     const schemaWithAllOf = objectSchema as JsonSchemaObject & { allOf: JsonSchema[] };
@@ -141,27 +212,42 @@ export function parseObject(
     // But typically allOf implies intersection.
     // If we just use simple intersection:
     schemaWithAllOf.allOf.forEach((s, i) => {
+      if (isPropertyOnlyAllOfMember(s)) {
+        const keys = propertyOnlyKeysByIndex.get(i) ?? [];
+        const hasOverlap = keys.some((key) => propertyOnlyOverlapKeys.has(key));
+        if (!hasOverlap) {
+          return;
+        }
+      }
       const res = parseSchema(s, { ...refs, path: [...refs.path, "allOf", i] });
-      finalExpr = `z.intersection(${finalExpr}, ${res.expression})`;
-      intersectionTypes.push(res.type);
+      intersectionMembers.push(res);
     });
   }
 
   if (objectSchema.oneOf) {
     const schemaWithOneOf = objectSchema as JsonSchemaObject & { oneOf: JsonSchema[] };
     const res = parseOneOf(schemaWithOneOf, refs);
-    finalExpr = `z.intersection(${finalExpr}, ${res.expression})`;
-    intersectionTypes.push(res.type);
+    const refinementBody = (res as { refinementBody?: unknown }).refinementBody;
+    if (
+      "isRefinementOnly" in res &&
+      res.isRefinementOnly === true &&
+      typeof refinementBody === "string"
+    ) {
+      oneOfRefinement = `.superRefine(${refinementBody})`;
+    } else {
+      intersectionMembers.push(res);
+    }
   }
 
   if (objectSchema.anyOf) {
     const schemaWithAnyOf = objectSchema as JsonSchemaObject & { anyOf: JsonSchema[] };
     const res = parseAnyOf(schemaWithAnyOf, refs);
-    finalExpr = `z.intersection(${finalExpr}, ${res.expression})`;
-    intersectionTypes.push(res.type);
+    intersectionMembers.push(res);
   }
 
   // 5. propertyNames, unevaluatedProperties, dependentSchemas etc.
+  const final = buildIntersectionTree(intersectionMembers);
+  let finalExpr = `${final.expression}${manualAdditionalRefine}${oneOfRefinement}`;
 
   if (objectSchema.propertyNames) {
     const normalizedPropNames =
@@ -244,16 +330,7 @@ export function parseObject(
   }
 
   // Calculate Type
-  let type = "z.ZodObject<any>";
-  if (propertyTypes.length) {
-    const shape = propertyTypes.map((p) => `${JSON.stringify(p.key)}: ${p.type}`).join("; ");
-    type = `z.ZodObject<{${shape}}>`;
-  }
-
-  // If intersections
-  intersectionTypes.forEach((t) => {
-    type = `z.ZodIntersection<${type}, ${t}>`;
-  });
+  const type = final.type;
 
   return {
     expression: finalExpr,

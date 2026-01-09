@@ -1,8 +1,8 @@
 import { reconstructJsonSchema } from "../src/zodToJsonSchema.js";
 import { suite } from "./suite.js";
 
-suite("reconstructJsonSchema", (test: any) => {
-  test("reconstructs patternProperties from __jsonSchema meta", (assert: any) => {
+suite("reconstructJsonSchema", (test) => {
+  test("reconstructs patternProperties from __jsonSchema meta", (assert) => {
     const input = {
       type: "object",
       additionalProperties: { type: "string" },
@@ -19,7 +19,7 @@ suite("reconstructJsonSchema", (test: any) => {
     assert(result.__jsonSchema, undefined);
   });
 
-  test("reconstructs if/then/else from allOf with conditional meta", (assert: any) => {
+  test("reconstructs if/then/else from allOf with conditional meta", (assert) => {
     const input = {
       allOf: [
         {
@@ -50,7 +50,7 @@ suite("reconstructJsonSchema", (test: any) => {
     assert(result.type, "object");
   });
 
-  test("recursively processes nested schemas", (assert: any) => {
+  test("recursively processes nested schemas", (assert) => {
     const input = {
       type: "object",
       properties: {
@@ -74,7 +74,7 @@ suite("reconstructJsonSchema", (test: any) => {
     );
   });
 
-  test("handles schema without __jsonSchema meta", (assert: any) => {
+  test("handles schema without __jsonSchema meta", (assert) => {
     const input = {
       type: "object",
       properties: {

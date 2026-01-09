@@ -1,5 +1,6 @@
 import { createRequire } from "module";
 import { parseString } from "../../src/parsers/parseString.js";
+import { SchemaRepresentation } from "../../src/Types.js";
 import { suite } from "../suite.js";
 import { expect } from "@jest/globals";
 
@@ -262,7 +263,8 @@ suite("parseString", (test) => {
       'z.string().refine((val) => typeof val === "string" && /^(?:\\/(?:[^/~]|~[01])*)*$/.test(val), { message: "x" })'
     );
 
-    const assert = (output: any, expected: string) => expect(output.expression).toBe(expected);
+    const assert = (output: SchemaRepresentation, expected: string) =>
+      expect(output.expression).toBe(expected);
 
     assert(
       parseString({ type: "string", format: "regex" }),
