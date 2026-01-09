@@ -90,6 +90,15 @@ export type JsonSchemaObject = {
 export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => SchemaRepresentation;
 export type ParserOverride = (schema: JsonSchemaObject, refs: Refs) => string | void;
 
+export type NamingContext = { isRoot: boolean; isLifted: boolean };
+
+export type NamingOptions = {
+  /** Customize the const name for schemas. Defaults to appending "Schema". */
+  schemaName?: (baseName: string, ctx: NamingContext) => string;
+  /** Customize the type name for schemas. Defaults to baseName when naming is enabled. */
+  typeName?: (baseName: string, ctx: NamingContext) => string | undefined;
+};
+
 export type Options = {
   name?: string;
   withoutDefaults?: boolean;
@@ -97,6 +106,8 @@ export type Options = {
   withJsdocs?: boolean;
   /** Use .meta() instead of .describe() - includes id, title, description */
   withMeta?: boolean;
+  /** Customize schema and type naming for root and lifted schemas. */
+  naming?: NamingOptions;
   parserOverride?: ParserOverride;
   depth?: number;
   type?: boolean | string;
@@ -201,7 +212,10 @@ export type Refs = Options & {
   dependencies?: Map<string, Set<string>>;
   inProgress?: Set<string>;
   refNameByPointer?: Map<string, string>;
+  refBaseNameByPointer?: Map<string, string>;
+  baseNameBySchema?: Map<string, string>;
   usedNames?: Set<string>;
+  usedBaseNames?: Set<string>;
   currentSchemaName?: string;
   cycleRefNames?: Set<string>;
   cycleComponentByName?: Map<string, number>;

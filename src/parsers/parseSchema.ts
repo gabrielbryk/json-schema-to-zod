@@ -27,6 +27,7 @@ import {
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveUri } from "../utils/resolveUri.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { ensureUnique, resolveSchemaName, sanitizeIdentifier } from "../utils/schemaNaming.js";
 
 export const parseSchema = (
   schema: JsonSchema,
@@ -311,10 +312,28 @@ const getOrCreateRefName = (pointer: string, path: (string | number)[], refs: Re
     return refs.refNameByPointer.get(pointer)!;
   }
 
-  const preferred = buildNameFromPath(path, refs.usedNames);
-  refs.refNameByPointer?.set(pointer, preferred);
-  refs.usedNames?.add(preferred);
-  return preferred;
+  if (!refs.naming) {
+    const preferred = buildNameFromPath(path, refs.usedNames);
+    refs.refNameByPointer?.set(pointer, preferred);
+    refs.usedNames?.add(preferred);
+    return preferred;
+  }
+
+  const baseName = buildBaseNameFromPath(path, refs.usedBaseNames);
+  const schemaName = resolveSchemaName(
+    baseName,
+    refs.naming,
+    { isRoot: false, isLifted: true },
+    refs.usedNames
+  );
+
+  refs.refNameByPointer?.set(pointer, schemaName);
+  refs.refBaseNameByPointer?.set(pointer, baseName);
+  refs.baseNameBySchema?.set(schemaName, baseName);
+  refs.usedNames?.add(schemaName);
+  refs.usedBaseNames?.add(baseName);
+
+  return schemaName;
 };
 
 const buildNameFromPath = (path: (string | number)[], used?: Set<string>): string => {
@@ -350,22 +369,39 @@ const buildNameFromPath = (path: (string | number)[], used?: Set<string>): strin
     finalName += "Schema";
   }
   const sanitized = sanitizeIdentifier(finalName);
-
-  if (!used || !used.has(sanitized)) return sanitized;
-
-  let counter = 2;
-  let candidate = `${sanitized}${counter}`;
-  while (used.has(candidate)) {
-    counter += 1;
-    candidate = `${sanitized}${counter}`;
-  }
-
-  return candidate;
+  return ensureUnique(sanitized, used);
 };
 
-const sanitizeIdentifier = (value: string): string => {
-  const cleaned = value.replace(/^[^a-zA-Z_$]+/, "").replace(/[^a-zA-Z0-9_$]/g, "");
-  return cleaned || "Ref";
+const buildBaseNameFromPath = (path: (string | number)[], used?: Set<string>): string => {
+  const filtered = path
+    .map((segment, idx) => {
+      if (idx === 0 && (segment === "$defs" || segment === "definitions")) {
+        return undefined; // root-level defs prefix is redundant for naming
+      }
+      if (segment === "properties") return undefined; // skip noisy properties segment
+      if (segment === "$defs" || segment === "definitions") return "Defs";
+      return segment;
+    })
+    .filter((segment) => segment !== undefined) as (string | number)[];
+
+  const base = filtered.length
+    ? filtered
+        .map((segment) =>
+          typeof segment === "number"
+            ? `Ref${segment}`
+            : segment
+                .toString()
+                .replace(/[^a-zA-Z0-9_$]/g, " ")
+                .split(" ")
+                .filter(Boolean)
+                .map(capitalize)
+                .join("")
+        )
+        .join("")
+    : "Ref";
+
+  const sanitized = sanitizeIdentifier(base);
+  return ensureUnique(sanitized, used);
 };
 
 const capitalize = (value: string) =>

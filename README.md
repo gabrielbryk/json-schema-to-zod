@@ -92,6 +92,21 @@ export const mySchema = z.object({ hello: z.string().optional() });
 export type MySchema = z.infer<typeof mySchema>;
 ```
 
+#### Naming customization
+
+Use the `naming` option to control schema const names and exported type names (root + lifted refs).
+
+```typescript
+const moduleWithCustomNaming = jsonSchemaToZod(myObject, {
+  name: "Workflow",
+  typeExports: true,
+  naming: {
+    schemaName: (base) => base,
+    typeName: (base) => `${base}Type`,
+  },
+});
+```
+
 #### Example with `$refs` resolved and output formatted
 
 ```typescript
