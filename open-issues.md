@@ -114,3 +114,27 @@ Standard issue format (use for all entries):
 - Related: Large union splitting to avoid TS7056
 - Depends on: —
 - Notes: This can start with union/intersection nodes before a full rewrite.
+
+## [Recursive unions should be wrapped in z.lazy to preserve inference]
+
+- Status: open
+- Category: type-safety
+- Summary: TypeScript collapses mutually recursive discriminated unions (especially with optional props) to `{}`/`unknown` when the union is emitted directly; we currently only wrap refs in `z.lazy`, not the union expression itself.
+- Evidence: `src/parsers/parseOneOf.ts` and `src/parsers/parseAnyOf.ts` emit unions directly; Zod issue #5309 reproduces unknown inference with recursive discriminated unions + `.optional()`; workflow task lists are recursive unions (see `test/fixtures/workflow.yaml` Task list references).
+- Impact: Nested task configs (`try`, `fork`, `listen`, `foreach`) can degrade to `{}`/`unknown` in `z.infer`, forcing consumer casts even though runtime validation is correct.
+- Proposed fix: Detect when a union schema participates in a recursion cycle (via `cycleComponentByName`/`cycleRefNames` or dependency graph) and emit `z.lazy(() => z.discriminatedUnion(...))` / `z.lazy(() => z.union([...]))` with `z.ZodLazy<...>` typing; leave non-recursive unions unchanged.
+- Related: Large union splitting to avoid TS7056; Optional explicit type alias emission for recursive schemas
+- Depends on: —
+- Notes: Zod issue #5309 reports explicit getter annotations are insufficient; union-level `z.lazy` is the most reliable workaround today.
+
+## [Optional explicit type alias emission for recursive schemas]
+
+- Status: open
+- Category: type-safety
+- Summary: Even with lazy/getter patterns, TypeScript can infer `{}`/`unknown` for recursive schemas; emitting explicit TS type aliases (or annotating lazies with `z.ZodType<Foo>`) can stabilize inference for consumers.
+- Evidence: `src/core/emitZod.ts` only emits Zod schema consts; no `type Foo = z.output<typeof FooSchema>` is generated; workflow recursion paths require runtime interfaces today (see `test/fixtures/workflow.yaml` task list recursion).
+- Impact: Consumers must hand-write runtime interfaces or `as` assertions for recursive fields; type safety depends on user code rather than the generator.
+- Proposed fix: Add an opt-in `emitTypeAliases`/`typeExports` mode to export `type Foo = z.output<typeof FooSchema>` (or schema-derived TS types) and optionally annotate lazies as `z.ZodType<Foo>` to preserve inference across cycles.
+- Related: Recursive unions should be wrapped in z.lazy to preserve inference
+- Depends on: —
+- Notes: Keep default output unchanged; opt-in to avoid larger bundle size and to allow staged adoption.

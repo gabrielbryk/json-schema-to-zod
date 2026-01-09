@@ -131,9 +131,21 @@ suite("e2e typecheck", (test) => {
       unknown
     >;
 
+    const seenFiles = new Map<string, number>();
+    const fileName = (defName: string, ctx: { isRoot: boolean }) => {
+      if (ctx.isRoot) return "workflow.schema.ts";
+      const base = `${defName}.schema.ts`;
+      const key = base.toLowerCase();
+      const count = seenFiles.get(key) ?? 0;
+      seenFiles.set(key, count + 1);
+      if (count === 0) return base;
+      return `${defName}-${count + 1}.schema.ts`;
+    };
+
     const bundle = generateSchemaBundle(schema, {
       name: "WorkflowSchema",
       type: "Workflow",
+      splitDefs: { fileName },
     });
 
     const consumerCode = readConsumer("workflow-bundle");
