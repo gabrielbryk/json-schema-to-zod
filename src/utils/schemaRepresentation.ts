@@ -634,6 +634,10 @@ export const shouldUseGetter = (
   // Check if the expression directly references the current schema (self-recursion)
   if (rep.expression === currentSchemaName) return true;
 
+  // Handle wrappers like .exactOptional() or z.lazy(() => RefName)
+  const selfRefPattern = new RegExp(`\\b${currentSchemaName}\\b`);
+  if (selfRefPattern.test(rep.expression)) return true;
+
   // Check if expression contains a reference to a cycle member in the same SCC
   if (!cycleRefNames || cycleRefNames.size === 0) return false;
 
