@@ -227,12 +227,13 @@ export function parseObject(
   if (objectSchema.oneOf) {
     const schemaWithOneOf = objectSchema as JsonSchemaObject & { oneOf: JsonSchema[] };
     const res = parseOneOf(schemaWithOneOf, refs);
+    const refinementBody = (res as { refinementBody?: unknown }).refinementBody;
     if (
       "isRefinementOnly" in res &&
       res.isRefinementOnly === true &&
-      typeof (res as { refinementBody?: unknown }).refinementBody === "string"
+      typeof refinementBody === "string"
     ) {
-      oneOfRefinement = `.superRefine(${(res as { refinementBody: string }).refinementBody})`;
+      oneOfRefinement = `.superRefine(${refinementBody})`;
     } else {
       intersectionMembers.push(res);
     }
