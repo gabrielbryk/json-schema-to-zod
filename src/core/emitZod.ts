@@ -4,6 +4,7 @@ import { expandJsdocs } from "../utils/jsdocs.js";
 import { AnalysisResult } from "./analyzeSchema.js";
 import { inferTypeFromExpression } from "../utils/schemaRepresentation.js";
 import { EsmEmitter } from "../utils/esmEmitter.js";
+import { resolveTypeName } from "../utils/schemaNaming.js";
 
 /**
  * Split a z.object({...}).method1().method2() expression into base and method chain.
@@ -168,9 +169,17 @@ const orderDeclarations = (
 };
 
 export const emitZod = (analysis: AnalysisResult): string => {
-  const { schema, options, refNameByPointer, cycleRefNames, cycleComponentByName } = analysis;
+  const {
+    schema,
+    options,
+    refNameByPointer,
+    cycleRefNames,
+    cycleComponentByName,
+    baseNameBySchema,
+    rootBaseName,
+  } = analysis;
 
-  const { name, type, noImport, exportRefs, typeExports, withMeta, ...rest } = options;
+  const { name, type, naming, noImport, exportRefs, typeExports, withMeta, ...rest } = options;
 
   const declarations = new Map<string, SchemaRepresentation>();
   const dependencies = new Map<string, Set<string>>();
@@ -198,6 +207,7 @@ export const emitZod = (analysis: AnalysisResult): string => {
     rootBaseUri: analysis.rootBaseUri,
     ...rest,
     withMeta,
+    naming,
   });
 
   const jsdocs =
@@ -210,6 +220,13 @@ export const emitZod = (analysis: AnalysisResult): string => {
       : "";
 
   const emitter = new EsmEmitter();
+  const usedTypeNames = new Set<string>();
+
+  const resolveDeclarationTypeName = (schemaName: string): string | undefined => {
+    if (!naming) return schemaName;
+    const baseName = baseNameBySchema.get(schemaName) ?? schemaName;
+    return resolveTypeName(baseName, naming, { isRoot: false, isLifted: true }, usedTypeNames);
+  };
 
   if (!noImport) {
     emitter.addNamedImport("z", "zod");
@@ -279,10 +296,14 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
           // Export type for this declaration if typeExports is enabled
           if (typeExports && exportRefs) {
+            const typeName = resolveDeclarationTypeName(refName);
             emitter.addTypeExport({
-              name: refName,
+              name: typeName ?? refName,
               type: `z.infer<typeof ${refName}>`,
             });
+            if (typeName) {
+              usedTypeNames.add(typeName);
+            }
           }
           continue;
         }
@@ -297,10 +318,14 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
       // Export type for this declaration if typeExports is enabled
       if (typeExports && exportRefs) {
+        const typeName = resolveDeclarationTypeName(refName);
         emitter.addTypeExport({
-          name: refName,
+          name: typeName ?? refName,
           type: `z.infer<typeof ${refName}>`,
         });
+        if (typeName) {
+          usedTypeNames.add(typeName);
+        }
       }
     }
   }
@@ -321,12 +346,20 @@ export const emitZod = (analysis: AnalysisResult): string => {
 
   // Export type for root schema if type option is set, or if typeExports is enabled
   if (name && (type || typeExports)) {
-    const typeName =
-      typeof type === "string" ? type : `${name[0].toUpperCase()}${name.substring(1)}`;
-    emitter.addTypeExport({
-      name: typeName,
-      type: `z.infer<typeof ${name}>`,
-    });
+    const rootTypeName =
+      typeof type === "string"
+        ? type
+        : naming && rootBaseName
+          ? resolveTypeName(rootBaseName, naming, { isRoot: true, isLifted: false }, usedTypeNames)
+          : `${name[0].toUpperCase()}${name.substring(1)}`;
+
+    if (rootTypeName) {
+      emitter.addTypeExport({
+        name: rootTypeName,
+        type: `z.infer<typeof ${name}>`,
+      });
+      usedTypeNames.add(rootTypeName);
+    }
   }
 
   return emitter.render();

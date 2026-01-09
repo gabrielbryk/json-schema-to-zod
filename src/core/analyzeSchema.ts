@@ -1,7 +1,8 @@
-import { Options, JsonSchema, SchemaRepresentation } from "../Types.js";
+import { NamingContext, Options, JsonSchema, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "../parsers/parseSchema.js";
 import { detectCycles, computeScc } from "../utils/cycles.js";
 import { buildRefRegistry } from "../utils/buildRefRegistry.js";
+import { resolveSchemaName } from "../utils/schemaNaming.js";
 
 export type NormalizedOptions = Options & {
   exportRefs: boolean;
@@ -13,6 +14,9 @@ export type AnalysisResult = {
   schema: JsonSchema;
   options: NormalizedOptions;
   refNameByPointer: Map<string, string>;
+  refBaseNameByPointer: Map<string, string>;
+  baseNameBySchema: Map<string, string>;
+  rootBaseName?: string;
   usedNames: Set<string>;
   declarations: Map<string, SchemaRepresentation>;
   dependencies: Map<string, Set<string>>;
@@ -33,15 +37,32 @@ export type AnalysisResult = {
 };
 
 export const analyzeSchema = (schema: JsonSchema, options: Options = {}): AnalysisResult => {
-  const { name, type, ...rest } = options;
+  const { name, type, naming, ...rest } = options;
 
   if (type && !name) {
     throw new Error("Option `type` requires `name` to be set");
   }
 
+  const nameContext: NamingContext = { isRoot: true, isLifted: false };
+  const rootBaseName = name;
+  let resolvedName = name;
+
+  const usedNames = new Set<string>();
+  const usedBaseNames = new Set<string>();
+
+  if (name && naming) {
+    resolvedName = resolveSchemaName(name, naming, nameContext, usedNames);
+    usedBaseNames.add(name);
+  }
+
+  if (resolvedName) {
+    usedNames.add(resolvedName);
+  }
+
   const normalized: NormalizedOptions = {
-    name,
+    name: resolvedName,
     type,
+    naming,
     module: "esm",
     ...rest,
     exportRefs: rest.exportRefs ?? true,
@@ -49,10 +70,11 @@ export const analyzeSchema = (schema: JsonSchema, options: Options = {}): Analys
   };
 
   const refNameByPointer = new Map<string, string>();
-  const usedNames = new Set<string>();
+  const refBaseNameByPointer = new Map<string, string>();
+  const baseNameBySchema = new Map<string, string>();
 
-  if (name) {
-    usedNames.add(name);
+  if (naming && resolvedName && rootBaseName) {
+    baseNameBySchema.set(resolvedName, rootBaseName);
   }
 
   const declarations = new Map<string, SchemaRepresentation>();
@@ -76,13 +98,17 @@ export const analyzeSchema = (schema: JsonSchema, options: Options = {}): Analys
     dependencies,
     inProgress: new Set<string>(),
     refNameByPointer,
+    refBaseNameByPointer,
+    baseNameBySchema,
     usedNames,
+    usedBaseNames,
     root: schema,
-    currentSchemaName: name,
+    currentSchemaName: resolvedName,
     refRegistry,
     rootBaseUri,
     ...rest,
     withMeta: normalized.withMeta,
+    naming,
   };
 
   parseSchema(schema, pass1);
@@ -116,6 +142,9 @@ export const analyzeSchema = (schema: JsonSchema, options: Options = {}): Analys
     definitions: {}, // Legacy support
     dependencies,
     refNameByPointer,
+    refBaseNameByPointer,
+    baseNameBySchema,
+    rootBaseName,
     usedNames,
     cycleRefNames,
     cycleComponentByName: componentByName,

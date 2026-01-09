@@ -466,4 +466,31 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("export const NodeSchema"));
     assert(output.includes("export const Node = NodeSchema"));
   });
+
+  test("supports naming customization for schema and type exports", (assert: any) => {
+    const schema = {
+      $defs: {
+        task: {
+          type: "object",
+          properties: { id: { type: "string" } },
+        },
+      },
+      $ref: "#/$defs/task",
+    };
+
+    const output = jsonSchemaToZod(schema, {
+      name: "Workflow",
+      exportRefs: true,
+      typeExports: true,
+      naming: {
+        schemaName: (name) => name,
+        typeName: (name) => `${name}Type`,
+      },
+    });
+
+    assert(output.includes("export const Task ="));
+    assert(output.includes("export type TaskType = z.infer<typeof Task>"));
+    assert(output.includes("export const Workflow = Task"));
+    assert(output.includes("export type WorkflowType = z.infer<typeof Workflow>"));
+  });
 });

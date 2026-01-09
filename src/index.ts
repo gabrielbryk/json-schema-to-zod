@@ -33,6 +33,7 @@ export * from "./utils/namingService.js";
 export * from "./utils/omit.js";
 export * from "./utils/resolveRef.js";
 export * from "./utils/resolveUri.js";
+export * from "./utils/schemaNaming.js";
 export * from "./utils/schemaRepresentation.js";
 export * from "./utils/withMessage.js";
 export * from "./zodToJsonSchema.js";
