@@ -5,8 +5,8 @@ import { normalizeCode } from "./utils/normalizeCode.js";
 import { getDefaultExport, hasImportZod } from "./utils/assertCode.js";
 import ts from "typescript";
 
-suite("jsonSchemaToZod", (test: any) => {
-  test("should accept json schema 7 and 4", (assert: any) => {
+suite("jsonSchemaToZod", (test) => {
+  test("should accept json schema 7 and 4", (assert) => {
     const schema = { type: "string" } as unknown;
 
     assert(jsonSchemaToZod(schema as unknown as JsonSchema));
@@ -14,7 +14,7 @@ suite("jsonSchemaToZod", (test: any) => {
     assert(jsonSchemaToZod(schema as unknown as JsonSchema));
   });
 
-  test("should produce a string of JS code creating a Zod schema from a simple JSON schema", (assert: any) => {
+  test("should produce a string of JS code creating a Zod schema from a simple JSON schema", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod({
@@ -28,7 +28,7 @@ export default z.string()
     );
   });
 
-  test("should be possible to skip the import line", (assert: any) => {
+  test("should be possible to skip the import line", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -43,7 +43,7 @@ export default z.string()
     );
   });
 
-  test("should be possible to add types", (assert: any) => {
+  test("should be possible to add types", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -61,7 +61,7 @@ export type MySchema = z.infer<typeof mySchema>
     );
   });
 
-  test("should be possible to add types with a custom name template", (assert: any) => {
+  test("should be possible to add types with a custom name template", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -79,7 +79,7 @@ export type MyType = z.infer<typeof mySchema>
     );
   });
 
-  test("should throw when given type but no name", (assert: any) => {
+  test("should throw when given type but no name", (assert) => {
     let didThrow = false;
 
     try {
@@ -91,7 +91,7 @@ export type MyType = z.infer<typeof mySchema>
     assert(didThrow);
   });
 
-  test("should include defaults", (assert: any) => {
+  test("should include defaults", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -109,7 +109,7 @@ export default z.string().default("foo")
     );
   });
 
-  test("should include falsy defaults", (assert: any) => {
+  test("should include falsy defaults", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -125,7 +125,7 @@ export default z.string().default("")
     );
   });
 
-  test("should include falsy defaults", (assert: any) => {
+  test("should include falsy defaults", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -143,7 +143,7 @@ export default z.literal("")
     );
   });
 
-  test("can exclude defaults", (assert: any) => {
+  test("can exclude defaults", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -161,7 +161,7 @@ export default z.string()
     );
   });
 
-  test("should include describes", (assert: any) => {
+  test("should include describes", (assert) => {
     const code = jsonSchemaToZod({
       type: "string",
       description: "foo",
@@ -174,7 +174,7 @@ export default z.string()
     );
   });
 
-  test("can exclude describes", (assert: any) => {
+  test("can exclude describes", (assert) => {
     assert(
       normalizeCode(
         jsonSchemaToZod(
@@ -192,7 +192,7 @@ export default z.string()
     );
   });
 
-  test("can include jsdocs", (assert: any) => {
+  test("can include jsdocs", (assert) => {
     const code = jsonSchemaToZod(
       {
         type: "object",
@@ -220,7 +220,7 @@ export default z.string()
     assert(code.includes("Description for nestedProp2"), true);
   });
 
-  test("will remove optionality if default is present", (assert: any) => {
+  test("will remove optionality if default is present", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -241,7 +241,7 @@ export default z.looseObject({ "prop": z.string().default("def") })
     );
   });
 
-  test("will handle falsy defaults", (assert: any) => {
+  test("will handle falsy defaults", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -257,7 +257,7 @@ export default z.boolean().default(false)
     );
   });
 
-  test("will ignore undefined as default", (assert: any) => {
+  test("will ignore undefined as default", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -273,7 +273,7 @@ export default z.null()
     );
   });
 
-  test("should be possible to define a custom parser", (assert: any) => {
+  test("should be possible to define a custom parser", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -301,7 +301,7 @@ export default z.intersection(z.string(), z.intersection(z.number(), myCustomZod
     );
   });
 
-  test("can output with name", (assert: any) => {
+  test("can output with name", (assert) => {
     assert(
       jsonSchemaToZod(
         {
@@ -316,7 +316,7 @@ export const someName = z.string()
     );
   });
 
-  test("can output without name", (assert: any) => {
+  test("can output without name", (assert) => {
     assert(
       jsonSchemaToZod(true),
       `import { z } from "zod"
@@ -326,7 +326,7 @@ export default z.any()
     );
   });
 
-  test("declares $refs as named schemas and uses z.lazy for recursion", (assert: any) => {
+  test("declares $refs as named schemas and uses z.lazy for recursion", (assert) => {
     const schema = {
       $defs: {
         node: {
@@ -345,7 +345,7 @@ export default z.any()
     assert(code.includes('"next": z.lazy(() => NodeSchema).exactOptional()'), true);
   });
 
-  test("uses upgraded discriminatedUnion map syntax", (assert: any) => {
+  test("uses upgraded discriminatedUnion map syntax", (assert) => {
     const schema = {
       oneOf: [
         {
@@ -379,7 +379,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     );
   });
 
-  test("supports propertyNames validation", (assert: any) => {
+  test("supports propertyNames validation", (assert) => {
     const schema = {
       type: "object",
       propertyNames: { pattern: "^foo" },
@@ -390,7 +390,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("Invalid property name"));
   });
 
-  test("supports dependentSchemas", (assert: any) => {
+  test("supports dependentSchemas", (assert) => {
     const schema = {
       type: "object",
       properties: { a: { type: "string" } },
@@ -408,7 +408,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("Dependent schema failed"));
   });
 
-  test("supports contains with min/max contains", (assert: any) => {
+  test("supports contains with min/max contains", (assert) => {
     const schema = {
       type: "array",
       contains: { type: "string" },
@@ -422,7 +422,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("> 3"));
   });
 
-  test("supports contains on tuples", (assert: any) => {
+  test("supports contains on tuples", (assert) => {
     const schema = {
       type: "array",
       items: [{ type: "string" }, { type: "number" }],
@@ -437,7 +437,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
   });
 
   /*
-  test("supports unevaluatedProperties schema", (assert: any) => {
+  test("supports unevaluatedProperties schema", (assert) => {
     const schema = {
       type: "object",
       properties: { known: { type: "string" } },
@@ -450,7 +450,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
   });
   */
 
-  test("can export reference declarations when requested", (assert: any) => {
+  test("can export reference declarations when requested", (assert) => {
     const schema = {
       $defs: {
         node: {
@@ -467,7 +467,7 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("export const Node = NodeSchema"));
   });
 
-  test("supports naming customization for schema and type exports", (assert: any) => {
+  test("supports naming customization for schema and type exports", (assert) => {
     const schema = {
       $defs: {
         task: {

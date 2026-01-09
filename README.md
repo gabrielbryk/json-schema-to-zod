@@ -17,6 +17,10 @@ Since v2 the CLI supports piped JSON.
 
 _Looking for the exact opposite? Check out [zod-to-json-schema](https://npmjs.org/package/zod-to-json-schema)_
 
+## Open issues
+
+See `open-issues.md` for known correctness, type-safety, and performance gaps.
+
 ## Usage
 
 ### Online

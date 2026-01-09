@@ -2,6 +2,7 @@ import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Typ
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
 
 /**
  * Check if a schema is a "required-only" validation constraint.
@@ -59,68 +60,6 @@ const generateRequiredFieldsRefinement = (
     isRefinementOnly: true,
     refinementBody,
   };
-};
-
-/**
- * Collects all properties from a schema, including properties defined in allOf members.
- * Returns merged properties object and combined required array.
- */
-const collectSchemaProperties = (
-  schema: JsonSchemaObject,
-  refs: Refs
-): { properties: Record<string, JsonSchema>; required: string[] } | undefined => {
-  let properties: Record<string, JsonSchema> = {};
-  let required: string[] = [];
-
-  // Collect direct properties
-  if (schema.properties) {
-    properties = { ...properties, ...schema.properties };
-  }
-
-  // Collect direct required
-  if (Array.isArray(schema.required)) {
-    required = [...required, ...schema.required];
-  }
-
-  // Collect from allOf members
-  if (Array.isArray(schema.allOf)) {
-    for (const member of schema.allOf) {
-      if (typeof member !== "object" || member === null) continue;
-
-      let resolvedMember = member as JsonSchemaObject;
-
-      // Resolve $ref if needed
-      if (resolvedMember.$ref || resolvedMember.$dynamicRef) {
-        const resolved = resolveRef(
-          resolvedMember,
-          (resolvedMember.$ref || resolvedMember.$dynamicRef)!,
-          refs
-        );
-        if (resolved && typeof resolved.schema === "object" && resolved.schema !== null) {
-          resolvedMember = resolved.schema as JsonSchemaObject;
-        } else {
-          continue;
-        }
-      }
-
-      // Merge properties from this allOf member
-      if (resolvedMember.properties) {
-        properties = { ...properties, ...resolvedMember.properties };
-      }
-
-      // Merge required from this allOf member
-      if (Array.isArray(resolvedMember.required)) {
-        required = [...required, ...resolvedMember.required];
-      }
-    }
-  }
-
-  // Return undefined if no properties found
-  if (Object.keys(properties).length === 0) {
-    return undefined;
-  }
-
-  return { properties, required: [...new Set(required)] };
 };
 
 /**
