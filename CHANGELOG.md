@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.14.2
+
+### Patch Changes
+
+- b4460e4: Restore getter-based recursion for named properties to preserve inferred types in recursive schemas.
+
 ## 2.14.1
 
 ### Patch Changes
