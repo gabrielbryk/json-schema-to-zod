@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.14.1
+
+### Patch Changes
+
+- 98f75f5: Normalize unions (dedupe/flatten, fold nullable) and balance object-level intersections for simpler output and faster type checking. Preserve base types for `not` schemas and keep required-only `oneOf` refinements from erasing base object types.
+
 ## 2.14.0
 
 ### Minor Changes
