@@ -7,6 +7,7 @@ import { addJsdocs } from "../utils/jsdocs.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { buildIntersectionTree } from "../utils/buildIntersectionTree.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
+import { shouldUseGetter } from "../utils/schemaRepresentation.js";
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
@@ -101,7 +102,23 @@ export function parseObject(
           valueType = `z.ZodExactOptional<${parsedProp.type}>`;
         }
 
+        const valueRep: SchemaRepresentation = { expression: valueExpr, type: valueType };
         propertyTypes.push({ key, type: valueType });
+
+        const useGetter = shouldUseGetter(
+          valueRep,
+          refs.currentSchemaName,
+          refs.cycleRefNames,
+          refs.cycleComponentByName
+        );
+
+        if (useGetter) {
+          let result = `get ${JSON.stringify(key)}(): ${valueType} { return ${valueExpr} }`;
+          if (refs.withJsdocs && typeof propSchema === "object") {
+            result = addJsdocs(propSchema, result);
+          }
+          return result;
+        }
 
         if (refs.withJsdocs && typeof propSchema === "object") {
           valueExpr = addJsdocs(propSchema, valueExpr);

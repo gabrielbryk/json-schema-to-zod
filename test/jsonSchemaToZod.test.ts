@@ -326,7 +326,7 @@ export default z.any()
     );
   });
 
-  test("declares $refs as named schemas and uses z.lazy for recursion", (assert) => {
+  test("declares $refs as named schemas and uses getters for recursion", (assert) => {
     const schema = {
       $defs: {
         node: {
@@ -342,7 +342,7 @@ export default z.any()
     };
 
     const code = jsonSchemaToZod(schema);
-    assert(code.includes('"next": z.lazy(() => NodeSchema).exactOptional()'), true);
+    assert(code.includes('get "next"(): z.ZodExactOptional<typeof NodeSchema>'), true);
   });
 
   test("uses upgraded discriminatedUnion map syntax", (assert) => {

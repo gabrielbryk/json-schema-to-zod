@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "count": { "type": "integer" },
+    "tag": { "type": ["string", "null"] },
+    "flags": { "type": "array", "items": { "type": "boolean" } }
+  },
+  "required": ["id"]
+}

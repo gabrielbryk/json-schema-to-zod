@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "metrics": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    }
+  },
+  "required": ["metrics"]
+}

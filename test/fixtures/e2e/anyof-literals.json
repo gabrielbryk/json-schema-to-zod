@@ -1,0 +1,3 @@
+{
+  "anyOf": [{ "const": "alpha" }, { "const": "beta" }]
+}
