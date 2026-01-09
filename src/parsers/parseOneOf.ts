@@ -3,6 +3,7 @@ import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
 
 /**
  * Check if a schema is a "required-only" validation constraint.
@@ -303,11 +304,11 @@ export const parseOneOf = (
     const expressions = options.map((o) => o.expression).join(", ");
     const types = options.map((o) => o.type).join(", ");
 
-    return {
+    return wrapRecursiveUnion(refs, {
       expression: `z.discriminatedUnion("${discriminator.key}", [${expressions}])`,
       // Use readonly tuple for union type annotations (required for recursive type inference)
       type: `z.ZodDiscriminatedUnion<"${discriminator.key}", readonly [${types}]>`,
-    };
+    });
   }
 
   // Fallback: Use z.xor for exclusive unions
@@ -340,8 +341,5 @@ export const parseOneOf = (
   const expression = `z.xor([${expressions}])`;
   const type = `z.ZodXor<readonly [${types}]>`;
 
-  return {
-    expression,
-    type,
-  };
+  return wrapRecursiveUnion(refs, { expression, type });
 };

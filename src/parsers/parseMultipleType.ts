@@ -1,6 +1,7 @@
 import { JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 import { normalizeUnionMembers } from "../utils/normalizeUnion.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
 
 export const parseMultipleType = (
   schema: JsonSchemaObject & { type: string[] },
@@ -23,8 +24,8 @@ export const parseMultipleType = (
   const expressions = normalized.map((s) => s.expression).join(", ");
   const types = normalized.map((s) => s.type).join(", ");
 
-  return {
+  return wrapRecursiveUnion(refs, {
     expression: `z.union([${expressions}])`,
     type: `z.ZodUnion<[${types}]>`,
-  };
+  });
 };

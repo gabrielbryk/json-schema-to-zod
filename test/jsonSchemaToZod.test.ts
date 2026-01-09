@@ -467,6 +467,40 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("export const Node = NodeSchema"));
   });
 
+  test("wraps recursive discriminated unions in z.lazy when enabled", (assert) => {
+    const schema = {
+      $defs: {
+        Node: {
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                kind: { const: "A" },
+                child: { $ref: "#/$defs/Node" },
+              },
+              required: ["kind"],
+            },
+            {
+              type: "object",
+              properties: {
+                kind: { const: "B" },
+              },
+              required: ["kind"],
+            },
+          ],
+        },
+      },
+      $ref: "#/$defs/Node",
+    };
+
+    const output = jsonSchemaToZod(schema, {
+      name: "Root",
+      lazyRecursiveUnions: true,
+    });
+
+    assert(output.includes('z.lazy(() => z.discriminatedUnion("kind"'));
+  });
+
   test("supports naming customization for schema and type exports", (assert) => {
     const schema = {
       $defs: {

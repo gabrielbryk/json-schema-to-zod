@@ -149,6 +149,12 @@ export type Options = {
    */
   strictOneOf?: boolean;
   /**
+   * Wrap recursive union schemas in z.lazy() to improve TypeScript inference.
+   * This is useful for mutually recursive discriminated unions with optional properties.
+   * @default false
+   */
+  lazyRecursiveUnions?: boolean;
+  /**
    * Root schema instance for JSON Pointer resolution (#/...).
    */
   root?: JsonSchema;

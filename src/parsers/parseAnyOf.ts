@@ -3,6 +3,7 @@ import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { extractInlineObject } from "../utils/extractInlineObject.js";
 import { normalizeUnionMembers } from "../utils/normalizeUnion.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
 
 export const parseAnyOf = (
   schema: JsonSchemaObject & { anyOf: JsonSchema[] },
@@ -43,5 +44,5 @@ export const parseAnyOf = (
   // Use readonly tuple for union type annotations (required for recursive type inference)
   const type = `z.ZodUnion<readonly [${types}]>`;
 
-  return { expression, type };
+  return wrapRecursiveUnion(refs, { expression, type });
 };
