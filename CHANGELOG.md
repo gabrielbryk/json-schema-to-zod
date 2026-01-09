@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.14.0
+
+### Minor Changes
+
+- ff1858d: Add naming customization hooks to jsonSchemaToZod output for schema and type exports.
+
 ## 2.13.0
 
 ### Minor Changes
