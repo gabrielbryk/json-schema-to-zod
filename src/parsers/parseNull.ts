@@ -1,6 +1,4 @@
 import { SchemaRepresentation } from "../Types.js";
+import { zodNull } from "../utils/schemaRepresentation.js";
 
-export const parseNull = (): SchemaRepresentation => ({
-  expression: "z.null()",
-  type: "z.ZodNull",
-});
+export const parseNull = (): SchemaRepresentation => zodNull();

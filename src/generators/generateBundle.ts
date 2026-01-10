@@ -1,7 +1,9 @@
 import { analyzeSchema } from "../core/analyzeSchema.js";
 import { emitZod } from "../core/emitZod.js";
-import { JsonSchema, JsonSchemaObject, Options, Refs } from "../Types.js";
+import { JsonSchema, JsonSchemaObject, Options, Refs, SchemaRepresentation } from "../Types.js";
 import { liftInlineObjects } from "../utils/liftInlineObjects.js";
+import { anyOrUnknown } from "../utils/anyOrUnknown.js";
+import { zodLazy, zodRef } from "../utils/schemaRepresentation.js";
 
 type DefInfo = {
   name: string;
@@ -42,7 +44,7 @@ export type SplitDefsOptions = {
   rootTypeName?: string;
 };
 
-export type RefResolutionResult = string;
+export type RefResolutionResult = SchemaRepresentation;
 
 export type RefResolutionOptions = {
   /** Called for each internal $ref that targets a known $def */
@@ -268,7 +270,7 @@ const createRefHandler = (
 ) => {
   const useLazyCrossRefs = options.refResolution?.lazyCrossRefs ?? true;
 
-  return (schema: Record<string, unknown>, refs: Refs): string | undefined => {
+  return (schema: Record<string, unknown>, refs: Refs): SchemaRepresentation | undefined => {
     if (typeof schema["$ref"] === "string") {
       const refPath = schema["$ref"] as string;
       const match = refPath.match(/^#\/(?:\$defs|definitions)\/(.+)$/);
@@ -294,18 +296,25 @@ const createRefHandler = (
             isCycle,
           });
 
-          if (resolved) return resolved;
+          if (resolved) {
+            if (!resolved.node) {
+              throw new Error(
+                "refResolution.onRef must return SchemaRepresentation with node (no-fallback mode)."
+              );
+            }
+            return resolved;
+          }
 
           // Self-recursion ALWAYS needs z.lazy if not using getters
           if (refName === currentDefName) {
-            return `z.lazy(() => ${refInfo.schemaName})`;
+            return zodLazy(refInfo.schemaName);
           }
 
           if (isCycle && useLazyCrossRefs) {
-            return `z.lazy(() => ${refInfo.schemaName})`;
+            return zodLazy(refInfo.schemaName);
           }
 
-          return refInfo.schemaName;
+          return zodRef(refInfo.schemaName);
         }
 
         // If it's NOT exactly a top-level definition, it could be:
@@ -321,9 +330,16 @@ const createRefHandler = (
         ref: refPath,
         currentDef: currentDefName,
       });
-      if (unknown) return unknown;
+      if (unknown) {
+        if (!unknown.node) {
+          throw new Error(
+            "refResolution.onUnknownRef must return SchemaRepresentation with node (no-fallback mode)."
+          );
+        }
+        return unknown;
+      }
 
-      return options.useUnknown ? "z.unknown()" : "z.any()";
+      return anyOrUnknown(refs);
     }
 
     return undefined;

@@ -3,11 +3,21 @@ import { parseAnyOf } from "./parseAnyOf.js";
 import { parseOneOf } from "./parseOneOf.js";
 import { parseSchema } from "./parseSchema.js";
 
-import { addJsdocs } from "../utils/jsdocs.js";
+import { expandJsdocs } from "../utils/jsdocs.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { buildIntersectionTree } from "../utils/buildIntersectionTree.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
-import { shouldUseGetter } from "../utils/schemaRepresentation.js";
+import {
+  shouldUseGetter,
+  zodCatchall,
+  zodChain,
+  zodExactOptional,
+  zodLooseObject,
+  zodLooseRecord,
+  zodStrictObject,
+  zodString,
+  zodSuperRefine,
+} from "../utils/schemaRepresentation.js";
 
 export function parseObject(
   objectSchema: JsonSchemaObject & { type: "object" },
@@ -66,72 +76,63 @@ export function parseObject(
   }
 
   // 1. Process Properties (Base Object)
-  let baseObjectExpr = "z.object({";
-  const propertyTypes: Array<{ key: string; type: string }> = [];
+  const shapeEntries: Array<{
+    key: string;
+    rep: SchemaRepresentation;
+    isGetter?: boolean;
+    jsdoc?: string;
+  }> = [];
 
   if (hasProperties) {
-    baseObjectExpr += allProps
-      .map((key) => {
-        const hasDirectProp = Object.prototype.hasOwnProperty.call(
-          objectSchema.properties ?? {},
-          key
-        );
-        const propSchema = hasDirectProp
-          ? objectSchema.properties?.[key]
-          : collectedProperties?.properties[key];
-        const propPath = hasDirectProp
-          ? [...refs.path, "properties", key]
-          : (collectedProperties?.propertyPaths[key] ?? [...refs.path, "properties", key]);
-        const parsedProp =
-          propSchema !== undefined
-            ? parseSchema(propSchema, { ...refs, path: propPath })
-            : anyOrUnknown(refs);
+    for (const key of allProps) {
+      const hasDirectProp = Object.prototype.hasOwnProperty.call(
+        objectSchema.properties ?? {},
+        key
+      );
+      const propSchema = hasDirectProp
+        ? objectSchema.properties?.[key]
+        : collectedProperties?.properties[key];
+      const propPath = hasDirectProp
+        ? [...refs.path, "properties", key]
+        : (collectedProperties?.propertyPaths[key] ?? [...refs.path, "properties", key]);
+      const parsedProp =
+        propSchema !== undefined
+          ? parseSchema(propSchema, { ...refs, path: propPath })
+          : anyOrUnknown(refs);
 
-        const hasDefault = typeof propSchema === "object" && propSchema.default !== undefined;
-        // Check "required" array from parent
-        const isRequired = requiredSet.has(key)
-          ? true
-          : typeof propSchema === "object" && propSchema.required === true;
+      const hasDefault = typeof propSchema === "object" && propSchema.default !== undefined;
+      // Check "required" array from parent
+      const isRequired = requiredSet.has(key)
+        ? true
+        : typeof propSchema === "object" && propSchema.required === true;
 
-        const isOptional = !hasDefault && !isRequired;
+      const isOptional = !hasDefault && !isRequired;
 
-        let valueExpr = parsedProp.expression;
-        let valueType = parsedProp.type;
-        if (isOptional) {
-          valueExpr = `${parsedProp.expression}.exactOptional()`;
-          valueType = `z.ZodExactOptional<${parsedProp.type}>`;
-        }
+      const valueRep = isOptional ? zodExactOptional(parsedProp) : parsedProp;
+      const jsdoc =
+        refs.withJsdocs &&
+        typeof propSchema === "object" &&
+        typeof propSchema.description === "string"
+          ? expandJsdocs(propSchema.description)
+          : undefined;
 
-        const valueRep: SchemaRepresentation = { expression: valueExpr, type: valueType };
-        propertyTypes.push({ key, type: valueType });
+      const useGetter = shouldUseGetter(
+        valueRep,
+        refs.currentSchemaName,
+        refs.cycleRefNames,
+        refs.cycleComponentByName
+      );
 
-        const useGetter = shouldUseGetter(
-          valueRep,
-          refs.currentSchemaName,
-          refs.cycleRefNames,
-          refs.cycleComponentByName
-        );
-
-        if (useGetter) {
-          let result = `get ${JSON.stringify(key)}(): ${valueType} { return ${valueExpr} }`;
-          if (refs.withJsdocs && typeof propSchema === "object") {
-            result = addJsdocs(propSchema, result);
-          }
-          return result;
-        }
-
-        if (refs.withJsdocs && typeof propSchema === "object") {
-          valueExpr = addJsdocs(propSchema, valueExpr);
-        }
-
-        return `${JSON.stringify(key)}: ${valueExpr}`;
-      })
-      .join(", ");
+      shapeEntries.push({
+        key,
+        rep: valueRep,
+        isGetter: useGetter,
+        jsdoc,
+      });
+    }
   }
-  baseObjectExpr += "})";
 
   const additionalProps = objectSchema.additionalProperties;
-  let baseObjectModified = baseObjectExpr;
   const patternProps = objectSchema.patternProperties || {};
   const patterns = Object.keys(patternProps);
   const hasPattern = patterns.length > 0;
@@ -144,9 +145,10 @@ export function parseObject(
   const manualAdditionalProps = hasPattern && isAdPropsRestrictive;
 
   let addPropsSchema: SchemaRepresentation | undefined;
+  let baseObject: SchemaRepresentation;
 
   if (manualAdditionalProps) {
-    baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
+    baseObject = zodLooseObject(shapeEntries);
     if (typeof additionalProps === "object") {
       addPropsSchema = parseSchema(additionalProps, {
         ...refs,
@@ -155,43 +157,36 @@ export function parseObject(
     }
   } else {
     if (additionalProps === false) {
-      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.strictObject(");
+      baseObject = zodStrictObject(shapeEntries);
     } else if (additionalProps && typeof additionalProps === "object") {
       addPropsSchema = parseSchema(additionalProps, {
         ...refs,
         path: [...refs.path, "additionalProperties"],
       });
-      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
-      baseObjectModified += `.catchall(${addPropsSchema.expression})`;
+      baseObject = zodCatchall(zodLooseObject(shapeEntries), addPropsSchema);
     } else {
-      baseObjectModified = baseObjectExpr.replace(/^z\.object\(/, "z.looseObject(");
+      baseObject = zodLooseObject(shapeEntries);
     }
   }
 
   // 3. Handle patternProperties using Intersection with z.looseRecord
   const intersectionMembers: SchemaRepresentation[] = [];
 
-  let baseType = "z.ZodObject<any>";
-  if (propertyTypes.length) {
-    const shape = propertyTypes.map((p) => `${JSON.stringify(p.key)}: ${p.type}`).join("; ");
-    baseType = `z.ZodObject<{${shape}}>`;
-  }
-
-  intersectionMembers.push({ expression: baseObjectModified, type: baseType });
+  intersectionMembers.push(baseObject);
 
   // 3b. Add manual additionalProperties check if needed
-  let manualAdditionalRefine = "";
-  let oneOfRefinement = "";
+  let manualAdditionalRefine: string | undefined;
+  let oneOfRefinement: string | undefined;
   if (manualAdditionalProps) {
     const definedProps = objectSchema.properties ? Object.keys(objectSchema.properties) : [];
 
-    manualAdditionalRefine = `.superRefine((value, ctx) => {
+    manualAdditionalRefine = `(value, ctx) => {
   for (const key in value) {
     if (${JSON.stringify(definedProps)}.includes(key)) continue;
     let matched = false;
     ${patterns.map((p) => `if (new RegExp(${JSON.stringify(p)}).test(key)) matched = true;`).join("\n    ")}
     if (matched) continue;
-    
+
     ${
       additionalProps === false
         ? `ctx.addIssue({ code: "custom", message: "Invalid key/Strict", path: [...ctx.path, key] });`
@@ -201,7 +196,7 @@ export function parseObject(
     }`
     }
   }
-})`;
+}`;
   }
 
   // 4. Handle composition (allOf, oneOf, anyOf) via Intersection
@@ -212,13 +207,10 @@ export function parseObject(
         ...refs,
         path: [...refs.path, "patternProperties", pattern],
       });
-      const keySchema = `z.string().regex(new RegExp(${JSON.stringify(pattern)}))`;
-      const recordExpr = `z.looseRecord(${keySchema}, ${validSchema.expression})`;
+      const keySchema = zodChain(zodString(), `regex(new RegExp(${JSON.stringify(pattern)}))`);
+      const recordRep = zodLooseRecord(keySchema, validSchema);
 
-      intersectionMembers.push({
-        expression: recordExpr,
-        type: `z.ZodRecord<z.ZodString, ${validSchema.type}>`,
-      });
+      intersectionMembers.push(recordRep);
     }
   }
 
@@ -250,7 +242,7 @@ export function parseObject(
       res.isRefinementOnly === true &&
       typeof refinementBody === "string"
     ) {
-      oneOfRefinement = `.superRefine(${refinementBody})`;
+      oneOfRefinement = refinementBody;
     } else {
       intersectionMembers.push(res);
     }
@@ -263,8 +255,15 @@ export function parseObject(
   }
 
   // 5. propertyNames, unevaluatedProperties, dependentSchemas etc.
-  const final = buildIntersectionTree(intersectionMembers);
-  let finalExpr = `${final.expression}${manualAdditionalRefine}${oneOfRefinement}`;
+  let result = buildIntersectionTree(intersectionMembers);
+
+  if (manualAdditionalRefine) {
+    result = zodSuperRefine(result, manualAdditionalRefine);
+  }
+
+  if (oneOfRefinement) {
+    result = zodSuperRefine(result, oneOfRefinement);
+  }
 
   if (objectSchema.propertyNames) {
     const normalizedPropNames =
@@ -280,26 +279,31 @@ export function parseObject(
       path: [...refs.path, "propertyNames"],
     });
 
-    finalExpr += `.superRefine((value, ctx) => {
+    result = zodSuperRefine(
+      result,
+      `(value, ctx) => {
   for (const key in value) {
-    const result = ${propNameSchema.expression}.safeParse(key);
-    if (!result.success) {
+    const parseResult = ${propNameSchema.expression}.safeParse(key);
+    if (!parseResult.success) {
       ctx.addIssue({
         path: [key],
         code: "custom",
         message: "Invalid property name",
-        params: { issues: result.error.issues }
+        params: { issues: parseResult.error.issues }
       });
     }
   }
-})`;
+}`
+    );
   }
 
   // dependentSchemas
   if (objectSchema.dependentSchemas && typeof objectSchema.dependentSchemas === "object") {
     const entries = Object.entries(objectSchema.dependentSchemas);
     if (entries.length) {
-      finalExpr += `.superRefine((obj, ctx) => {
+      result = zodSuperRefine(
+        result,
+        `(obj, ctx) => {
   ${entries
     .map(([key, schema]) => {
       const parsed = parseSchema(schema, {
@@ -307,14 +311,15 @@ export function parseObject(
         path: [...refs.path, "dependentSchemas", key],
       });
       return `if (Object.prototype.hasOwnProperty.call(obj, ${JSON.stringify(key)})) {
-    const result = ${parsed.expression}.safeParse(obj);
-    if (!result.success) {
-      ctx.addIssue({ code: "custom", message: ${(objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentSchemas ?? JSON.stringify("Dependent schema failed")}, path: [], params: { issues: result.error.issues } });
+    const parseResult = ${parsed.expression}.safeParse(obj);
+    if (!parseResult.success) {
+      ctx.addIssue({ code: "custom", message: ${(objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage?.dependentSchemas ?? JSON.stringify("Dependent schema failed")}, path: [], params: { issues: parseResult.error.issues } });
     }
   }`;
     })
     .join("\n  ")}
-})`;
+}`
+      );
     }
   }
 
@@ -325,7 +330,9 @@ export function parseObject(
       const depRequiredMessage =
         (objectSchema as { errorMessage?: Record<string, string | undefined> }).errorMessage
           ?.dependentRequired ?? "Dependent required properties missing";
-      finalExpr += `.superRefine((obj, ctx) => {
+      result = zodSuperRefine(
+        result,
+        `(obj, ctx) => {
   ${entries
     .map(([prop, deps]) => {
       const arr = Array.isArray(deps) ? deps : [];
@@ -342,15 +349,10 @@ export function parseObject(
     })
     .filter(Boolean)
     .join("\n  ")}
-})`;
+}`
+      );
     }
   }
 
-  // Calculate Type
-  const type = final.type;
-
-  return {
-    expression: finalExpr,
-    type,
-  };
+  return result;
 }

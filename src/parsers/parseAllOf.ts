@@ -1,6 +1,13 @@
 import { parseSchema } from "./parseSchema.js";
 import { half } from "../utils/half.js";
 import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
+import {
+  shouldUseGetter,
+  zodExactOptional,
+  zodIntersection,
+  zodLooseObject,
+  zodNever,
+} from "../utils/schemaRepresentation.js";
 
 const originalIndexKey = "__originalIndex";
 
@@ -27,9 +34,8 @@ const parseObjectShape = (
   schema: JsonSchemaObject & { properties: Record<string, JsonSchema> },
   refs: Refs,
   pathPrefix: (string | number)[]
-): { shapeEntries: string[]; shapeTypes: string[] } => {
-  const shapeEntries: string[] = [];
-  const shapeTypes: string[] = [];
+): { shapeEntries: Array<{ key: string; rep: SchemaRepresentation; isGetter?: boolean }> } => {
+  const shapeEntries: Array<{ key: string; rep: SchemaRepresentation; isGetter?: boolean }> = [];
 
   for (const key of Object.keys(schema.properties)) {
     const propSchema = schema.properties[key];
@@ -44,14 +50,18 @@ const parseObjectShape = (
       : typeof propSchema === "object" && propSchema.required === true;
     const optional = !hasDefault && !required;
 
-    const valueExpr = optional ? `${parsedProp.expression}.exactOptional()` : parsedProp.expression;
-    const valueType = optional ? `z.ZodExactOptional<${parsedProp.type}>` : parsedProp.type;
+    const valueRep = optional ? zodExactOptional(parsedProp) : parsedProp;
+    const isGetter = shouldUseGetter(
+      valueRep,
+      refs.currentSchemaName,
+      refs.cycleRefNames,
+      refs.cycleComponentByName
+    );
 
-    shapeEntries.push(`${JSON.stringify(key)}: ${valueExpr}`);
-    shapeTypes.push(`${JSON.stringify(key)}: ${valueType}`);
+    shapeEntries.push({ key, rep: valueRep, isGetter });
   }
 
-  return { shapeEntries, shapeTypes };
+  return { shapeEntries };
 };
 
 /**
@@ -62,9 +72,8 @@ const parseObjectShape = (
 const trySpreadPattern = (
   allOfMembers: JsonSchema[],
   refs: Refs
-): { expression: string; type: string } | undefined => {
-  const shapeEntries: string[] = [];
-  const shapeTypes: string[] = [];
+): SchemaRepresentation | undefined => {
+  const shapeEntries: Array<{ key: string; rep: SchemaRepresentation; isGetter?: boolean }> = [];
 
   for (let i = 0; i < allOfMembers.length; i++) {
     const member = allOfMembers[i];
@@ -77,21 +86,13 @@ const trySpreadPattern = (
     }
 
     // Extract shape entries from inline object
-    const { shapeEntries: entries, shapeTypes: types } = parseObjectShape(member, refs, [
-      ...refs.path,
-      "allOf",
-      idx,
-    ]);
+    const { shapeEntries: entries } = parseObjectShape(member, refs, [...refs.path, "allOf", idx]);
     shapeEntries.push(...entries);
-    shapeTypes.push(...types);
   }
 
   if (shapeEntries.length === 0) return undefined;
 
-  return {
-    expression: `z.looseObject({ ${shapeEntries.join(", ")} })`,
-    type: `z.ZodObject<{ ${shapeTypes.join(", ")} }>`,
-  };
+  return zodLooseObject(shapeEntries);
 };
 
 const ensureOriginalIndex = (arr: JsonSchema[]) => {
@@ -116,7 +117,7 @@ export function parseAllOf(
   refs: Refs
 ): SchemaRepresentation {
   if (schema.allOf.length === 0) {
-    return { expression: "z.never()", type: "z.ZodNever" };
+    return zodNever();
   } else if (schema.allOf.length === 1) {
     const item = schema.allOf[0];
 
@@ -145,9 +146,6 @@ export function parseAllOf(
     const leftResult = parseAllOf({ allOf: left }, refs);
     const rightResult = parseAllOf({ allOf: right }, refs);
 
-    return {
-      expression: `z.intersection(${leftResult.expression}, ${rightResult.expression})`,
-      type: `z.ZodIntersection<${leftResult.type}, ${rightResult.type}>`,
-    };
+    return zodIntersection(leftResult, rightResult);
   }
 }

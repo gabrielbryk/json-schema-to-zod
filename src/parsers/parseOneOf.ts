@@ -4,6 +4,12 @@ import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
 import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
+import {
+  zodAny,
+  zodDiscriminatedUnion,
+  zodSuperRefine,
+  zodXor,
+} from "../utils/schemaRepresentation.js";
 
 /**
  * Check if a schema is a "required-only" validation constraint.
@@ -53,12 +59,12 @@ const generateRequiredFieldsRefinement = (
   const refinementBody = `(obj, ctx) => { if (!(${conditions.join(" || ")})) { ctx.addIssue({ code: "custom", message: ${JSON.stringify(message)} }); } }`;
 
   // For standalone use, return z.any() with the refinement
-  const expression = `z.any().superRefine(${refinementBody})`;
+  const base = zodAny();
+  const refined = zodSuperRefine(base, refinementBody);
 
   return {
-    expression,
-    type: "z.ZodAny",
-    isRefinementOnly: true,
+    ...refined,
+    isRefinementOnly: true as const,
     refinementBody,
   };
 };
@@ -301,14 +307,8 @@ export const parseOneOf = (
       })
     );
 
-    const expressions = options.map((o) => o.expression).join(", ");
-    const types = options.map((o) => o.type).join(", ");
-
-    return wrapRecursiveUnion(refs, {
-      expression: `z.discriminatedUnion("${discriminator.key}", [${expressions}])`,
-      // Use readonly tuple for union type annotations (required for recursive type inference)
-      type: `z.ZodDiscriminatedUnion<"${discriminator.key}", readonly [${types}]>`,
-    });
+    const union = zodDiscriminatedUnion(discriminator.key, options, { readonlyType: true });
+    return wrapRecursiveUnion(refs, union);
   }
 
   // Fallback: Use z.xor for exclusive unions
@@ -335,11 +335,6 @@ export const parseOneOf = (
     return parsed;
   });
 
-  const expressions = parsedSchemas.map((r) => r.expression).join(", ");
-  const types = parsedSchemas.map((r) => r.type).join(", ");
-
-  const expression = `z.xor([${expressions}])`;
-  const type = `z.ZodXor<readonly [${types}]>`;
-
-  return wrapRecursiveUnion(refs, { expression, type });
+  const xor = zodXor(parsedSchemas, { readonlyType: true });
+  return wrapRecursiveUnion(refs, xor);
 };

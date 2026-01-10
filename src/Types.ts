@@ -10,11 +10,59 @@ export type Serializable =
  * Dual representation of a Zod schema - tracks both the runtime expression
  * and its TypeScript type annotation for proper recursive schema typing.
  */
+export type SchemaNode =
+  | { kind: "string" }
+  | { kind: "number" }
+  | { kind: "boolean" }
+  | { kind: "null" }
+  | { kind: "undefined" }
+  | { kind: "any" }
+  | { kind: "unknown" }
+  | { kind: "never" }
+  | { kind: "bigint" }
+  | { kind: "date" }
+  | { kind: "literal"; value: Serializable }
+  | { kind: "enum"; values: Serializable[]; typeStyle?: "array" | "object" }
+  | { kind: "ref"; name: string }
+  | { kind: "lazy"; inner: SchemaNode; typeArg?: string }
+  | { kind: "array"; inner: SchemaNode }
+  | { kind: "optional"; inner: SchemaNode }
+  | { kind: "exactOptional"; inner: SchemaNode }
+  | { kind: "nullable"; inner: SchemaNode; style?: "method" | "wrapper" }
+  | { kind: "default"; inner: SchemaNode; value: Serializable }
+  | { kind: "readonly"; inner: SchemaNode }
+  | { kind: "describe"; inner: SchemaNode; description: string }
+  | { kind: "meta"; inner: SchemaNode; meta: string }
+  | { kind: "union"; options: SchemaNode[]; readonly?: boolean }
+  | { kind: "discriminatedUnion"; discriminator: string; options: SchemaNode[]; readonly?: boolean }
+  | { kind: "xor"; options: SchemaNode[]; readonly?: boolean }
+  | { kind: "intersection"; left: SchemaNode; right: SchemaNode }
+  | { kind: "and"; base: SchemaNode; other: SchemaNode }
+  | { kind: "tuple"; items: SchemaNode[]; rest?: SchemaNode | null }
+  | { kind: "record"; key: SchemaNode; value: SchemaNode; mode?: "default" | "loose" }
+  | { kind: "map"; key: SchemaNode; value: SchemaNode }
+  | { kind: "set"; value: SchemaNode }
+  | {
+      kind: "object";
+      shape: Array<{ key: string; value: SchemaNode; isGetter?: boolean; jsdoc?: string }>;
+      mode?: "default" | "strict" | "loose";
+    }
+  | { kind: "catchall"; base: SchemaNode; catchall: SchemaNode }
+  | { kind: "superRefine"; base: SchemaNode; refine: string }
+  | { kind: "refine"; base: SchemaNode; refine: string }
+  | { kind: "transform"; base: SchemaNode; transform: string }
+  | { kind: "pipe"; first: SchemaNode; second: SchemaNode; params?: string }
+  | { kind: "coerce"; to: "string" | "number" | "boolean" | "date" }
+  | { kind: "call"; callee: string; args: string[]; type: string }
+  | { kind: "chain"; base: SchemaNode; method: string };
+
 export interface SchemaRepresentation {
   /** The Zod runtime expression, e.g., "z.array(MySchema).optional()" */
   expression: string;
   /** The Zod TypeScript type, e.g., "z.ZodOptional<z.ZodArray<typeof MySchema>>" */
   type: string;
+  /** Structured IR node for normalization/optimization (optional during migration). */
+  node?: SchemaNode;
 }
 
 export type JsonSchema = JsonSchemaObject | boolean;
@@ -88,7 +136,7 @@ export type JsonSchemaObject = {
 } & Record<string, unknown>;
 
 export type ParserSelector = (schema: JsonSchemaObject, refs: Refs) => SchemaRepresentation;
-export type ParserOverride = (schema: JsonSchemaObject, refs: Refs) => string | void;
+export type ParserOverride = (schema: JsonSchemaObject, refs: Refs) => SchemaRepresentation | void;
 
 export type NamingContext = { isRoot: boolean; isLifted: boolean };
 

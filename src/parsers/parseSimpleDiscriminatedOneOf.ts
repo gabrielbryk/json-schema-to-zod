@@ -2,6 +2,7 @@ import { SimpleDiscriminatedOneOfSchema, Refs, SchemaRepresentation } from "../T
 import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
+import { zodDiscriminatedUnion } from "../utils/schemaRepresentation.js";
 
 export const parseSimpleDiscriminatedOneOf = (
   schema: SimpleDiscriminatedOneOfSchema,
@@ -27,11 +28,5 @@ export const parseSimpleDiscriminatedOneOf = (
     });
   }
 
-  const expressions = options.map((o) => o.expression).join(", ");
-  const types = options.map((o) => o.type).join(", ");
-
-  return wrapRecursiveUnion(refs, {
-    expression: `z.discriminatedUnion("${discriminator}", [${expressions}])`,
-    type: `z.ZodDiscriminatedUnion<"${discriminator}", [${types}]>`,
-  });
+  return wrapRecursiveUnion(refs, zodDiscriminatedUnion(discriminator, options));
 };

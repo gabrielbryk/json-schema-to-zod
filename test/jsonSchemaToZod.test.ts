@@ -1,5 +1,6 @@
 import { JsonSchema } from "../src/Types.js";
 import jsonSchemaToZod from "../src/index.js";
+import { zodRef } from "../src/utils/schemaRepresentation.js";
 import { suite } from "./suite.js";
 import { normalizeCode } from "./utils/normalizeCode.js";
 import { getDefaultExport, hasImportZod } from "./utils/assertCode.js";
@@ -288,7 +289,7 @@ export default z.null()
               schema.type === "boolean" &&
               schema.description === "foo"
             ) {
-              return "myCustomZodSchema";
+              return zodRef("myCustomZodSchema");
             }
           },
         }

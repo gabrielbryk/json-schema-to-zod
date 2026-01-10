@@ -1,4 +1,5 @@
 import { Refs, SchemaRepresentation } from "../Types.js";
+import { fromNode } from "./schemaRepresentation.js";
 
 const shouldWrapRecursiveUnion = (refs: Refs): boolean => {
   if (!refs.lazyRecursiveUnions) {
@@ -18,12 +19,17 @@ export const wrapRecursiveUnion = (refs: Refs, rep: SchemaRepresentation): Schem
     return rep;
   }
 
-  if (rep.expression.startsWith("z.lazy(")) {
+  if (rep.node?.kind === "lazy") {
     return rep;
   }
 
-  return {
-    expression: `z.lazy(() => ${rep.expression})`,
-    type: `z.ZodLazy<${rep.type}>`,
-  };
+  if (!rep.node) {
+    throw new Error("SchemaRepresentation node missing (no-fallback mode).");
+  }
+
+  const inner = rep.node;
+  return fromNode({
+    kind: "lazy",
+    inner,
+  });
 };
