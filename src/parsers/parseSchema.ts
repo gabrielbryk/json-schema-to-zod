@@ -51,6 +51,7 @@ export const parseSchema = (
   refs.inProgress = refs.inProgress ?? new Set();
   refs.refNameByPointer = refs.refNameByPointer ?? new Map();
   refs.usedNames = refs.usedNames ?? new Set();
+  refs.catchallRefNames = refs.catchallRefNames ?? new Set();
 
   if (typeof schema !== "object") {
     return schema ? anyOrUnknown(refs) : zodNever();
@@ -191,6 +192,11 @@ const parseRef = (
   // additionalProperties becomes z.record() value - getters don't work there
   // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
   const inRecordContext = refs.path.includes("additionalProperties");
+  const inCatchallContext = inRecordContext || refs.path.includes("patternProperties");
+
+  if (inCatchallContext) {
+    refs.catchallRefNames?.add(refName);
+  }
 
   const isSelfRecursion = refName === refs.currentSchemaName;
   const isRecursive = isSameCycle || isForwardRef || isSelfRecursion;

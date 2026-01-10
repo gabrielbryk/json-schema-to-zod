@@ -197,6 +197,20 @@ export type Options = {
    */
   strictOneOf?: boolean;
   /**
+   * Strategy for handling recursive oneOf schemas.
+   * - "auto": use union for recursive oneOf when needed (default)
+   * - "union": always use z.union for oneOf
+   * - "xor": always use z.xor for oneOf
+   * @default "auto"
+   */
+  recursiveOneOfStrategy?: "auto" | "union" | "xor";
+  /**
+   * Per-schema overrides for oneOf strategy.
+   * Keys can match schema const names (e.g. "TaskSchema"), base names (e.g. "Task"),
+   * or schema titles.
+   */
+  oneOfOverrides?: Record<string, "union" | "xor">;
+  /**
    * Wrap recursive union schemas in z.lazy() to improve TypeScript inference.
    * This is useful for mutually recursive discriminated unions with optional properties.
    * @default false
@@ -273,6 +287,7 @@ export type Refs = Options & {
   currentSchemaName?: string;
   cycleRefNames?: Set<string>;
   cycleComponentByName?: Map<string, number>;
+  catchallRefNames?: Set<string>;
   /** Base URI in scope while traversing */
   currentBaseUri?: string;
   /** Root/base URI for the document */
