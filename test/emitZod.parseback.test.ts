@@ -2,6 +2,13 @@ import ts from "typescript";
 import { jsonSchemaToZod } from "../src/jsonSchemaToZod.js";
 import { analyzeSchema } from "../src/core/analyzeSchema.js";
 import { emitZod } from "../src/core/emitZod.js";
+import {
+  zodChain,
+  zodLazy,
+  zodObject,
+  zodOptional,
+  zodString,
+} from "../src/utils/schemaRepresentation.js";
 import { suite } from "./suite.js";
 
 const transpiles = (source: string): boolean => {
@@ -47,7 +54,11 @@ suite("emitZod parse-back", (test) => {
       ...analysis.options,
       parserOverride: (_schema, refs) => {
         if (refs.currentSchemaName === "NodeSchema") {
-          return `z.object({ "value": z.string(), get "next"(): z.ZodOptional<z.ZodLazy<typeof NodeSchema>> { return z.lazy(() => NodeSchema).optional(); } }).strict()`;
+          const base = zodObject([
+            { key: "value", rep: zodString() },
+            { key: "next", rep: zodOptional(zodLazy("NodeSchema")), isGetter: true },
+          ]);
+          return zodChain(base, "strict()");
         }
       },
     };

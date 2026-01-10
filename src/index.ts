@@ -39,6 +39,7 @@ export * from "./utils/resolveUri.js";
 export * from "./utils/schemaNaming.js";
 export * from "./utils/schemaRepresentation.js";
 export * from "./utils/withMessage.js";
+export * from "./utils/wrapRecursiveUnion.js";
 export * from "./zodToJsonSchema.js";
 import { jsonSchemaToZod } from "./jsonSchemaToZod.js";
 export default jsonSchemaToZod;

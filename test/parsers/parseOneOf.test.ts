@@ -10,7 +10,7 @@ suite("parseOneOf", (test) => {
         },
         { path: [], seen: new Map() }
       )
-    ).toEqual({
+    ).toMatchObject({
       expression: "z.xor([z.string(), z.number()])",
       type: "z.ZodXor<readonly [z.ZodString, z.ZodNumber]>",
     });

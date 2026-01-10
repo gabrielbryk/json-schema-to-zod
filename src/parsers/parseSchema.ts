@@ -25,6 +25,15 @@ import {
   SchemaRepresentation,
 } from "../Types.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
+import {
+  zodDefault,
+  zodDescribe,
+  zodLazy,
+  zodMeta,
+  zodNever,
+  zodReadonly,
+  zodRef,
+} from "../utils/schemaRepresentation.js";
 import { resolveUri } from "../utils/resolveUri.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { ensureUnique, resolveSchemaName, sanitizeIdentifier } from "../utils/schemaNaming.js";
@@ -42,9 +51,10 @@ export const parseSchema = (
   refs.inProgress = refs.inProgress ?? new Set();
   refs.refNameByPointer = refs.refNameByPointer ?? new Map();
   refs.usedNames = refs.usedNames ?? new Set();
+  refs.catchallRefNames = refs.catchallRefNames ?? new Set();
 
   if (typeof schema !== "object") {
-    return schema ? anyOrUnknown(refs) : { expression: "z.never()", type: "z.ZodNever" };
+    return schema ? anyOrUnknown(refs) : zodNever();
   }
 
   const parentBase = refs.currentBaseUri ?? refs.rootBaseUri ?? "root:///";
@@ -66,9 +76,13 @@ export const parseSchema = (
       dynamicAnchors,
     });
 
-    if (typeof custom === "string") {
-      // ParserOverride returns string for backward compatibility
-      return { expression: custom, type: "z.ZodTypeAny" };
+    if (custom) {
+      if (!custom.node) {
+        throw new Error(
+          "parserOverride must return SchemaRepresentation with node (no-fallback mode)."
+        );
+      }
+      return custom;
     }
   }
 
@@ -178,10 +192,14 @@ const parseRef = (
   // additionalProperties becomes z.record() value - getters don't work there
   // Per Zod issue #4881: z.record() with recursive values REQUIRES z.lazy()
   const inRecordContext = refs.path.includes("additionalProperties");
+  const inCatchallContext = inRecordContext || refs.path.includes("patternProperties");
+
+  if (inCatchallContext) {
+    refs.catchallRefNames?.add(refName);
+  }
 
   const isSelfRecursion = refName === refs.currentSchemaName;
   const isRecursive = isSameCycle || isForwardRef || isSelfRecursion;
-  const refType = `typeof ${refName}`;
 
   // Use deferred/lazy logic if recursive or in a context that requires it (record/catchall)
   if (isRecursive) {
@@ -189,33 +207,30 @@ const parseRef = (
 
     // Self-recursion in named object properties: use direct ref (getter handles deferred eval)
     if (inNamedProperty && isSelfRecursion) {
-      return { expression: refName, type: refType };
+      return zodRef(refName);
     }
 
     // Cross-schema refs in named object properties within same cycle: use direct ref
     // The getter in parseObject.ts will handle deferred evaluation
     if (inNamedProperty && isSameCycle && !isForwardRef) {
-      return { expression: refName, type: refType };
+      return zodRef(refName);
     }
 
     if (needsLazy) {
       // z.record() values with recursive refs MUST use z.lazy() (Colin confirmed in #4881)
       // Also arrays, unions, and other non-object contexts with forward refs need z.lazy()
-      return {
-        expression: `z.lazy(() => ${refName})`,
-        type: `z.ZodLazy<${refType}>`,
-      };
+      return zodLazy(refName);
     }
   }
 
-  return { expression: refName, type: refType };
+  return zodRef(refName);
 };
 
 const addDescribes = (
   schema: JsonSchemaObject,
   parsed: SchemaRepresentation
 ): SchemaRepresentation => {
-  let { expression, type } = parsed;
+  let result = parsed;
 
   const meta: Record<string, unknown> = {};
 
@@ -306,16 +321,16 @@ const addDescribes = (
     // Actually, Zod documentation says: "Custom metadata is preserved".
 
     if (meta.description) {
-      expression += `.describe(${JSON.stringify(meta.description)})`;
+      result = zodDescribe(result, String(meta.description));
       delete meta.description; // Don't duplicate in meta object if using describe
     }
 
     if (Object.keys(meta).length > 0) {
-      expression += `.meta(${JSON.stringify(meta)})`;
+      result = zodMeta(result, JSON.stringify(meta));
     }
   }
 
-  return { expression, type };
+  return result;
 };
 
 const getOrCreateRefName = (pointer: string, path: (string | number)[], refs: Refs): string => {
@@ -422,28 +437,22 @@ const addDefaults = (
   schema: JsonSchemaObject,
   parsed: SchemaRepresentation
 ): SchemaRepresentation => {
-  let { expression, type } = parsed;
-
   if (schema.default !== undefined) {
-    expression += `.default(${JSON.stringify(schema.default)})`;
-    type = `z.ZodDefault<${type}>`;
+    return zodDefault(parsed, JSON.stringify(schema.default));
   }
 
-  return { expression, type };
+  return parsed;
 };
 
 const addAnnotations = (
   schema: JsonSchemaObject,
   parsed: SchemaRepresentation
 ): SchemaRepresentation => {
-  let { expression, type } = parsed;
-
   if (schema.readOnly) {
-    expression += ".readonly()";
-    type = `z.ZodReadonly<${type}>`;
+    return zodReadonly(parsed);
   }
 
-  return { expression, type };
+  return parsed;
 };
 
 const selectParser: ParserSelector = (schema, refs) => {

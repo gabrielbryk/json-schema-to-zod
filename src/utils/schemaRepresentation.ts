@@ -1,112 +1,118 @@
-import { SchemaRepresentation } from "../Types.js";
+import { SchemaNode, SchemaRepresentation, Serializable } from "../Types.js";
 
 /**
  * Builder functions for composing SchemaRepresentation objects.
  * These track both the Zod expression and its TypeScript type simultaneously.
  */
 
+const createSchemaRepresentation = (node: SchemaNode): SchemaRepresentation => ({
+  node,
+  expression: emitExpression(node),
+  type: emitType(node),
+});
+
+export const fromNode = (node: SchemaNode): SchemaRepresentation =>
+  createSchemaRepresentation(node);
+
+const ensureNode = (rep: SchemaRepresentation): SchemaNode => {
+  if (!rep.node) {
+    throw new Error("SchemaRepresentation node missing (no-fallback mode).");
+  }
+  return rep.node;
+};
+
+const parseJsonLiteral = (value: string): { ok: true; value: Serializable } | { ok: false } => {
+  try {
+    return { ok: true, value: JSON.parse(value) as Serializable };
+  } catch {
+    return { ok: false };
+  }
+};
+
 // Primitives
-export const zodString = (): SchemaRepresentation => ({
-  expression: "z.string()",
-  type: "z.ZodString",
-});
+export const zodString = (): SchemaRepresentation => createSchemaRepresentation({ kind: "string" });
 
-export const zodNumber = (): SchemaRepresentation => ({
-  expression: "z.number()",
-  type: "z.ZodNumber",
-});
+export const zodNumber = (): SchemaRepresentation => createSchemaRepresentation({ kind: "number" });
 
-export const zodBoolean = (): SchemaRepresentation => ({
-  expression: "z.boolean()",
-  type: "z.ZodBoolean",
-});
+export const zodBoolean = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "boolean" });
 
-export const zodNull = (): SchemaRepresentation => ({
-  expression: "z.null()",
-  type: "z.ZodNull",
-});
+export const zodNull = (): SchemaRepresentation => createSchemaRepresentation({ kind: "null" });
 
-export const zodUndefined = (): SchemaRepresentation => ({
-  expression: "z.undefined()",
-  type: "z.ZodUndefined",
-});
+export const zodUndefined = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "undefined" });
 
-export const zodAny = (): SchemaRepresentation => ({
-  expression: "z.any()",
-  type: "z.ZodAny",
-});
+export const zodAny = (): SchemaRepresentation => createSchemaRepresentation({ kind: "any" });
 
-export const zodUnknown = (): SchemaRepresentation => ({
-  expression: "z.unknown()",
-  type: "z.ZodUnknown",
-});
+export const zodUnknown = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "unknown" });
 
-export const zodNever = (): SchemaRepresentation => ({
-  expression: "z.never()",
-  type: "z.ZodNever",
-});
+export const zodNever = (): SchemaRepresentation => createSchemaRepresentation({ kind: "never" });
 
-export const zodBigInt = (): SchemaRepresentation => ({
-  expression: "z.bigint()",
-  type: "z.ZodBigInt",
-});
+export const zodBigInt = (): SchemaRepresentation => createSchemaRepresentation({ kind: "bigint" });
 
-export const zodDate = (): SchemaRepresentation => ({
-  expression: "z.date()",
-  type: "z.ZodDate",
-});
+export const zodDate = (): SchemaRepresentation => createSchemaRepresentation({ kind: "date" });
 
 // Reference to another schema (potentially recursive)
-export const zodRef = (schemaName: string): SchemaRepresentation => ({
-  expression: schemaName,
-  type: `typeof ${schemaName}`,
-});
+export const zodRef = (schemaName: string): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "ref", name: schemaName });
 
 // Lazy wrapper for recursive references
-export const zodLazy = (schemaName: string): SchemaRepresentation => ({
-  expression: `z.lazy(() => ${schemaName})`,
-  type: `z.ZodLazy<typeof ${schemaName}>`,
-});
+export const zodLazy = (schemaName: string): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "lazy",
+    inner: { kind: "ref", name: schemaName },
+  });
 
 // Typed lazy wrapper when we know the inner type
-export const zodLazyTyped = (schemaName: string, innerType: string): SchemaRepresentation => ({
-  expression: `z.lazy<${innerType}>(() => ${schemaName})`,
-  type: `z.ZodLazy<${innerType}>`,
-});
+export const zodLazyTyped = (schemaName: string, innerType: string): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "lazy",
+    inner: { kind: "ref", name: schemaName },
+    typeArg: innerType,
+  });
 
 // Wrappers that transform inner representations
-export const zodArray = (inner: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `z.array(${inner.expression})`,
-  type: `z.ZodArray<${inner.type}>`,
-});
+export const zodArray = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "array", inner: ensureNode(inner) });
 
-export const zodOptional = (inner: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `${inner.expression}.optional()`,
-  type: `z.ZodOptional<${inner.type}>`,
-});
+export const zodOptional = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "optional", inner: ensureNode(inner) });
 
-export const zodNullable = (inner: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `${inner.expression}.nullable()`,
-  type: `z.ZodNullable<${inner.type}>`,
-});
+export const zodExactOptional = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "exactOptional", inner: ensureNode(inner) });
 
-export const zodNullableWrapper = (inner: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `z.nullable(${inner.expression})`,
-  type: `z.ZodNullable<${inner.type}>`,
-});
+export const zodNullable = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "nullable", inner: ensureNode(inner) });
+
+export const zodNullableWrapper = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "nullable",
+    inner: ensureNode(inner),
+    style: "wrapper",
+  });
 
 export const zodDefault = (
   inner: SchemaRepresentation,
   defaultValue: string
-): SchemaRepresentation => ({
-  expression: `${inner.expression}.default(${defaultValue})`,
-  type: `z.ZodDefault<${inner.type}>`,
-});
+): SchemaRepresentation => {
+  const parsedDefault = parseJsonLiteral(defaultValue);
+  if (!parsedDefault.ok) {
+    throw new Error("Invalid default value for zodDefault (no-fallback mode).");
+  }
 
-export const zodReadonly = (inner: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `${inner.expression}.readonly()`,
-  type: `z.ZodReadonly<${inner.type}>`,
-});
+  return createSchemaRepresentation({
+    kind: "default",
+    inner: ensureNode(inner),
+    value: parsedDefault.value,
+  });
+};
+
+export const zodReadonly = (inner: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "readonly",
+    inner: ensureNode(inner),
+  });
 
 // Describe doesn't change the type
 export const zodDescribe = (
@@ -115,103 +121,138 @@ export const zodDescribe = (
 ): SchemaRepresentation => ({
   expression: `${inner.expression}.describe(${JSON.stringify(description)})`,
   type: inner.type,
+  node: {
+    kind: "describe",
+    inner: ensureNode(inner),
+    description,
+  },
 });
 
 // Meta doesn't change the type
 export const zodMeta = (inner: SchemaRepresentation, meta: string): SchemaRepresentation => ({
   expression: `${inner.expression}.meta(${meta})`,
   type: inner.type,
+  node: {
+    kind: "meta",
+    inner: ensureNode(inner),
+    meta,
+  },
 });
 
 // Literals
-export const zodLiteral = (value: string): SchemaRepresentation => ({
-  expression: `z.literal(${value})`,
-  type: `z.ZodLiteral<${value}>`,
-});
+export const zodLiteral = (value: Serializable): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "literal", value });
 
 // Enums
-export const zodEnum = (values: string[]): SchemaRepresentation => {
-  const valuesStr = `[${values.join(", ")}]`;
-  return {
-    expression: `z.enum(${valuesStr})`,
-    type: `z.ZodEnum<${valuesStr}>`,
-  };
-};
+export const zodEnum = (
+  values: Serializable[],
+  options?: { typeStyle?: "array" | "object" }
+): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "enum", values, typeStyle: options?.typeStyle });
 
 // Union
-export const zodUnion = (options: SchemaRepresentation[]): SchemaRepresentation => {
-  const exprs = options.map((o) => o.expression).join(", ");
-  const types = options.map((o) => o.type).join(", ");
-  return {
-    expression: `z.union([${exprs}])`,
-    type: `z.ZodUnion<[${types}]>`,
-  };
-};
+export const zodUnion = (
+  options: SchemaRepresentation[],
+  optionsMeta?: { readonlyType?: boolean }
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "union",
+    options: options.map((o) => ensureNode(o)),
+    readonly: optionsMeta?.readonlyType,
+  });
 
 // Discriminated union
 export const zodDiscriminatedUnion = (
   discriminator: string,
-  options: SchemaRepresentation[]
+  options: SchemaRepresentation[],
+  optionsMeta?: { readonlyType?: boolean }
 ): SchemaRepresentation => {
-  const exprs = options.map((o) => o.expression).join(", ");
-  const types = options.map((o) => o.type).join(", ");
-  return {
-    expression: `z.discriminatedUnion(${JSON.stringify(discriminator)}, [${exprs}])`,
-    type: `z.ZodDiscriminatedUnion<${JSON.stringify(discriminator)}, [${types}]>`,
-  };
+  return createSchemaRepresentation({
+    kind: "discriminatedUnion",
+    discriminator,
+    options: options.map((o) => ensureNode(o)),
+    readonly: optionsMeta?.readonlyType,
+  });
 };
+
+export const zodXor = (
+  options: SchemaRepresentation[],
+  optionsMeta?: { readonlyType?: boolean }
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "xor",
+    options: options.map((o) => ensureNode(o)),
+    readonly: optionsMeta?.readonlyType,
+  });
 
 // Intersection
 export const zodIntersection = (
   left: SchemaRepresentation,
   right: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `z.intersection(${left.expression}, ${right.expression})`,
-  type: `z.ZodIntersection<${left.type}, ${right.type}>`,
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "intersection",
+    left: ensureNode(left),
+    right: ensureNode(right),
+  });
 
 // And method (for chaining)
 export const zodAnd = (
   base: SchemaRepresentation,
   other: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `${base.expression}.and(${other.expression})`,
-  type: `z.ZodIntersection<${base.type}, ${other.type}>`,
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "and",
+    base: ensureNode(base),
+    other: ensureNode(other),
+  });
 
 // Tuple
-export const zodTuple = (items: SchemaRepresentation[]): SchemaRepresentation => {
-  const exprs = items.map((i) => i.expression).join(", ");
-  const types = items.map((i) => i.type).join(", ");
-  return {
-    expression: `z.tuple([${exprs}])`,
-    type: `z.ZodTuple<[${types}]>`,
-  };
-};
+export const zodTuple = (
+  items: SchemaRepresentation[],
+  rest?: SchemaRepresentation | null
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "tuple",
+    items: items.map((i) => ensureNode(i)),
+    rest: rest === undefined ? undefined : rest === null ? null : ensureNode(rest),
+  });
 
 // Record
 export const zodRecord = (
   key: SchemaRepresentation,
+  value: SchemaRepresentation,
+  options?: { mode?: "default" | "loose" }
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "record",
+    key: ensureNode(key),
+    value: ensureNode(value),
+    mode: options?.mode,
+  });
+
+export const zodLooseRecord = (
+  key: SchemaRepresentation,
   value: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `z.record(${key.expression}, ${value.expression})`,
-  type: `z.ZodRecord<${key.type}, ${value.type}>`,
-});
+): SchemaRepresentation => zodRecord(key, value, { mode: "loose" });
 
 // Map
 export const zodMap = (
   key: SchemaRepresentation,
   value: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `z.map(${key.expression}, ${value.expression})`,
-  type: `z.ZodMap<${key.type}, ${value.type}>`,
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "map",
+    key: ensureNode(key),
+    value: ensureNode(value),
+  });
 
 // Set
-export const zodSet = (value: SchemaRepresentation): SchemaRepresentation => ({
-  expression: `z.set(${value.expression})`,
-  type: `z.ZodSet<${value.type}>`,
-});
+export const zodSet = (value: SchemaRepresentation): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "set",
+    value: ensureNode(value),
+  });
 
 // Object - builds from shape entries
 export const zodObject = (
@@ -219,28 +260,18 @@ export const zodObject = (
     key: string;
     rep: SchemaRepresentation;
     isGetter?: boolean;
+    jsdoc?: string;
   }>
 ): SchemaRepresentation => {
-  const exprParts: string[] = [];
-  const typeParts: string[] = [];
-
-  for (const { key, rep, isGetter } of shape) {
-    const quotedKey = JSON.stringify(key);
-
-    if (isGetter) {
-      // Getter syntax with explicit type annotation
-      exprParts.push(`get ${quotedKey}(): ${rep.type} { return ${rep.expression} }`);
-    } else {
-      exprParts.push(`${quotedKey}: ${rep.expression}`);
-    }
-
-    typeParts.push(`${quotedKey}: ${rep.type}`);
-  }
-
-  return {
-    expression: `z.object({ ${exprParts.join(", ")} })`,
-    type: `z.ZodObject<{ ${typeParts.join(", ")} }>`,
-  };
+  return createSchemaRepresentation({
+    kind: "object",
+    shape: shape.map(({ key, rep, isGetter, jsdoc }) => ({
+      key,
+      value: ensureNode(rep),
+      isGetter,
+      jsdoc,
+    })),
+  });
 };
 
 // Strict object
@@ -249,374 +280,459 @@ export const zodStrictObject = (
     key: string;
     rep: SchemaRepresentation;
     isGetter?: boolean;
+    jsdoc?: string;
   }>
 ): SchemaRepresentation => {
-  const base = zodObject(shape);
-  return {
-    expression: base.expression.replace(/^z\.object\(/, "z.strictObject("),
-    type: base.type, // strict() doesn't change the type signature
-  };
+  return createSchemaRepresentation({
+    kind: "object",
+    mode: "strict",
+    shape: shape.map(({ key, rep, isGetter, jsdoc }) => ({
+      key,
+      value: ensureNode(rep),
+      isGetter,
+      jsdoc,
+    })),
+  });
 };
+
+export const zodLooseObject = (
+  shape: Array<{
+    key: string;
+    rep: SchemaRepresentation;
+    isGetter?: boolean;
+    jsdoc?: string;
+  }>
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "object",
+    mode: "loose",
+    shape: shape.map(({ key, rep, isGetter, jsdoc }) => ({
+      key,
+      value: ensureNode(rep),
+      isGetter,
+      jsdoc,
+    })),
+  });
 
 // Catchall
 export const zodCatchall = (
   base: SchemaRepresentation,
   catchallSchema: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `${base.expression}.catchall(${catchallSchema.expression})`,
-  type: base.type, // catchall doesn't change the base type for inference purposes
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "catchall",
+    base: ensureNode(base),
+    catchall: ensureNode(catchallSchema),
+  });
 
 // SuperRefine - doesn't change the type
 export const zodSuperRefine = (
   base: SchemaRepresentation,
   refineFn: string
-): SchemaRepresentation => ({
-  expression: `${base.expression}.superRefine(${refineFn})`,
-  type: base.type,
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "superRefine",
+    base: ensureNode(base),
+    refine: refineFn,
+  });
 
 // Refine - doesn't change the type
-export const zodRefine = (base: SchemaRepresentation, refineFn: string): SchemaRepresentation => ({
-  expression: `${base.expression}.refine(${refineFn})`,
-  type: base.type,
-});
+export const zodRefine = (base: SchemaRepresentation, refineFn: string): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "refine",
+    base: ensureNode(base),
+    refine: refineFn,
+  });
 
 // Transform - Zod v4 uses ZodPipe<Base, ZodTransform<Output, Input>>
 // Since we don't know the output type at codegen time, use ZodTypeAny for simplicity
 export const zodTransform = (
   base: SchemaRepresentation,
   transformFn: string
-): SchemaRepresentation => ({
-  expression: `${base.expression}.transform(${transformFn})`,
-  type: `z.ZodPipe<${base.type}, z.ZodTypeAny>`,
-});
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "transform",
+    base: ensureNode(base),
+    transform: transformFn,
+  });
 
 // Pipe
 export const zodPipe = (
   first: SchemaRepresentation,
-  second: SchemaRepresentation
-): SchemaRepresentation => ({
-  expression: `${first.expression}.pipe(${second.expression})`,
-  type: `z.ZodPipeline<${first.type}, ${second.type}>`,
-});
+  second: SchemaRepresentation,
+  params?: string
+): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "pipe",
+    first: ensureNode(first),
+    second: ensureNode(second),
+    params,
+  });
 
 // Coerce wrappers
-export const zodCoerceString = (): SchemaRepresentation => ({
-  expression: "z.coerce.string()",
-  type: "z.ZodString",
-});
+export const zodCoerceString = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "coerce", to: "string" });
 
-export const zodCoerceNumber = (): SchemaRepresentation => ({
-  expression: "z.coerce.number()",
-  type: "z.ZodNumber",
-});
+export const zodCoerceNumber = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "coerce", to: "number" });
 
-export const zodCoerceBoolean = (): SchemaRepresentation => ({
-  expression: "z.coerce.boolean()",
-  type: "z.ZodBoolean",
-});
+export const zodCoerceBoolean = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "coerce", to: "boolean" });
 
-export const zodCoerceDate = (): SchemaRepresentation => ({
-  expression: "z.coerce.date()",
-  type: "z.ZodDate",
-});
+export const zodCoerceDate = (): SchemaRepresentation =>
+  createSchemaRepresentation({ kind: "coerce", to: "date" });
+
+export const zodCall = (callee: string, args: string[], type: string): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "call",
+    callee,
+    args,
+    type,
+  });
 
 // Generic method chaining - for any method that doesn't change type
-export const zodChain = (base: SchemaRepresentation, method: string): SchemaRepresentation => ({
-  expression: `${base.expression}.${method}`,
-  type: base.type,
-});
+export const zodChain = (base: SchemaRepresentation, method: string): SchemaRepresentation =>
+  createSchemaRepresentation({
+    kind: "chain",
+    base: ensureNode(base),
+    method,
+  });
 
-// Create a raw representation from expression string (for backward compatibility)
-// This infers the type from the expression using pattern matching
-export const fromExpression = (expression: string): SchemaRepresentation => ({
-  expression,
-  type: inferTypeFromExpression(expression),
-});
-
-/**
- * Infers the TypeScript type from a Zod expression string.
- * This is used for backward compatibility during migration.
- */
-export const inferTypeFromExpression = (expr: string): string => {
-  const applyOptionality = (type: string, methods: string): string => {
-    if (methods.includes(".exactOptional()")) {
-      type = `z.ZodExactOptional<${type}>`;
-    } else if (methods.includes(".optional()")) {
-      type = `z.ZodOptional<${type}>`;
-    }
-    if (methods.includes(".nullable()")) {
-      type = `z.ZodNullable<${type}>`;
-    }
-    return type;
-  };
-
-  // Handle z.lazy with explicit type (possibly with method chains like .optional())
-  const lazyTypedMatch = expr.match(
-    /^z\.lazy<([^>]+)>\(\s*\(\)\s*=>\s*([A-Za-z0-9_.$]+)\s*\)(\.[a-z]+\(\))*$/
-  );
-  if (lazyTypedMatch) {
-    let type = `z.ZodLazy<${lazyTypedMatch[1]}>`;
-    const methods = lazyTypedMatch[3] || "";
-    return applyOptionality(type, methods);
-  }
-
-  // Handle z.lazy without explicit type (possibly with method chains like .optional())
-  const lazyMatch = expr.match(/^z\.lazy\(\s*\(\)\s*=>\s*([A-Za-z0-9_.$]+)\s*\)(\.[a-z]+\(\))*$/);
-  if (lazyMatch) {
-    let type = `z.ZodLazy<typeof ${lazyMatch[1]}>`;
-    const methods = lazyMatch[2] || "";
-    return applyOptionality(type, methods);
-  }
-
-  // Handle .and() method chains - this creates an intersection type
-  // Need to find the .and( that's not inside nested parentheses
-  const andIndex = findTopLevelMethod(expr, ".and(");
-  if (andIndex !== -1) {
-    const baseExpr = expr.substring(0, andIndex);
-    // Extract the argument to .and() - find the matching closing paren
-    const argsStart = andIndex + 5; // length of ".and("
-    const argsEnd = findMatchingParen(expr, argsStart - 1);
-    if (argsEnd !== -1) {
-      const andArg = expr.substring(argsStart, argsEnd);
-      const remainder = expr.substring(argsEnd + 1);
-
-      const baseType = inferTypeFromExpression(baseExpr);
-      const andType = inferTypeFromExpression(andArg);
-      let type = `z.ZodIntersection<${baseType}, ${andType}>`;
-
-      // Handle trailing methods
-      return applyOptionality(type, remainder);
-    }
-  }
-
-  // Handle z.intersection(X, Y)
-  if (expr.startsWith("z.intersection(")) {
-    const argsStart = 15; // length of "z.intersection("
-    const argsEnd = findMatchingParen(expr, argsStart - 1);
-    if (argsEnd !== -1) {
-      const args = expr.substring(argsStart, argsEnd);
-      // Split on comma at top level (not inside parentheses)
-      const commaIndex = findTopLevelComma(args);
-      if (commaIndex !== -1) {
-        const leftExpr = args.substring(0, commaIndex).trim();
-        const rightExpr = args.substring(commaIndex + 1).trim();
-        const leftType = inferTypeFromExpression(leftExpr);
-        const rightType = inferTypeFromExpression(rightExpr);
-        return `z.ZodIntersection<${leftType}, ${rightType}>`;
+export const emitExpression = (node: SchemaNode): string => {
+  switch (node.kind) {
+    case "string":
+      return "z.string()";
+    case "number":
+      return "z.number()";
+    case "boolean":
+      return "z.boolean()";
+    case "null":
+      return "z.null()";
+    case "undefined":
+      return "z.undefined()";
+    case "any":
+      return "z.any()";
+    case "unknown":
+      return "z.unknown()";
+    case "never":
+      return "z.never()";
+    case "bigint":
+      return "z.bigint()";
+    case "date":
+      return "z.date()";
+    case "literal":
+      return `z.literal(${JSON.stringify(node.value)})`;
+    case "enum":
+      return `z.enum([${node.values.map((value) => JSON.stringify(value)).join(", ")}])`;
+    case "ref":
+      return node.name;
+    case "lazy": {
+      const inner = emitExpression(node.inner);
+      if (node.typeArg) {
+        return `z.lazy<${node.typeArg}>(() => ${inner})`;
       }
+      return `z.lazy(() => ${inner})`;
     }
-  }
-
-  // Handle z.object({...})/z.strictObject({...})/z.looseObject({...})
-  const objectPrefixes = ["z.object(", "z.strictObject(", "z.looseObject("];
-  const objectPrefix = objectPrefixes.find((prefix) => expr.startsWith(prefix));
-  if (objectPrefix) {
-    // Find the end of z.object({...})
-    const argsStart = objectPrefix.length; // length of prefix
-    const argsEnd = findMatchingParen(expr, argsStart - 1);
-    if (argsEnd !== -1) {
-      const remainder = expr.substring(argsEnd + 1);
-      // Base type for any z.object
-      let type = "z.ZodObject<Record<string, z.ZodTypeAny>>";
-
-      // Handle method chains after z.object({...})
-      return applyOptionality(type, remainder);
+    case "array":
+      return `z.array(${emitExpression(node.inner)})`;
+    case "optional":
+      return `${emitExpression(node.inner)}.optional()`;
+    case "exactOptional":
+      return `${emitExpression(node.inner)}.exactOptional()`;
+    case "nullable": {
+      const inner = emitExpression(node.inner);
+      return node.style === "wrapper" ? `z.nullable(${inner})` : `${inner}.nullable()`;
     }
+    case "default":
+      return `${emitExpression(node.inner)}.default(${JSON.stringify(node.value)})`;
+    case "readonly":
+      return `${emitExpression(node.inner)}.readonly()`;
+    case "describe":
+      return `${emitExpression(node.inner)}.describe(${JSON.stringify(node.description)})`;
+    case "meta":
+      return `${emitExpression(node.inner)}.meta(${node.meta})`;
+    case "union":
+      return `z.union([${node.options.map(emitExpression).join(", ")}])`;
+    case "discriminatedUnion":
+      return `z.discriminatedUnion(${JSON.stringify(node.discriminator)}, [${node.options
+        .map(emitExpression)
+        .join(", ")}])`;
+    case "xor":
+      return `z.xor([${node.options.map(emitExpression).join(", ")}])`;
+    case "intersection":
+      return `z.intersection(${emitExpression(node.left)}, ${emitExpression(node.right)})`;
+    case "and":
+      return `${emitExpression(node.base)}.and(${emitExpression(node.other)})`;
+    case "tuple":
+      return node.rest === undefined || node.rest === null
+        ? `z.tuple([${node.items.map(emitExpression).join(", ")}])`
+        : `z.tuple([${node.items.map(emitExpression).join(", ")}]).rest(${emitExpression(
+            node.rest
+          )})`;
+    case "record":
+      return `${node.mode === "loose" ? "z.looseRecord" : "z.record"}(${emitExpression(
+        node.key
+      )}, ${emitExpression(node.value)})`;
+    case "map":
+      return `z.map(${emitExpression(node.key)}, ${emitExpression(node.value)})`;
+    case "set":
+      return `z.set(${emitExpression(node.value)})`;
+    case "object": {
+      const exprParts = node.shape.map(({ key, value, isGetter, jsdoc }) => {
+        const quotedKey = JSON.stringify(key);
+        const prefix = jsdoc ? `\n${jsdoc}` : "";
+        if (isGetter) {
+          return `${prefix}get ${quotedKey}(): ${emitType(value)} { return ${emitExpression(value)} }`;
+        }
+        return `${prefix}${quotedKey}: ${emitExpression(value)}`;
+      });
+      const mode = node.mode ?? "default";
+      const prefix =
+        mode === "strict" ? "z.strictObject" : mode === "loose" ? "z.looseObject" : "z.object";
+      return `${prefix}({ ${exprParts.join(", ")} })`;
+    }
+    case "catchall":
+      return `${emitExpression(node.base)}.catchall(${emitExpression(node.catchall)})`;
+    case "superRefine":
+      return `${emitExpression(node.base)}.superRefine(${node.refine})`;
+    case "refine":
+      return `${emitExpression(node.base)}.refine(${node.refine})`;
+    case "transform":
+      return `${emitExpression(node.base)}.transform(${node.transform})`;
+    case "pipe":
+      return `${emitExpression(node.first)}.pipe(${emitExpression(node.second)}${node.params ?? ""})`;
+    case "coerce":
+      return `z.coerce.${node.to}()`;
+    case "call":
+      return `${node.callee}(${node.args.join(", ")})`;
+    case "chain":
+      return `${emitExpression(node.base)}.${node.method}`;
   }
+};
 
-  // Handle z.record(K, V)
-  if (expr.startsWith("z.record(")) {
-    const argsStart = 9; // length of "z.record("
-    const argsEnd = findMatchingParen(expr, argsStart - 1);
-    if (argsEnd !== -1) {
-      const args = expr.substring(argsStart, argsEnd);
-      const commaIndex = findTopLevelComma(args);
-      if (commaIndex !== -1) {
-        const keyExpr = args.substring(0, commaIndex).trim();
-        const valueExpr = args.substring(commaIndex + 1).trim();
-        const keyType = inferTypeFromExpression(keyExpr);
-        const valueType = inferTypeFromExpression(valueExpr);
-        return `z.ZodRecord<${keyType}, ${valueType}>`;
+export const emitType = (node: SchemaNode): string => {
+  switch (node.kind) {
+    case "string":
+      return "z.ZodString";
+    case "number":
+      return "z.ZodNumber";
+    case "boolean":
+      return "z.ZodBoolean";
+    case "null":
+      return "z.ZodNull";
+    case "undefined":
+      return "z.ZodUndefined";
+    case "any":
+      return "z.ZodAny";
+    case "unknown":
+      return "z.ZodUnknown";
+    case "never":
+      return "z.ZodNever";
+    case "bigint":
+      return "z.ZodBigInt";
+    case "date":
+      return "z.ZodDate";
+    case "literal":
+      return `z.ZodLiteral<${JSON.stringify(node.value)}>`;
+    case "enum":
+      if (node.typeStyle === "object") {
+        const entries = node.values
+          .map((value) => `${JSON.stringify(value)}: ${JSON.stringify(value)}`)
+          .join("; ");
+        return `z.ZodEnum<{ ${entries} }>`;
       }
-    }
-  }
-
-  // Primitives - MUST come before refMatch which would incorrectly match z.string() as "typeof z"
-  if (expr === "z.string()" || expr.startsWith("z.string().")) return "z.ZodString";
-  if (expr === "z.number()" || expr.startsWith("z.number().")) return "z.ZodNumber";
-  if (expr === "z.boolean()" || expr.startsWith("z.boolean().")) return "z.ZodBoolean";
-  if (expr === "z.null()") return "z.ZodNull";
-  if (expr === "z.undefined()") return "z.ZodUndefined";
-  if (expr === "z.any()") return "z.ZodAny";
-  if (expr === "z.unknown()") return "z.ZodUnknown";
-  if (expr === "z.never()") return "z.ZodNever";
-  if (expr.startsWith("z.literal(")) return "z.ZodLiteral<unknown>";
-  if (expr.startsWith("z.enum(")) return "z.ZodEnum<[string, ...string[]]>";
-
-  // Handle simple schema reference (possibly with .optional())
-  const refMatch = expr.match(/^([A-Za-z_$][A-Za-z0-9_$]*)(\.[a-z]+\(\))*$/);
-  if (refMatch) {
-    const baseName = refMatch[1];
-    const methods = refMatch[2] || "";
-
-    let type = `typeof ${baseName}`;
-    return applyOptionality(type, methods);
-  }
-
-  // Handle z.array(X)
-  const arrayMatch = expr.match(/^z\.array\((.+)\)(\.[a-z]+\(\))*$/);
-  if (arrayMatch) {
-    const innerType = inferTypeFromExpression(arrayMatch[1]);
-    let type = `z.ZodArray<${innerType}>`;
-
-    const methods = arrayMatch[2] || "";
-    return applyOptionality(type, methods);
-  }
-
-  // Handle z.nullable(X)
-  const nullableMatch = expr.match(/^z\.nullable\((.+)\)$/);
-  if (nullableMatch) {
-    const innerType = inferTypeFromExpression(nullableMatch[1]);
-    return `z.ZodNullable<${innerType}>`;
-  }
-
-  // Handle z.union([...]) - Zod v4 uses readonly arrays for union options
-  // Also handle method chains like .optional(), .nullable()
-  if (expr.startsWith("z.union([")) {
-    const bracketStart = 8; // position of [
-    const bracketEnd = findMatchingParen(expr, bracketStart); // position of ]
-    if (bracketEnd !== -1) {
-      const arrayContent = expr.substring(bracketStart + 1, bracketEnd); // inside the []
-      const memberTypes = parseTopLevelArrayElements(arrayContent);
-      const types = memberTypes.map((m) => inferTypeFromExpression(m.trim()));
-      let baseType = `z.ZodUnion<readonly [${types.join(", ")}]>`;
-
-      const remainder = expr.substring(bracketEnd + 2); // skip ] and )
-      return applyOptionality(baseType, remainder);
-    }
-  }
-
-  // Handle z.discriminatedUnion(...) - Zod v4 uses readonly arrays
-  if (expr.startsWith("z.discriminatedUnion(")) {
-    let baseType = "z.ZodDiscriminatedUnion<readonly z.ZodTypeAny[], string>";
-    if (expr.endsWith(".optional()")) {
-      baseType = `z.ZodOptional<${baseType}>`;
-    }
-    if (expr.endsWith(".nullable()")) {
-      baseType = `z.ZodNullable<${baseType}>`;
-    }
-    return baseType;
-  }
-
-  // Fallback
-  return "z.ZodTypeAny";
-};
-
-/**
- * Find a method call at the top level (not inside nested parentheses)
- */
-const findTopLevelMethod = (expr: string, method: string): number => {
-  let depth = 0;
-  for (let i = 0; i < expr.length - method.length; i++) {
-    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
-      depth++;
-    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
-      depth--;
-    } else if (depth === 0 && expr.substring(i, i + method.length) === method) {
-      return i;
-    }
-  }
-  return -1;
-};
-
-/**
- * Find the matching closing parenthesis
- */
-const findMatchingParen = (expr: string, openIndex: number): number => {
-  let depth = 0;
-  for (let i = openIndex; i < expr.length; i++) {
-    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
-      depth++;
-    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
-      depth--;
-      if (depth === 0) {
-        return i;
+      return `z.ZodEnum<[${node.values.map((value) => JSON.stringify(value)).join(", ")}]>`;
+    case "ref":
+      return `typeof ${node.name}`;
+    case "lazy":
+      return node.typeArg ? `z.ZodLazy<${node.typeArg}>` : `z.ZodLazy<${emitType(node.inner)}>`;
+    case "array":
+      return `z.ZodArray<${emitType(node.inner)}>`;
+    case "optional":
+      return `z.ZodOptional<${emitType(node.inner)}>`;
+    case "exactOptional":
+      return `z.ZodExactOptional<${emitType(node.inner)}>`;
+    case "nullable":
+      return `z.ZodNullable<${emitType(node.inner)}>`;
+    case "default":
+      return `z.ZodDefault<${emitType(node.inner)}>`;
+    case "readonly":
+      return `z.ZodReadonly<${emitType(node.inner)}>`;
+    case "describe":
+    case "meta":
+      return emitType(node.inner);
+    case "union":
+      return `z.ZodUnion<${node.readonly ? "readonly " : ""}[${node.options
+        .map(emitType)
+        .join(", ")}]>`;
+    case "discriminatedUnion":
+      return `z.ZodDiscriminatedUnion<${JSON.stringify(node.discriminator)}, ${node.readonly ? "readonly " : ""}[${node.options
+        .map(emitType)
+        .join(", ")}]>`;
+    case "xor":
+      return `z.ZodXor<${node.readonly ? "readonly " : ""}[${node.options.map(emitType).join(", ")}]>`;
+    case "intersection":
+      return `z.ZodIntersection<${emitType(node.left)}, ${emitType(node.right)}>`;
+    case "and":
+      return `z.ZodIntersection<${emitType(node.base)}, ${emitType(node.other)}>`;
+    case "tuple":
+      if (node.rest === null) {
+        return `z.ZodTuple<[${node.items.map(emitType).join(", ")}], null>`;
       }
-    }
-  }
-  return -1;
-};
-
-/**
- * Find a comma at the top level (not inside nested parentheses)
- */
-const findTopLevelComma = (expr: string): number => {
-  let depth = 0;
-  for (let i = 0; i < expr.length; i++) {
-    if (expr[i] === "(" || expr[i] === "[" || expr[i] === "{") {
-      depth++;
-    } else if (expr[i] === ")" || expr[i] === "]" || expr[i] === "}") {
-      depth--;
-    } else if (depth === 0 && expr[i] === ",") {
-      return i;
-    }
-  }
-  return -1;
-};
-
-/**
- * Parse array elements at the top level, respecting nested brackets/parens
- */
-const parseTopLevelArrayElements = (content: string): string[] => {
-  const elements: string[] = [];
-  let depth = 0;
-  let current = "";
-
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (char === "(" || char === "[" || char === "{") {
-      depth++;
-      current += char;
-    } else if (char === ")" || char === "]" || char === "}") {
-      depth--;
-      current += char;
-    } else if (char === "," && depth === 0) {
-      if (current.trim()) {
-        elements.push(current.trim());
+      if (node.rest === undefined) {
+        return `z.ZodTuple<[${node.items.map(emitType).join(", ")}]>`;
       }
-      current = "";
-    } else {
-      current += char;
+      return `z.ZodTuple<[${node.items.map(emitType).join(", ")}], ${emitType(node.rest)}>`;
+    case "record":
+      return `z.ZodRecord<${emitType(node.key)}, ${emitType(node.value)}>`;
+    case "map":
+      return `z.ZodMap<${emitType(node.key)}, ${emitType(node.value)}>`;
+    case "set":
+      return `z.ZodSet<${emitType(node.value)}>`;
+    case "object": {
+      const typeParts = node.shape.map(
+        ({ key, value }) => `${JSON.stringify(key)}: ${emitType(value)}`
+      );
+      const config =
+        node.mode === "loose"
+          ? ", z.core.$loose"
+          : node.mode === "strict"
+            ? ", z.core.$strict"
+            : "";
+      return `z.ZodObject<{ ${typeParts.join(", ")} }${config}>`;
     }
+    case "catchall":
+    case "superRefine":
+    case "refine":
+      return emitType(node.base);
+    case "transform":
+      return `z.ZodPipe<${emitType(node.base)}, z.ZodTypeAny>`;
+    case "pipe":
+      return `z.ZodPipeline<${emitType(node.first)}, ${emitType(node.second)}>`;
+    case "coerce":
+      if (node.to === "date") return "z.ZodDate";
+      if (node.to === "string") return "z.ZodString";
+      if (node.to === "number") return "z.ZodNumber";
+      return "z.ZodBoolean";
+    case "call":
+      return node.type;
+    case "chain":
+      return emitType(node.base);
   }
-
-  if (current.trim()) {
-    elements.push(current.trim());
-  }
-
-  return elements;
 };
 
-/**
- * Check if an expression contains a reference to a recursive schema.
- */
-export const containsRecursiveRef = (
-  expr: string,
-  cycleRefNames: Set<string> | undefined
-): boolean => {
-  if (!cycleRefNames || cycleRefNames.size === 0) return false;
+type NodeVisitor = (node: SchemaNode) => void;
 
-  for (const refName of cycleRefNames) {
-    // Check for direct reference or reference within z.lazy, z.array, etc.
-    const pattern = new RegExp(`\\b${refName}\\b`);
-    if (pattern.test(expr)) {
-      return true;
-    }
+const walkNode = (node: SchemaNode, visit: NodeVisitor): void => {
+  visit(node);
+
+  switch (node.kind) {
+    case "lazy":
+      walkNode(node.inner, visit);
+      break;
+    case "array":
+    case "optional":
+    case "exactOptional":
+    case "nullable":
+    case "default":
+    case "readonly":
+    case "describe":
+    case "meta":
+      walkNode(node.inner, visit);
+      break;
+    case "union":
+    case "discriminatedUnion":
+    case "xor":
+      node.options.forEach((option) => walkNode(option, visit));
+      break;
+    case "intersection":
+      walkNode(node.left, visit);
+      walkNode(node.right, visit);
+      break;
+    case "and":
+      walkNode(node.base, visit);
+      walkNode(node.other, visit);
+      break;
+    case "tuple":
+      node.items.forEach((item) => walkNode(item, visit));
+      if (node.rest) {
+        walkNode(node.rest, visit);
+      }
+      break;
+    case "record":
+    case "map":
+      walkNode(node.key, visit);
+      walkNode(node.value, visit);
+      break;
+    case "set":
+      walkNode(node.value, visit);
+      break;
+    case "object":
+      node.shape.forEach(({ value }) => walkNode(value, visit));
+      break;
+    case "catchall":
+      walkNode(node.base, visit);
+      walkNode(node.catchall, visit);
+      break;
+    case "superRefine":
+    case "refine":
+    case "transform":
+      walkNode(node.base, visit);
+      break;
+    case "pipe":
+      walkNode(node.first, visit);
+      walkNode(node.second, visit);
+      break;
+    case "chain":
+      walkNode(node.base, visit);
+      break;
+    case "string":
+    case "number":
+    case "boolean":
+    case "null":
+    case "undefined":
+    case "any":
+    case "unknown":
+    case "never":
+    case "bigint":
+    case "date":
+    case "literal":
+    case "enum":
+    case "ref":
+    case "coerce":
+    case "call":
+      break;
   }
+};
 
-  return false;
+export const collectRefNames = (node: SchemaNode): Set<string> => {
+  const refs = new Set<string>();
+  walkNode(node, (current) => {
+    if (current.kind === "ref") {
+      refs.add(current.name);
+    }
+  });
+  return refs;
+};
+
+export const nodeHasLazy = (node: SchemaNode): boolean => {
+  let found = false;
+  walkNode(node, (current) => {
+    if (current.kind === "lazy") {
+      found = true;
+    }
+  });
+  return found;
+};
+
+export const nodeHasGetter = (node: SchemaNode): boolean => {
+  let found = false;
+  walkNode(node, (current) => {
+    if (current.kind === "object" && current.shape.some((entry) => entry.isGetter)) {
+      found = true;
+    }
+  });
+  return found;
 };
 
 /**
@@ -630,13 +746,12 @@ export const shouldUseGetter = (
   cycleComponentByName: Map<string, number> | undefined
 ): boolean => {
   if (!currentSchemaName) return false;
+  if (!rep.node) {
+    throw new Error("SchemaRepresentation node missing (no-fallback mode).");
+  }
 
-  // Check if the expression directly references the current schema (self-recursion)
-  if (rep.expression === currentSchemaName) return true;
-
-  // Handle wrappers like .exactOptional() or z.lazy(() => RefName)
-  const selfRefPattern = new RegExp(`\\b${currentSchemaName}\\b`);
-  if (selfRefPattern.test(rep.expression)) return true;
+  const nodeRefs = collectRefNames(rep.node);
+  if (nodeRefs.has(currentSchemaName)) return true;
 
   // Check if expression contains a reference to a cycle member in the same SCC
   if (!cycleRefNames || cycleRefNames.size === 0) return false;
@@ -644,13 +759,11 @@ export const shouldUseGetter = (
   const currentComponent = cycleComponentByName?.get(currentSchemaName);
   if (currentComponent === undefined) return false;
 
-  for (const refName of cycleRefNames) {
-    const pattern = new RegExp(`\\b${refName}\\b`);
-    if (pattern.test(rep.expression)) {
-      const refComponent = cycleComponentByName?.get(refName);
-      if (refComponent === currentComponent) {
-        return true;
-      }
+  for (const refName of nodeRefs) {
+    if (!cycleRefNames.has(refName)) continue;
+    const refComponent = cycleComponentByName?.get(refName);
+    if (refComponent === currentComponent) {
+      return true;
     }
   }
 

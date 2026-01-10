@@ -3,6 +3,8 @@ import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { extractInlineObject } from "../utils/extractInlineObject.js";
 import { normalizeUnionMembers } from "../utils/normalizeUnion.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
+import { zodRef, zodUnion } from "../utils/schemaRepresentation.js";
 
 export const parseAnyOf = (
   schema: JsonSchemaObject & { anyOf: JsonSchema[] },
@@ -23,7 +25,7 @@ export const parseAnyOf = (
   const members: SchemaRepresentation[] = schema.anyOf.map((memberSchema, i) => {
     const extracted = extractInlineObject(memberSchema, refs, [...refs.path, "anyOf", i]);
     if (extracted) {
-      return { expression: extracted, type: `typeof ${extracted}` };
+      return zodRef(extracted);
     }
     return parseSchema(memberSchema, { ...refs, path: [...refs.path, "anyOf", i] });
   });
@@ -37,11 +39,6 @@ export const parseAnyOf = (
     return normalized[0]!;
   }
 
-  const expressions = normalized.map((m) => m.expression).join(", ");
-  const types = normalized.map((m) => m.type).join(", ");
-  const expression = `z.union([${expressions}])`;
-  // Use readonly tuple for union type annotations (required for recursive type inference)
-  const type = `z.ZodUnion<readonly [${types}]>`;
-
-  return { expression, type };
+  const union = zodUnion(normalized, { readonlyType: true });
+  return wrapRecursiveUnion(refs, union);
 };

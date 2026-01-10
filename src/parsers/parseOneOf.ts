@@ -3,6 +3,14 @@ import { parseSchema } from "./parseSchema.js";
 import { anyOrUnknown } from "../utils/anyOrUnknown.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
+import {
+  zodAny,
+  zodDiscriminatedUnion,
+  zodSuperRefine,
+  zodUnion,
+  zodXor,
+} from "../utils/schemaRepresentation.js";
 
 /**
  * Check if a schema is a "required-only" validation constraint.
@@ -52,12 +60,12 @@ const generateRequiredFieldsRefinement = (
   const refinementBody = `(obj, ctx) => { if (!(${conditions.join(" || ")})) { ctx.addIssue({ code: "custom", message: ${JSON.stringify(message)} }); } }`;
 
   // For standalone use, return z.any() with the refinement
-  const expression = `z.any().superRefine(${refinementBody})`;
+  const base = zodAny();
+  const refined = zodSuperRefine(base, refinementBody);
 
   return {
-    expression,
-    type: "z.ZodAny",
-    isRefinementOnly: true,
+    ...refined,
+    isRefinementOnly: true as const,
     refinementBody,
   };
 };
@@ -300,14 +308,32 @@ export const parseOneOf = (
       })
     );
 
-    const expressions = options.map((o) => o.expression).join(", ");
-    const types = options.map((o) => o.type).join(", ");
+    const union = zodDiscriminatedUnion(discriminator.key, options, { readonlyType: true });
+    return wrapRecursiveUnion(refs, union);
+  }
 
-    return {
-      expression: `z.discriminatedUnion("${discriminator.key}", [${expressions}])`,
-      // Use readonly tuple for union type annotations (required for recursive type inference)
-      type: `z.ZodDiscriminatedUnion<"${discriminator.key}", readonly [${types}]>`,
-    };
+  const parsedSchemas = schema.oneOf.map((s, i) => {
+    const parsed = parseSchema(s, {
+      ...refs,
+      path: [...refs.path, "oneOf", i],
+    });
+
+    return parsed;
+  });
+
+  const override = getOneOfOverride(schema, refs);
+  const strategy = refs.recursiveOneOfStrategy ?? "auto";
+  const strategyToUse =
+    override ??
+    (strategy === "union" || strategy === "xor"
+      ? strategy
+      : shouldUseUnionForRecursiveOneOf(refs, parsedSchemas)
+        ? "union"
+        : "xor");
+
+  if (strategyToUse === "union") {
+    const union = zodUnion(parsedSchemas, { readonlyType: true });
+    return wrapRecursiveUnion(refs, union);
   }
 
   // Fallback: Use z.xor for exclusive unions
@@ -325,23 +351,46 @@ export const parseOneOf = (
   // It says "Unlike regular unions that succeed when any option matches, xor fails if zero or more than one option matches the input."
   // Perfect.
 
-  const parsedSchemas = schema.oneOf.map((s, i) => {
-    const parsed = parseSchema(s, {
-      ...refs,
-      path: [...refs.path, "oneOf", i],
-    });
+  const xor = zodXor(parsedSchemas, { readonlyType: true });
+  return wrapRecursiveUnion(refs, xor);
+};
 
-    return parsed;
-  });
+const getOneOfOverride = (
+  schema: JsonSchemaObject & { oneOf: JsonSchema[] },
+  refs: Refs
+): "union" | "xor" | undefined => {
+  const overrides = refs.oneOfOverrides;
+  if (!overrides) {
+    return undefined;
+  }
 
-  const expressions = parsedSchemas.map((r) => r.expression).join(", ");
-  const types = parsedSchemas.map((r) => r.type).join(", ");
+  const current = refs.currentSchemaName;
+  if (current && overrides[current]) {
+    return overrides[current];
+  }
 
-  const expression = `z.xor([${expressions}])`;
-  const type = `z.ZodXor<readonly [${types}]>`;
+  if (current) {
+    const withoutSuffix = current.endsWith("Schema") ? current.slice(0, -"Schema".length) : current;
+    if (withoutSuffix && overrides[withoutSuffix]) {
+      return overrides[withoutSuffix];
+    }
+  }
 
-  return {
-    expression,
-    type,
-  };
+  if (typeof schema.title === "string" && overrides[schema.title]) {
+    return overrides[schema.title];
+  }
+
+  return undefined;
+};
+
+const shouldUseUnionForRecursiveOneOf = (
+  refs: Refs,
+  parsedSchemas: SchemaRepresentation[]
+): boolean => {
+  const current = refs.currentSchemaName;
+  const isRecursive = current ? (refs.cycleRefNames?.has(current) ?? false) : false;
+  const inCatchall = current ? (refs.catchallRefNames?.has(current) ?? false) : false;
+  const hasLazyMembers = parsedSchemas.some((rep) => rep.node?.kind === "lazy");
+
+  return Boolean(isRecursive && (inCatchall || hasLazyMembers));
 };

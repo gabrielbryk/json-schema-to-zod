@@ -1,5 +1,6 @@
 import { JsonSchemaObject, JsonSchema, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
+import { zodMeta, zodSuperRefine, zodUnion } from "../utils/schemaRepresentation.js";
 
 export const parseIfThenElse = (
   schema: JsonSchemaObject & {
@@ -19,7 +20,7 @@ export const parseIfThenElse = (
     path: [...refs.path, "else"],
   });
 
-  let expression = `z.union([${$then.expression}, ${$else.expression}]).superRefine((value,ctx) => {
+  const refinement = `(value,ctx) => {
   const result = ${$if.expression}.safeParse(value).success
     ? ${$then.expression}.safeParse(value)
     : ${$else.expression}.safeParse(value);
@@ -27,7 +28,9 @@ export const parseIfThenElse = (
     const issues = result.error.issues;
     issues.forEach((issue) => ctx.addIssue({ ...issue }))
   }
-})`;
+}`;
+
+  let result = zodSuperRefine(zodUnion([$then, $else]), refinement);
 
   // Store original if/then/else for JSON Schema round-trip
   if (refs.preserveJsonSchemaForRoundTrip) {
@@ -36,12 +39,8 @@ export const parseIfThenElse = (
       then: schema.then,
       else: schema.else,
     });
-    expression += `.meta({ __jsonSchema: { conditional: ${conditionalMeta} } })`;
+    result = zodMeta(result, `{ __jsonSchema: { conditional: ${conditionalMeta} } }`);
   }
 
-  return {
-    expression,
-    // In Zod v4, .superRefine() doesn't change the type
-    type: `z.ZodUnion<[${$then.type}, ${$else.type}]>`,
-  };
+  return result;
 };

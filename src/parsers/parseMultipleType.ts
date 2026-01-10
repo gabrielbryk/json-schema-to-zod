@@ -1,6 +1,8 @@
 import { JsonSchemaObject, Refs, SchemaRepresentation } from "../Types.js";
 import { parseSchema } from "./parseSchema.js";
 import { normalizeUnionMembers } from "../utils/normalizeUnion.js";
+import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
+import { zodNever, zodUnion } from "../utils/schemaRepresentation.js";
 
 export const parseMultipleType = (
   schema: JsonSchemaObject & { type: string[] },
@@ -13,18 +15,12 @@ export const parseMultipleType = (
 
   const normalized = normalizeUnionMembers(schemas, { foldNullable: true });
   if (normalized.length === 0) {
-    return { expression: "z.never()", type: "z.ZodNever" };
+    return zodNever();
   }
 
   if (normalized.length === 1) {
     return normalized[0]!;
   }
 
-  const expressions = normalized.map((s) => s.expression).join(", ");
-  const types = normalized.map((s) => s.type).join(", ");
-
-  return {
-    expression: `z.union([${expressions}])`,
-    type: `z.ZodUnion<[${types}]>`,
-  };
+  return wrapRecursiveUnion(refs, zodUnion(normalized));
 };

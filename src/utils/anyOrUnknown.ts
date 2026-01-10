@@ -1,4 +1,5 @@
 import type { Refs, SchemaRepresentation } from "../Types.js";
+import { zodAny, zodUnknown } from "./schemaRepresentation.js";
 
 /**
  * Returns a SchemaRepresentation for z.unknown() if the useUnknown option is enabled,
@@ -9,7 +10,5 @@ import type { Refs, SchemaRepresentation } from "../Types.js";
  * @returns The appropriate Zod schema representation
  */
 export const anyOrUnknown = (refs?: Refs): SchemaRepresentation => {
-  return refs?.useUnknown
-    ? { expression: "z.unknown()", type: "z.ZodUnknown" }
-    : { expression: "z.any()", type: "z.ZodAny" };
+  return refs?.useUnknown ? zodUnknown() : zodAny();
 };

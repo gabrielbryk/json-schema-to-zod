@@ -1,6 +1,4 @@
 import { SchemaRepresentation } from "../Types.js";
+import { zodBoolean } from "../utils/schemaRepresentation.js";
 
-export const parseBoolean = (): SchemaRepresentation => ({
-  expression: "z.boolean()",
-  type: "z.ZodBoolean",
-});
+export const parseBoolean = (): SchemaRepresentation => zodBoolean();

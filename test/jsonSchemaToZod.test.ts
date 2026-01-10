@@ -1,5 +1,6 @@
 import { JsonSchema } from "../src/Types.js";
 import jsonSchemaToZod from "../src/index.js";
+import { zodRef } from "../src/utils/schemaRepresentation.js";
 import { suite } from "./suite.js";
 import { normalizeCode } from "./utils/normalizeCode.js";
 import { getDefaultExport, hasImportZod } from "./utils/assertCode.js";
@@ -288,7 +289,7 @@ export default z.null()
               schema.type === "boolean" &&
               schema.description === "foo"
             ) {
-              return "myCustomZodSchema";
+              return zodRef("myCustomZodSchema");
             }
           },
         }
@@ -465,6 +466,40 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
 
     assert(output.includes("export const NodeSchema"));
     assert(output.includes("export const Node = NodeSchema"));
+  });
+
+  test("wraps recursive discriminated unions in z.lazy when enabled", (assert) => {
+    const schema = {
+      $defs: {
+        Node: {
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                kind: { const: "A" },
+                child: { $ref: "#/$defs/Node" },
+              },
+              required: ["kind"],
+            },
+            {
+              type: "object",
+              properties: {
+                kind: { const: "B" },
+              },
+              required: ["kind"],
+            },
+          ],
+        },
+      },
+      $ref: "#/$defs/Node",
+    };
+
+    const output = jsonSchemaToZod(schema, {
+      name: "Root",
+      lazyRecursiveUnions: true,
+    });
+
+    assert(output.includes('z.lazy(() => z.discriminatedUnion("kind"'));
   });
 
   test("supports naming customization for schema and type exports", (assert) => {
