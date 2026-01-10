@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.15.0
+
+### Minor Changes
+
+- e25f255: Add configurable strategy for recursive oneOf handling, defaulting to union for recursive catchall cases to avoid Zod xor+lazy validation bugs. Also add serverless workflow e2e validation coverage.
+
 ## 2.14.2
 
 ### Patch Changes
