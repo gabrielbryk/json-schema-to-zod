@@ -5,6 +5,7 @@ import { resolveRef } from "../utils/resolveRef.js";
 import { collectSchemaProperties } from "../utils/collectSchemaProperties.js";
 import { wrapRecursiveUnion } from "../utils/wrapRecursiveUnion.js";
 import {
+  collectRefNames,
   zodAny,
   zodDiscriminatedUnion,
   zodSuperRefine,
@@ -392,5 +393,12 @@ const shouldUseUnionForRecursiveOneOf = (
   const inCatchall = current ? (refs.catchallRefNames?.has(current) ?? false) : false;
   const hasLazyMembers = parsedSchemas.some((rep) => rep.node?.kind === "lazy");
 
-  return Boolean(isRecursive && (inCatchall || hasLazyMembers));
+  // Check if any option contains a direct self-reference (references the current schema).
+  // This handles cases where recursive schemas use direct references instead of z.lazy().
+  // Without z.lazy(), z.xor() validation fails on these self-referential branches.
+  const hasSelfReference = current
+    ? parsedSchemas.some((rep) => rep.node && collectRefNames(rep.node).has(current))
+    : false;
+
+  return Boolean(isRecursive && (inCatchall || hasLazyMembers || hasSelfReference));
 };

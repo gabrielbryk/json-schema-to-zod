@@ -122,4 +122,52 @@ describe("ref resolution", () => {
     expect(mod.default.safeParse({ foo: "ok" }).success).toBe(true);
     expect(mod.default.safeParse({ foo: "x" }).success).toBe(false);
   });
+
+  test("oneOf with direct self-reference uses union (not xor)", async () => {
+    // This test verifies the fix for EventConsumptionStrategy-like patterns
+    // where oneOf contains a branch with a direct self-reference.
+    // z.xor() validation fails on direct self-references during parsing,
+    // so we must detect this and use z.union() instead.
+    const schema: JsonSchema = {
+      $defs: {
+        // Pattern similar to EventConsumptionStrategy from serverless workflow spec
+        consumptionStrategy: {
+          oneOf: [
+            // Simple cases
+            { type: "object", properties: { all: { type: "boolean" } } },
+            { type: "object", properties: { any: { type: "boolean" } } },
+            // Self-referencing case (the problematic pattern)
+            {
+              allOf: [
+                { $ref: "#/$defs/consumptionStrategy" },
+                { type: "object", properties: { until: { type: "string" } } },
+              ],
+            },
+          ],
+        },
+      },
+      type: "object",
+      properties: {
+        strategy: { $ref: "#/$defs/consumptionStrategy" },
+      },
+    };
+
+    const analysis = analyzeSchema(schema);
+    const code = emitZod(analysis);
+
+    // Verify that the generated code uses z.union for the recursive oneOf
+    // (not z.xor which would fail on self-references)
+    expect(code).toContain("z.union");
+
+    // Also verify it does NOT use z.xor for this pattern
+    // (xor validation fails when self-references are evaluated)
+    expect(code).not.toContain("z.xor");
+
+    // Verify the self-reference is wrapped in z.lazy()
+    expect(code).toContain("z.lazy(() => ConsumptionStrategySchema)");
+
+    // Verify the schema structure is correct
+    expect(code).toContain("ConsumptionStrategySchema");
+    expect(code).toContain("z.intersection");
+  });
 });
