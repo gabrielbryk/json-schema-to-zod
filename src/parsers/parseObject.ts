@@ -14,6 +14,7 @@ import {
   zodExactOptional,
   zodLooseObject,
   zodLooseRecord,
+  zodOptional,
   zodStrictObject,
   zodString,
   zodSuperRefine,
@@ -108,7 +109,11 @@ export function parseObject(
 
       const isOptional = !hasDefault && !isRequired;
 
-      const valueRep = isOptional ? zodExactOptional(parsedProp) : parsedProp;
+      const valueRep = isOptional
+        ? refs.optionalStrategy === "optional"
+          ? zodOptional(parsedProp)
+          : zodExactOptional(parsedProp)
+        : parsedProp;
       const jsdoc =
         refs.withJsdocs &&
         typeof propSchema === "object" &&

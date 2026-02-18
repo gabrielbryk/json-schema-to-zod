@@ -792,4 +792,54 @@ issues: result.error.issues
 
     assert(expression.includes("deps missing"), true);
   });
+
+  test('optionalStrategy "optional" - uses .optional() for optional properties', (assert) => {
+    assert(
+      parseObject(
+        {
+          type: "object",
+          required: ["myRequiredString"],
+          properties: {
+            myOptionalString: { type: "string" },
+            myRequiredString: { type: "string" },
+          },
+        },
+        { path: [], seen: new Map(), optionalStrategy: "optional" }
+      ),
+      'z.looseObject({ "myOptionalString": z.string().optional(), "myRequiredString": z.string() })'
+    );
+  });
+
+  test('optionalStrategy "exactOptional" - explicit default preserves .exactOptional()', (assert) => {
+    assert(
+      parseObject(
+        {
+          type: "object",
+          properties: {
+            myOptionalString: { type: "string" },
+            myRequiredString: { type: "string" },
+          },
+          required: ["myRequiredString"],
+        },
+        { path: [], seen: new Map(), optionalStrategy: "exactOptional" }
+      ),
+      'z.looseObject({ "myOptionalString": z.string().exactOptional(), "myRequiredString": z.string() })'
+    );
+  });
+
+  test('optionalStrategy "optional" - property with default is not wrapped in .optional()', (assert) => {
+    assert(
+      parseObject(
+        {
+          type: "object",
+          properties: {
+            withDefault: { type: "string", default: "hello" },
+            withoutDefault: { type: "string" },
+          },
+        },
+        { path: [], seen: new Map(), optionalStrategy: "optional" }
+      ),
+      'z.looseObject({ "withDefault": z.string().default("hello"), "withoutDefault": z.string().optional() })'
+    );
+  });
 });
