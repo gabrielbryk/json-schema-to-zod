@@ -1,9 +1,19 @@
+import { createRequire } from "module";
+import { pathToFileURL } from "url";
 import { analyzeSchema } from "../src/core/analyzeSchema.js";
 import { emitZod } from "../src/core/emitZod.js";
 import { JsonSchema } from "../src/Types.js";
 
+const _require = createRequire(import.meta.url);
+
 const evalZod = async (code: string) => {
-  const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`;
+  // Substitute an absolute file:// URL for the bare "zod" specifier so that
+  // the module can be resolved from a data: URI context. jest@30 can no
+  // longer do bare-specifier resolution from data: URLs (no filesystem base),
+  // so we pre-resolve the path here and embed it directly.
+  const zodUrl = pathToFileURL(_require.resolve("zod")).href;
+  const resolvedCode = code.replace(`from "zod"`, `from ${JSON.stringify(zodUrl)}`);
+  const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(resolvedCode)}`;
   return import(url);
 };
 
