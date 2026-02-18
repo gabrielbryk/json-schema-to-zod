@@ -211,6 +211,21 @@ export type Options = {
    */
   oneOfOverrides?: Record<string, "union" | "xor">;
   /**
+   * Controls which Zod modifier is used for optional object properties
+   * (those absent from `required` and without a `default`).
+   *
+   * - `"exactOptional"` (default): emits `.exactOptional()`.
+   *   The key must be entirely absent at runtime; a present `undefined` fails.
+   * - `"optional"`: emits `.optional()`.
+   *   The key may be present with `undefined` or absent entirely.
+   *
+   * Use `"optional"` when callers may include keys with `undefined` values,
+   * which is common when spreading objects or using optional chaining.
+   *
+   * @default "exactOptional"
+   */
+  optionalStrategy?: "exactOptional" | "optional";
+  /**
    * Wrap recursive union schemas in z.lazy() to improve TypeScript inference.
    * This is useful for mutually recursive discriminated unions with optional properties.
    * @default false

@@ -7,6 +7,7 @@ import {
   zodIntersection,
   zodLooseObject,
   zodNever,
+  zodOptional,
 } from "../utils/schemaRepresentation.js";
 
 const originalIndexKey = "__originalIndex";
@@ -50,7 +51,11 @@ const parseObjectShape = (
       : typeof propSchema === "object" && propSchema.required === true;
     const optional = !hasDefault && !required;
 
-    const valueRep = optional ? zodExactOptional(parsedProp) : parsedProp;
+    const valueRep = optional
+      ? refs.optionalStrategy === "optional"
+        ? zodOptional(parsedProp)
+        : zodExactOptional(parsedProp)
+      : parsedProp;
     const isGetter = shouldUseGetter(
       valueRep,
       refs.currentSchemaName,
