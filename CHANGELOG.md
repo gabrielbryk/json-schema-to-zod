@@ -1,5 +1,11 @@
 # @gabrielbryk/json-schema-to-zod
 
+## 2.16.1
+
+### Patch Changes
+
+- b764b8e: Move `typescript` from `devDependencies` to `dependencies`. The library uses the TypeScript compiler API at runtime in `esmEmitter.ts` to format generated output; without this change, consumers who install the package without dev dependencies would receive a runtime crash.
+
 ## 2.16.0
 
 ### Minor Changes
