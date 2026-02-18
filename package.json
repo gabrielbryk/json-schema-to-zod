@@ -1,6 +1,6 @@
 {
   "name": "@gabrielbryk/json-schema-to-zod",
-  "version": "2.15.2",
+  "version": "2.16.0",
   "description": "Converts JSON schema objects or files into Zod schemas",
   "type": "module",
   "types": "./dist/types/index.d.ts",
