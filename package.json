@@ -32,7 +32,8 @@
     "local-release": "changeset version && changeset publish",
     "release": "changeset publish",
     "prepublishOnly": "pnpm run ci",
-    "smoke:esm": "pnpm build:esm && node --input-type=module -e \"import { jsonSchemaToZod } from './dist/index.js'; console.log(jsonSchemaToZod({type:'string'}));\""
+    "smoke:esm": "pnpm build:esm && node --input-type=module -e \"import { jsonSchemaToZod } from './dist/index.js'; console.log(jsonSchemaToZod({type:'string'}));\"",
+    "smoke:consumer": "bash scripts/smoke-consumer.sh"
   },
   "packageManager": "pnpm@10.25.0",
   "c8": {

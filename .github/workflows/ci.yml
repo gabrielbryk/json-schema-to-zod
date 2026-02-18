@@ -31,3 +31,6 @@ jobs:
 
       - name: Run CI
         run: pnpm run ci
+
+      - name: Consumer smoke test (production install)
+        run: pnpm run smoke:consumer
