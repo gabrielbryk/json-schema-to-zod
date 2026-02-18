@@ -528,4 +528,38 @@ export default z.discriminatedUnion("kind", [z.looseObject({ "kind": z.literal("
     assert(output.includes("export const Workflow = Task"));
     assert(output.includes("export type WorkflowType = z.infer<typeof Workflow>"));
   });
+
+  test('optionalStrategy "optional" - emits .optional() for optional properties end-to-end', (assert) => {
+    const output = jsonSchemaToZod(
+      {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string" },
+          age: { type: "number" },
+        },
+      },
+      { noImport: true, optionalStrategy: "optional" }
+    );
+
+    assert(output.includes(".optional()"), true);
+    assert(!output.includes(".exactOptional()"), true);
+  });
+
+  test("optionalStrategy default - emits .exactOptional() for optional properties", (assert) => {
+    const output = jsonSchemaToZod(
+      {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string" },
+          age: { type: "number" },
+        },
+      },
+      { noImport: true }
+    );
+
+    assert(output.includes(".exactOptional()"), true);
+    assert(!output.includes(".optional()"), true);
+  });
 });
